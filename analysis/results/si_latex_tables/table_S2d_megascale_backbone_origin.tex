@@ -1,0 +1,24 @@
+\begin{table}[H]
+\centering
+\caption{\textbf{Main Model Comparison on Homology-Restricted MegaScale Test Set Stratified by Backbone Stability and Domain Origin}. Mean per-library Spearman's $\rho$, Pearson's $r$, and raw RMSE (kcal/mol) stratified by wild-type backbone type (native vs.\ pre-destabilized mutant backgrounds) and protein origin (natural vs.\ de novo synthetic domains). One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). Best values in each metric column are indicated in bold.}
+\label{tab:si_megascale_backbone_origin}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccccccccccccc}
+\toprule
+{} & \multicolumn{4}{c}{Native Backbone ($n$=40,866)} & \multicolumn{4}{c}{Destabilized Backbone ($n$=7,874)} & \multicolumn{4}{c}{Natural Domains ($n$=37,542)} & \multicolumn{4}{c}{Synthetic Domains ($n$=11,198)} \\
+\cmidrule(lr){2-5} \cmidrule(lr){6-9} \cmidrule(lr){10-13} \cmidrule(lr){14-17}
+ID & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ \\
+\midrule
+ESM-MSR & \textbf{0.827} & \textbf{0.832} & 0.640 & --- & \textbf{0.879} & \textbf{0.855} & 0.675 & --- & \textbf{0.845} & \textbf{0.839} & 0.675 & --- & \textbf{0.811} & \textbf{0.822} & 0.590 & --- \\
+SPURS & 0.796 & 0.809 & \textbf{0.613} & 0.005 & 0.845 & 0.834 & 0.632 & $<10^{-4}$ & 0.821 & 0.823 & \textbf{0.648} & 0.043 & 0.770 & 0.794 & \textbf{0.552} & 0.001 \\
+Mutate Everything & 0.761 & 0.782 & 0.629 & $<10^{-4}$ & 0.849 & 0.830 & \textbf{0.624} & $<10^{-4}$ & 0.802 & 0.805 & 0.666 & 0.001 & 0.720 & 0.750 & 0.567 & $<10^{-4}$ \\
+ThermoMPNN & 0.781 & 0.788 & 0.635 & $<10^{-4}$ & 0.819 & 0.802 & 0.633 & $<10^{-4}$ & 0.797 & 0.794 & 0.660 & 0.0005 & 0.765 & 0.778 & 0.576 & $<10^{-4}$ \\
+GeoDDG-3D & 0.596 & 0.608 & 0.911 & $<10^{-4}$ & 0.751 & 0.734 & 0.903 & $<10^{-4}$ & 0.663 & 0.665 & 0.980 & $<10^{-4}$ & 0.525 & 0.546 & 0.808 & $<10^{-4}$ \\
+Rosetta & 0.661 & 0.617 & 1.956 & $<10^{-4}$ & 0.703 & 0.585 & 2.132 & $<10^{-4}$ & 0.686 & 0.620 & 2.009 & $<10^{-4}$ & 0.627 & 0.597 & 1.918 & $<10^{-4}$ \\
+ESM3-small-open & 0.564 & 0.579 & 1.139 & $<10^{-4}$ & 0.645 & 0.628 & 1.287 & $<10^{-4}$ & 0.622 & 0.622 & 1.218 & $<10^{-4}$ & 0.481 & 0.507 & 1.079 & $<10^{-4}$ \\
+ProteinMPNN & 0.537 & 0.519 & 3.113 & $<10^{-4}$ & 0.636 & 0.631 & 2.664 & $<10^{-4}$ & 0.627 & 0.617 & 3.162 & $<10^{-4}$ & 0.410 & 0.389 & 2.959 & $<10^{-4}$ \\
+ProSST & 0.592 & 0.626 & 6.679 & $<10^{-4}$ & 0.703 & 0.679 & 6.643 & $<10^{-4}$ & 0.663 & 0.673 & 7.330 & $<10^{-4}$ & 0.495 & 0.546 & 5.713 & $<10^{-4}$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table}

@@ -1,0 +1,24 @@
+\begin{table}[H]
+\centering
+\caption{\textbf{Main Model Comparison on Homology-Restricted MegaScale Test Set (Overall, Stabilizing, and Destabilizing Variants)}. Mean per-domain Spearman's $\rho$, Pearson's $r$, and raw RMSE (kcal/mol) across the 33 held-out MegaScale test domains (3-seed mean for retrained models; no comparator has training homology overlap). One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired domain-cluster $\times$ training-seed bootstrap ($B=10{,}000$; uncorrected; Bonferroni adjustment uses $m=8$ comparators). Best values in each metric column are indicated in bold (highest $\rho$, highest $r$, lowest RMSE).}
+\label{tab:si_megascale_overall}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccccccccc}
+\toprule
+{} & \multicolumn{4}{c}{Overall ($n$=48,740)} & \multicolumn{4}{c}{Stabilizing ($\Delta\Delta G>0$, $n$=7,417)} & \multicolumn{4}{c}{Destabilizing ($\Delta\Delta G\le 0$, $n$=41,323)} \\
+\cmidrule(lr){2-5} \cmidrule(lr){6-9} \cmidrule(lr){10-13}
+ID & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ \\
+\midrule
+ESM-MSR & \textbf{0.832} & \textbf{0.832} & 0.642 & --- & \textbf{0.293} & \textbf{0.272} & \textbf{0.488} & --- & \textbf{0.811} & \textbf{0.817} & 0.666 & --- \\
+SPURS & 0.801 & 0.811 & \textbf{0.610} & 0.002 & 0.257 & 0.249 & 0.554 & 0.070 & 0.779 & 0.792 & \textbf{0.611} & 0.003 \\
+Mutate Everything & 0.770 & 0.784 & 0.627 & $<10^{-4}$ & 0.158 & 0.130 & 0.538 & $<10^{-4}$ & 0.755 & 0.771 & 0.631 & $<10^{-4}$ \\
+ThermoMPNN & 0.784 & 0.788 & 0.627 & $<10^{-4}$ & 0.219 & 0.199 & 0.554 & 0.0004 & 0.760 & 0.767 & 0.630 & $<10^{-4}$ \\
+GeoDDG-3D & 0.609 & 0.618 & 0.912 & $<10^{-4}$ & 0.189 & 0.221 & 0.619 & 0.0005 & 0.566 & 0.573 & 0.950 & $<10^{-4}$ \\
+Rosetta & 0.663 & 0.611 & 1.973 & $<10^{-4}$ & 0.079 & 0.035 & 1.192 & $<10^{-4}$ & 0.650 & 0.593 & 2.102 & $<10^{-4}$ \\
+ESM3-small-open & 0.566 & 0.577 & 1.163 & $<10^{-4}$ & 0.017 & 0.017 & 1.283 & $<10^{-4}$ & 0.557 & 0.566 & 1.128 & $<10^{-4}$ \\
+ProteinMPNN & 0.542 & 0.527 & 3.082 & $<10^{-4}$ & 0.062 & 0.065 & 2.571 & $<10^{-4}$ & 0.503 & 0.482 & 3.148 & $<10^{-4}$ \\
+ProSST & 0.596 & 0.623 & 6.693 & $<10^{-4}$ & 0.049 & 0.059 & 4.610 & $<10^{-4}$ & 0.593 & 0.616 & 7.006 & $<10^{-4}$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table}

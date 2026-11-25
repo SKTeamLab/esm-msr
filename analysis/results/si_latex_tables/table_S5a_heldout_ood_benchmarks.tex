@@ -1,0 +1,26 @@
+\begin{table}[H]
+\centering
+\caption{\textbf{Main Model Comparison on Large-Scale Held-Out Out-of-Distribution Benchmarks}. Comparison across four homology-held-out benchmarks: ProteinGym (173 held-out DMS assays, equal-category-weighted macro-average Spearman's $\rho$ and Pearson's $r$; RMSE omitted because assays span heterogeneous fitness units), Domainome (436 held-out domains, $n=451{,}569$), MGnify stability ($n=612{,}406$ variants across 140,694 held-out scaffolds), and Rocklin de novo designs ($n=109{,}581$ variants across 623 held-out scaffolds). One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired cluster/assay $\times$ seed bootstrap ($B=10{,}000$ on ProteinGym/Domainome; $B=1{,}000$ on MGnify/Rocklin; uncorrected). Best values among clean external models (excluding internal $\sigma=0.5$ variant and overlapping models) are indicated in bold. $^*$Documented training overlap (ESM3$\Delta G$: H 2\% on ProteinGym; trained directly on MGnify stability data). --- indicates not evaluated or not applicable.}
+\label{tab:si_heldout_ood}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lccccccccccccccc}
+\toprule
+{} & \multicolumn{3}{c}{ProteinGym (173 assays)} & \multicolumn{4}{c}{Domainome (436 domains)} & \multicolumn{4}{c}{MGnify ($n$=612,406)} & \multicolumn{4}{c}{Rocklin Designs ($n$=109,581)} \\
+\cmidrule(lr){2-4} \cmidrule(lr){5-8} \cmidrule(lr){9-12} \cmidrule(lr){13-16}
+ID & $\rho$ & $r$ & $p$ & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ \\
+\midrule
+ESM-MSR & 0.509 & 0.518 & --- & 0.540 & \textbf{0.600} & 1.222 & --- & \textbf{0.644} & \textbf{0.692} & \textbf{0.722} & --- & \textbf{0.454} & \textbf{0.436} & \textbf{0.748} & --- \\
+ESM-MSR ($\sigma$=0.5) & 0.509 & 0.508 & 0.457 & 0.568 & 0.612 & 1.521 & 1.000 & 0.576 & 0.640 & 0.821 & $<10^{-3}$ & 0.417 & 0.417 & 0.811 & $<10^{-3}$ \\
+SPURS & 0.457 & 0.465 & $<10^{-4}$ & 0.480 & 0.503 & 0.884 & $<10^{-4}$ & 0.589 & 0.612 & 0.742 & $<10^{-3}$ & 0.252 & 0.228 & 1.279 & $<10^{-3}$ \\
+Mutate Everything & 0.455 & 0.463 & $<10^{-4}$ & 0.510 & 0.555 & 0.975 & $<10^{-4}$ & --- & --- & --- & --- & 0.229 & 0.211 & 1.338 & $<10^{-3}$ \\
+ThermoMPNN & 0.439 & 0.442 & $<10^{-4}$ & 0.435 & 0.460 & 0.810 & $<10^{-4}$ & 0.550 & 0.584 & 0.815 & $<10^{-3}$ & 0.187 & 0.168 & 1.357 & $<10^{-3}$ \\
+GeoDDG-3D & 0.384 & 0.384 & $<10^{-4}$ & 0.411 & 0.462 & 1.133 & $<10^{-4}$ & 0.436 & 0.473 & 1.036 & $<10^{-3}$ & 0.214 & 0.181 & 1.348 & $<10^{-3}$ \\
+ESM3$\Delta G$ & 0.381$^*$ & 0.398 & $<10^{-4}$ & 0.501 & 0.539 & \textbf{0.744} & $<10^{-4}$ & 0.686$^*$ & 0.742 & 0.642 & 1.000 & 0.384$^*$ & 0.343 & 0.748 & $<10^{-3}$ \\
+Rosetta & 0.378 & 0.377 & $<10^{-4}$ & --- & --- & --- & --- & --- & --- & --- & --- & --- & --- & --- & --- \\
+ESM3-small-open & 0.447 & 0.438 & $<10^{-4}$ & \textbf{0.550} & 0.576 & 1.500 & 0.998 & 0.376 & 0.427 & 1.738 & $<10^{-3}$ & 0.111 & 0.104 & 3.018 & $<10^{-3}$ \\
+ProteinMPNN & 0.409 & 0.392 & $<10^{-4}$ & 0.544 & 0.536 & 3.012 & 0.854 & 0.388 & 0.417 & 2.927 & $<10^{-3}$ & 0.114 & 0.094 & 5.803 & $<10^{-3}$ \\
+ProSST & \textbf{0.513} & \textbf{0.530} & 0.623 & 0.527 & 0.574 & 7.259 & 0.0004 & 0.403 & 0.458 & 7.080 & $<10^{-3}$ & 0.114 & 0.092 & 14.514 & $<10^{-3}$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table}

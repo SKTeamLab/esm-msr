@@ -1,0 +1,47 @@
+\begin{table}[H]
+\centering
+\caption{\textbf{Main Model Comparison on Full MegaScale Split Test Set: Overall, Stabilizing, and Destabilizing Variants}. Mean per-domain Spearman's $\rho$, Pearson's $r$, and raw RMSE (kcal/mol) across the 28 test domains of the full MegaScale split (\texttt{mega\_splits}). One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). Best values in each metric column are indicated in bold.}
+\label{tab:si_megasplits_overall}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccccccccc}
+\toprule
+{} & \multicolumn{4}{c}{Overall ($n$=49,048)} & \multicolumn{4}{c}{Stabilizing ($n$=8,791)} & \multicolumn{4}{c}{Destabilizing ($n$=40,257)} \\
+\cmidrule(lr){2-5} \cmidrule(lr){6-9} \cmidrule(lr){10-13}
+ID & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ \\
+\midrule
+ESM-MSR & \textbf{0.820} & \textbf{0.835} & 0.928 & --- & 0.289 & 0.268 & 0.625 & --- & \textbf{0.804} & \textbf{0.810} & 0.982 & --- \\
+SPURS & 0.801 & 0.823 & \textbf{0.754} & 0.032 & \textbf{0.299} & \textbf{0.288} & 0.607 & 0.694 & 0.777 & 0.790 & 0.772 & 0.010 \\
+Mutate Everything & 0.775 & 0.805 & 0.779 & 0.0002 & 0.221 & 0.212 & \textbf{0.576} & 0.0008 & 0.757 & 0.776 & 0.808 & 0.0003 \\
+ThermoMPNN & 0.779 & 0.795 & 0.760 & 0.0006 & 0.239 & 0.199 & 0.625 & 0.003 & 0.752 & 0.758 & \textbf{0.768} & $<10^{-4}$ \\
+Rosetta & 0.675 & 0.645 & 2.182 & $<10^{-4}$ & 0.097 & 0.062 & 1.228 & $<10^{-4}$ & 0.657 & 0.612 & 2.384 & $<10^{-4}$ \\
+ESM3-small-open & 0.594 & 0.605 & 1.441 & $<10^{-4}$ & $-$0.000 & $-$0.028 & 1.532 & $<10^{-4}$ & 0.586 & 0.585 & 1.416 & $<10^{-4}$ \\
+ProteinMPNN & 0.596 & 0.583 & 3.562 & $<10^{-4}$ & 0.078 & 0.064 & 2.784 & $<10^{-4}$ & 0.567 & 0.545 & 3.692 & $<10^{-4}$ \\
+ProSST & 0.642 & 0.674 & 7.835 & $<10^{-4}$ & 0.041 & 0.031 & 5.070 & $<10^{-4}$ & 0.645 & 0.658 & 8.375 & $<10^{-4}$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{\textbf{Main Model Comparison on Full MegaScale Split Test Set: Double Mutants (Epistatic vs. Additive Readout)}. Mean per-domain Spearman's $\rho$, Pearson's $r$, and raw RMSE (kcal/mol) across the 20 double-mutant test domains of \texttt{mega\_splits} ($n=18{,}574$ doubles). One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). Best values in each metric column are indicated in bold.}
+\label{tab:si_megasplits_doubles}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccccc}
+\toprule
+{} & \multicolumn{4}{c}{Epistatic Readout ($n$=18,574)} & \multicolumn{4}{c}{Additive Readout ($n$=18,574)} \\
+\cmidrule(lr){2-5} \cmidrule(lr){6-9}
+ID & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ \\
+\midrule
+ESM-MSR & \textbf{0.662} & \textbf{0.674} & 1.434 & --- & 0.564 & \textbf{0.582} & 2.080 & --- \\
+SPURS & 0.598 & 0.612 & 1.040 & 0.019 & \textbf{0.567} & 0.579 & 1.555 & 0.589 \\
+Mutate Everything & 0.595 & 0.625 & 1.041 & 0.008 & 0.509 & 0.527 & 1.714 & 0.012 \\
+ThermoMPNN & 0.615 & 0.626 & \textbf{0.946} & 0.072 & 0.557 & 0.572 & \textbf{1.308} & 0.357 \\
+Rosetta & 0.459 & 0.448 & 2.805 & $<10^{-4}$ & 0.421 & 0.418 & 3.258 & $<10^{-4}$ \\
+ESM3-small-open & 0.353 & 0.370 & 1.561 & $<10^{-4}$ & 0.347 & 0.366 & 2.778 & $<10^{-4}$ \\
+ProteinMPNN & 0.287 & 0.317 & 5.399 & $<10^{-4}$ & 0.273 & 0.300 & 5.795 & $<10^{-4}$ \\
+ProSST & --- & --- & --- & --- & 0.370 & 0.390 & 12.221 & $<10^{-4}$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table}

@@ -1,0 +1,26 @@
+\begin{table}[H]
+\centering
+\caption{\textbf{Epistasis $\Delta\Delta\Delta G$ Calibration (RMSE, Pearson $r$) and Sign Classification (MCC) on MegaScale Test Doubles}. Epistasis calibration RMSE (kcal/mol, lower is better) and Pearson's $r$ on all 12,455 test doubles and on the 7,405 non-floor doubles ($\Delta G_{\mathrm{add}}>0$), alongside Matthews Correlation Coefficient (MCC) for classifying epistasis sign on raw $\Delta\Delta\Delta G>0$ and saturation-corrected residuals $r>0$. One-sided $p$-values test ESM-MSR superiority (lower RMSE or higher MCC) via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). Best values in each metric column are indicated in bold.}
+\label{tab:si_epistasis_calibration_mcc}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccccccc}
+\toprule
+{} & \multicolumn{3}{c}{All Doubles ($n$=12,455)} & \multicolumn{3}{c}{$\Delta G_{\mathrm{add}}>0$ ($n$=7,405)} & \multicolumn{2}{c}{Sign MCC (Raw)} & \multicolumn{2}{c}{Sign MCC (Sat.-Corr.)} \\
+\cmidrule(lr){2-4} \cmidrule(lr){5-7} \cmidrule(lr){8-9} \cmidrule(lr){10-11}
+ID & RMSE & $r$ & $p_{\mathrm{RMSE}}$ & RMSE & $r$ & $p_{\mathrm{RMSE}}$ & MCC & $p_{\mathrm{MCC}}$ & MCC & $p_{\mathrm{MCC}}$ \\
+\midrule
+ESM-MSR & \textbf{0.786} & \textbf{0.444} & --- & \textbf{0.554} & \textbf{0.433} & --- & \textbf{0.198} & --- & \textbf{0.378} & --- \\
+SPURS & --- & --- & --- & --- & --- & --- & 0.053 & 0.059 & 0.245 & 0.003 \\
+SPURS-multi & 0.878 & 0.373 & 0.010 & 0.815 & 0.113 & $<10^{-4}$ & --- & --- & --- & --- \\
+Mutate Everything & --- & --- & --- & --- & --- & --- & 0.025 & 0.007 & 0.169 & $<10^{-4}$ \\
+Mutate Everything (Stage 2) & 0.904 & 0.422 & $<10^{-4}$ & 0.892 & 0.110 & $<10^{-4}$ & --- & --- & --- & --- \\
+ThermoMPNN & --- & --- & --- & --- & --- & --- & 0.004 & 0.0002 & 0.066 & $<10^{-4}$ \\
+ThermoMPNN-D & 1.031 & 0.069 & $<10^{-4}$ & 0.837 & $-$0.042 & $<10^{-4}$ & --- & --- & --- & --- \\
+GeoDDG-3D & 1.195 & 0.074 & $<10^{-4}$ & 0.781 & 0.067 & $<10^{-4}$ & 0.039 & 0.012 & 0.034 & $<10^{-4}$ \\
+Rosetta & 1.146 & 0.343 & $<10^{-4}$ & 0.972 & 0.273 & $<10^{-4}$ & 0.101 & 0.086 & 0.198 & 0.002 \\
+ESM3-small-open & 0.947 & 0.319 & 0.045 & 0.937 & 0.259 & $<10^{-4}$ & 0.063 & 0.031 & 0.268 & 0.018 \\
+ProteinMPNN & 0.992 & 0.279 & $<10^{-4}$ & 0.721 & 0.334 & $<10^{-4}$ & 0.148 & 0.292 & 0.234 & 0.0009 \\
+\bottomrule
+\end{tabular}
+}
+\end{table}

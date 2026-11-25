@@ -1,0 +1,569 @@
+% Copy-pastable SI LaTeX tables (requires \usepackage{booktabs,float,graphicx,amsmath})
+
+% ==================== table_S1_ablations_summary.tex ====================
+
+\begin{table}[H]
+\centering
+\caption{\textbf{Summary of ESM-MSR Ablations and Variations Across All Benchmarks}. Spearman's $\rho$ (mean $\pm$ SD across 3 independent training seeds unless noted) across all evaluated benchmarks under the deployed readout (Dual-view on MegaScale overall/doubles, thermostability multi-mutants, DMS, MGnify, and Rocklin; WT-view on singles-only thermostability sets, Domainome, and ProteinGym). Models with an asterisk (ESM-MSR*) are retrained with modifications on the Homology-Restricted MegaScale split, while those without use the exact same weights as ESM-MSR (reference). MegaScale test columns report per-domain mean $\rho$ (Overall: 33 domains; Doubles: 13 domains) and epistasis metrics (Beyond $\rho$: Spearman above global saturation curve; Cell mag.: double-centred complete-block residual correlation). Thermostability columns average pooled $\rho$ across 10 single-mutant sets (S571, S783, S2648, S8754, S669, S461, Ssym, Q3421, K3822, K2369) and 2 multi-mutant sets (PTMUL, PTMUL-D). Held-out OOD columns report mean per-domain $\rho$ on Domainome (436 domains), category-weighted macro-average $\rho$ on ProteinGym (173 held-out assays, WT-view; Dual-view for reference and p1 differs by $<0.001$), mean $\rho$ across 7 DMS assays, and pooled Tobit-linked $\rho$ on held-out MGnify (612,406 variants) and Rocklin de novo designs (109,581 variants). Highest performing models in each column are indicated in bold; ESM-MSR (reference) is also bolded if its mean $\pm$ SD range overlaps the highest average performance. $^\dagger$Trained on the full MegaScale split (\texttt{mega\_splits}) and evaluated on its own 28-domain test split for MegaScale columns (excluded from MegaScale bolding), and on the identical OOD test sets for all other columns. $^\ddagger$Single training seed (seed 1; MGnify/Rocklin not run). --- indicates not applicable or not evaluated.}
+\label{tab:si_ablations_summary}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lccccccccccc}
+\toprule
+{} & \multicolumn{4}{c}{MegaScale test} & \multicolumn{2}{c}{Thermostability} & \multicolumn{5}{c}{Held-out OOD Benchmarks} \\
+\cmidrule(lr){2-5} \cmidrule(lr){6-7} \cmidrule(lr){8-12}
+ID & Overall & Doubles & Beyond $\rho$ & Cell mag. & Singles (10) & Multi (2) & Domainome & ProteinGym & DMS (7) & MGnify & Rocklin \\
+\midrule
+ESM-MSR (reference) & \textbf{0.845 $\pm$ 0.000} & \textbf{0.777 $\pm$ 0.005} & \textbf{0.487 $\pm$ 0.022} & 0.212 $\pm$ 0.004 & \textbf{0.654 $\pm$ 0.004} & 0.594 $\pm$ 0.003 & 0.540 $\pm$ 0.004 & 0.509 $\pm$ 0.002 & 0.601 $\pm$ 0.005 & 0.644 $\pm$ 0.002 & 0.454 $\pm$ 0.005 \\
+ESM-MSR, WT-view only & 0.827 $\pm$ 0.003 & 0.723 $\pm$ 0.004 & --- & --- & 0.654 $\pm$ 0.004 & 0.587 $\pm$ 0.003 & 0.540 $\pm$ 0.004 & 0.509 $\pm$ 0.002 & 0.622 $\pm$ 0.002 & 0.630 $\pm$ 0.001 & 0.451 $\pm$ 0.002 \\
+ESM-MSR, MT-view only & 0.808 $\pm$ 0.001 & 0.692 $\pm$ 0.011 & --- & --- & 0.643 $\pm$ 0.003 & 0.531 $\pm$ 0.003 & 0.485 $\pm$ 0.010 & --- & 0.539 $\pm$ 0.017 & 0.637 $\pm$ 0.000 & 0.436 $\pm$ 0.009 \\
+ESM-MSR, $\sigma$=0.5 & 0.799 $\pm$ 0.001 & 0.706 $\pm$ 0.005 & 0.419 $\pm$ 0.005 & 0.167 $\pm$ 0.002 & 0.584 $\pm$ 0.003 & 0.515 $\pm$ 0.010 & \textbf{0.568 $\pm$ 0.001} & 0.506 $\pm$ 0.001 & \textbf{0.636 $\pm$ 0.002} & 0.576 $\pm$ 0.002 & 0.417 $\pm$ 0.000 \\
+ESM-MSR, indep. masking (eval only) & 0.820 $\pm$ 0.001 & 0.704 $\pm$ 0.003 & 0.440 $\pm$ 0.031 & 0.224 $\pm$ 0.013 & 0.648 $\pm$ 0.005 & 0.574 $\pm$ 0.002 & 0.551 $\pm$ 0.003 & 0.504 $\pm$ 0.003 & 0.610 $\pm$ 0.005 & --- & --- \\
+ESM-MSR*, indep. masking & 0.835 $\pm$ 0.001 & 0.747 $\pm$ 0.004 & \textbf{0.502 $\pm$ 0.018} & \textbf{0.232 $\pm$ 0.015} & 0.647 $\pm$ 0.005 & 0.569 $\pm$ 0.007 & 0.540 $\pm$ 0.006 & 0.504 $\pm$ 0.002 & 0.609 $\pm$ 0.006 & 0.638 $\pm$ 0.001 & 0.458 $\pm$ 0.002 \\
+ESM-MSR*, indep. masking (eval unmasked) & 0.819 $\pm$ 0.003 & 0.729 $\pm$ 0.006 & 0.466 $\pm$ 0.012 & 0.181 $\pm$ 0.009 & 0.642 $\pm$ 0.004 & 0.578 $\pm$ 0.007 & 0.521 $\pm$ 0.005 & 0.505 $\pm$ 0.002 & 0.570 $\pm$ 0.005 & --- & --- \\
+ESM-MSR*, masked marginal MT & 0.836 $\pm$ 0.002 & 0.721 $\pm$ 0.006 & 0.431 $\pm$ 0.021 & $-$0.013 $\pm$ 0.006 & 0.644 $\pm$ 0.004 & 0.560 $\pm$ 0.013 & 0.540 $\pm$ 0.006 & 0.505 $\pm$ 0.001 & 0.611 $\pm$ 0.002 & 0.637 $\pm$ 0.001 & 0.454 $\pm$ 0.002 \\
+ESM-MSR*, no pair loss & 0.843 $\pm$ 0.002 & 0.768 $\pm$ 0.002 & 0.416 $\pm$ 0.011 & 0.215 $\pm$ 0.008 & 0.656 $\pm$ 0.003 & 0.598 $\pm$ 0.009 & 0.539 $\pm$ 0.004 & 0.509 $\pm$ 0.001 & 0.607 $\pm$ 0.003 & 0.641 $\pm$ 0.002 & 0.451 $\pm$ 0.001 \\
+ESM-MSR*, no rank loss & 0.840 $\pm$ 0.005 & 0.765 $\pm$ 0.008 & 0.443 $\pm$ 0.042 & 0.196 $\pm$ 0.012 & \textbf{0.658 $\pm$ 0.002} & 0.594 $\pm$ 0.004 & 0.541 $\pm$ 0.003 & 0.507 $\pm$ 0.000 & 0.609 $\pm$ 0.003 & 0.638 $\pm$ 0.002 & 0.455 $\pm$ 0.002 \\
+ESM-MSR*, rank censor $\tau$=0 & 0.844 $\pm$ 0.001 & 0.772 $\pm$ 0.005 & 0.436 $\pm$ 0.040 & 0.219 $\pm$ 0.008 & 0.653 $\pm$ 0.005 & \textbf{0.600 $\pm$ 0.006} & 0.541 $\pm$ 0.004 & 0.510 $\pm$ 0.003 & 0.607 $\pm$ 0.003 & 0.643 $\pm$ 0.001 & 0.452 $\pm$ 0.002 \\
+ESM-MSR*, no range-tagged cells & 0.843 $\pm$ 0.002 & 0.772 $\pm$ 0.005 & 0.457 $\pm$ 0.024 & 0.226 $\pm$ 0.005 & 0.653 $\pm$ 0.004 & 0.588 $\pm$ 0.010 & 0.543 $\pm$ 0.001 & 0.509 $\pm$ 0.000 & 0.600 $\pm$ 0.003 & 0.643 $\pm$ 0.001 & 0.451 $\pm$ 0.004 \\
+ESM-MSR*, MSE loss (no range-tagged) & 0.841 $\pm$ 0.002 & 0.771 $\pm$ 0.003 & 0.461 $\pm$ 0.011 & 0.202 $\pm$ 0.018 & 0.654 $\pm$ 0.001 & 0.589 $\pm$ 0.004 & 0.538 $\pm$ 0.002 & 0.507 $\pm$ 0.002 & 0.601 $\pm$ 0.000 & 0.642 $\pm$ 0.002 & 0.457 $\pm$ 0.002 \\
+ESM-MSR*, Tobit floor ($-1.0$, $1.0$) & 0.843 $\pm$ 0.001 & 0.772 $\pm$ 0.007 & 0.460 $\pm$ 0.028 & 0.219 $\pm$ 0.016 & 0.655 $\pm$ 0.002 & 0.599 $\pm$ 0.006 & 0.541 $\pm$ 0.002 & 0.508 $\pm$ 0.001 & 0.604 $\pm$ 0.003 & 0.643 $\pm$ 0.001 & 0.453 $\pm$ 0.003 \\
+ESM-MSR*, Tobit floor ($0.0$, $0.5$) & \textbf{0.845 $\pm$ 0.002} & 0.775 $\pm$ 0.005 & 0.483 $\pm$ 0.009 & 0.216 $\pm$ 0.007 & 0.655 $\pm$ 0.003 & 0.599 $\pm$ 0.003 & 0.539 $\pm$ 0.005 & 0.509 $\pm$ 0.002 & 0.604 $\pm$ 0.003 & 0.644 $\pm$ 0.001 & 0.454 $\pm$ 0.002 \\
+ESM-MSR*, learnable Tobit floor$^\ddagger$ & 0.844 & \textbf{0.778} & 0.430 & 0.207 & 0.657 & 0.593 & 0.543 & 0.510 & 0.604 & --- & --- \\
+ESM-MSR*, exclude seq. head & 0.842 $\pm$ 0.001 & 0.763 $\pm$ 0.004 & 0.466 $\pm$ 0.024 & 0.209 $\pm$ 0.010 & 0.656 $\pm$ 0.004 & 0.587 $\pm$ 0.010 & 0.544 $\pm$ 0.004 & 0.510 $\pm$ 0.001 & 0.607 $\pm$ 0.004 & 0.641 $\pm$ 0.002 & 0.450 $\pm$ 0.001 \\
+ESM-MSR*, MT LoRA rank 2 & 0.837 $\pm$ 0.004 & 0.752 $\pm$ 0.008 & 0.424 $\pm$ 0.007 & 0.207 $\pm$ 0.017 & 0.653 $\pm$ 0.005 & 0.592 $\pm$ 0.001 & 0.541 $\pm$ 0.004 & 0.509 $\pm$ 0.003 & 0.602 $\pm$ 0.007 & 0.639 $\pm$ 0.001 & 0.454 $\pm$ 0.000 \\
+ESM-MSR*, full MegaScale split$^\dagger$ & 0.827 $\pm$ 0.002$^\dagger$ & 0.662 $\pm$ 0.014$^\dagger$ & --- & --- & 0.649 $\pm$ 0.003 & 0.583 $\pm$ 0.012 & 0.553 $\pm$ 0.006 & \textbf{0.523 $\pm$ 0.003} & 0.625 $\pm$ 0.005 & \textbf{0.648 $\pm$ 0.001} & \textbf{0.463 $\pm$ 0.002} \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+
+
+% ==================== table_S2a_megascale_overall_stab_destab.tex ====================
+
+\begin{table}[H]
+\centering
+\caption{\textbf{Main Model Comparison on Homology-Restricted MegaScale Test Set (Overall, Stabilizing, and Destabilizing Variants)}. Mean per-domain Spearman's $\rho$, Pearson's $r$, and raw RMSE (kcal/mol) across the 33 held-out MegaScale test domains (3-seed mean for retrained models; no comparator has training homology overlap). One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired domain-cluster $\times$ training-seed bootstrap ($B=10{,}000$; uncorrected; Bonferroni adjustment uses $m=8$ comparators). Best values in each metric column are indicated in bold (highest $\rho$, highest $r$, lowest RMSE).}
+\label{tab:si_megascale_overall}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccccccccc}
+\toprule
+{} & \multicolumn{4}{c}{Overall ($n$=48,740)} & \multicolumn{4}{c}{Stabilizing ($\Delta\Delta G>0$, $n$=7,417)} & \multicolumn{4}{c}{Destabilizing ($\Delta\Delta G\le 0$, $n$=41,323)} \\
+\cmidrule(lr){2-5} \cmidrule(lr){6-9} \cmidrule(lr){10-13}
+ID & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ \\
+\midrule
+ESM-MSR & \textbf{0.832} & \textbf{0.832} & 0.642 & --- & \textbf{0.293} & \textbf{0.272} & \textbf{0.488} & --- & \textbf{0.811} & \textbf{0.817} & 0.666 & --- \\
+SPURS & 0.801 & 0.811 & \textbf{0.610} & 0.002 & 0.257 & 0.249 & 0.554 & 0.070 & 0.779 & 0.792 & \textbf{0.611} & 0.003 \\
+Mutate Everything & 0.770 & 0.784 & 0.627 & $<10^{-4}$ & 0.158 & 0.130 & 0.538 & $<10^{-4}$ & 0.755 & 0.771 & 0.631 & $<10^{-4}$ \\
+ThermoMPNN & 0.784 & 0.788 & 0.627 & $<10^{-4}$ & 0.219 & 0.199 & 0.554 & 0.0004 & 0.760 & 0.767 & 0.630 & $<10^{-4}$ \\
+GeoDDG-3D & 0.609 & 0.618 & 0.912 & $<10^{-4}$ & 0.189 & 0.221 & 0.619 & 0.0005 & 0.566 & 0.573 & 0.950 & $<10^{-4}$ \\
+Rosetta & 0.663 & 0.611 & 1.973 & $<10^{-4}$ & 0.079 & 0.035 & 1.192 & $<10^{-4}$ & 0.650 & 0.593 & 2.102 & $<10^{-4}$ \\
+ESM3-small-open & 0.566 & 0.577 & 1.163 & $<10^{-4}$ & 0.017 & 0.017 & 1.283 & $<10^{-4}$ & 0.557 & 0.566 & 1.128 & $<10^{-4}$ \\
+ProteinMPNN & 0.542 & 0.527 & 3.082 & $<10^{-4}$ & 0.062 & 0.065 & 2.571 & $<10^{-4}$ & 0.503 & 0.482 & 3.148 & $<10^{-4}$ \\
+ProSST & 0.596 & 0.623 & 6.693 & $<10^{-4}$ & 0.049 & 0.059 & 4.610 & $<10^{-4}$ & 0.593 & 0.616 & 7.006 & $<10^{-4}$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+
+
+% ==================== table_S2b_megascale_doubles.tex ====================
+
+\begin{table}[H]
+\centering
+\caption{\textbf{Main Model Comparison on Homology-Restricted MegaScale Test Double Mutants (Epistatic vs. Additive Readout)}. Mean per-domain Spearman's $\rho$, Pearson's $r$, and raw RMSE (kcal/mol) across the 13 held-out MegaScale double-mutant domains ($n=13{,}319$ double mutants; 3-seed mean for retrained models). Epistatic readout evaluates each model's multi-mutant prediction; additive readout sums single-mutant predictions ($\hat{y}_A + \hat{y}_B$). One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ within each readout via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected; Bonferroni adjustment uses $m=7$ comparators). Best values in each metric column are indicated in bold.}
+\label{tab:si_megascale_doubles}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccccc}
+\toprule
+{} & \multicolumn{4}{c}{Epistatic Readout ($n$=13,319)} & \multicolumn{4}{c}{Additive Readout ($n$=13,319)} \\
+\cmidrule(lr){2-5} \cmidrule(lr){6-9}
+ID & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ \\
+\midrule
+ESM-MSR & \textbf{0.777} & \textbf{0.782} & 0.830 & --- & \textbf{0.723} & \textbf{0.733} & 1.202 & --- \\
+SPURS & 0.703 & 0.714 & \textbf{0.753} & 0.006 & 0.694 & 0.715 & 0.992 & 0.074 \\
+Mutate Everything & 0.652 & 0.672 & 0.762 & $<10^{-4}$ & 0.617 & 0.635 & 1.008 & 0.0010 \\
+ThermoMPNN & 0.668 & 0.688 & 0.808 & 0.001 & 0.673 & 0.697 & \textbf{0.837} & 0.087 \\
+GeoDDG-3D & 0.456 & 0.460 & 1.198 & $<10^{-4}$ & 0.456 & 0.463 & 1.137 & $<10^{-4}$ \\
+Rosetta & 0.499 & 0.483 & 2.481 & $<10^{-4}$ & 0.478 & 0.464 & 2.989 & $<10^{-4}$ \\
+ESM3-small-open & 0.414 & 0.451 & 1.200 & $<10^{-4}$ & 0.432 & 0.475 & 2.220 & $<10^{-4}$ \\
+ProteinMPNN & 0.330 & 0.377 & 5.108 & $<10^{-4}$ & 0.348 & 0.392 & 5.646 & $<10^{-4}$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+
+
+% ==================== table_S2c_megascale_megasplits.tex ====================
+
+\begin{table}[H]
+\centering
+\caption{\textbf{Main Model Comparison on Full MegaScale Split Test Set: Overall, Stabilizing, and Destabilizing Variants}. Mean per-domain Spearman's $\rho$, Pearson's $r$, and raw RMSE (kcal/mol) across the 28 test domains of the full MegaScale split (\texttt{mega\_splits}). One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). Best values in each metric column are indicated in bold.}
+\label{tab:si_megasplits_overall}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccccccccc}
+\toprule
+{} & \multicolumn{4}{c}{Overall ($n$=49,048)} & \multicolumn{4}{c}{Stabilizing ($n$=8,791)} & \multicolumn{4}{c}{Destabilizing ($n$=40,257)} \\
+\cmidrule(lr){2-5} \cmidrule(lr){6-9} \cmidrule(lr){10-13}
+ID & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ \\
+\midrule
+ESM-MSR & \textbf{0.820} & \textbf{0.835} & 0.928 & --- & 0.289 & 0.268 & 0.625 & --- & \textbf{0.804} & \textbf{0.810} & 0.982 & --- \\
+SPURS & 0.801 & 0.823 & \textbf{0.754} & 0.032 & \textbf{0.299} & \textbf{0.288} & 0.607 & 0.694 & 0.777 & 0.790 & 0.772 & 0.010 \\
+Mutate Everything & 0.775 & 0.805 & 0.779 & 0.0002 & 0.221 & 0.212 & \textbf{0.576} & 0.0008 & 0.757 & 0.776 & 0.808 & 0.0003 \\
+ThermoMPNN & 0.779 & 0.795 & 0.760 & 0.0006 & 0.239 & 0.199 & 0.625 & 0.003 & 0.752 & 0.758 & \textbf{0.768} & $<10^{-4}$ \\
+Rosetta & 0.675 & 0.645 & 2.182 & $<10^{-4}$ & 0.097 & 0.062 & 1.228 & $<10^{-4}$ & 0.657 & 0.612 & 2.384 & $<10^{-4}$ \\
+ESM3-small-open & 0.594 & 0.605 & 1.441 & $<10^{-4}$ & $-$0.000 & $-$0.028 & 1.532 & $<10^{-4}$ & 0.586 & 0.585 & 1.416 & $<10^{-4}$ \\
+ProteinMPNN & 0.596 & 0.583 & 3.562 & $<10^{-4}$ & 0.078 & 0.064 & 2.784 & $<10^{-4}$ & 0.567 & 0.545 & 3.692 & $<10^{-4}$ \\
+ProSST & 0.642 & 0.674 & 7.835 & $<10^{-4}$ & 0.041 & 0.031 & 5.070 & $<10^{-4}$ & 0.645 & 0.658 & 8.375 & $<10^{-4}$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{\textbf{Main Model Comparison on Full MegaScale Split Test Set: Double Mutants (Epistatic vs. Additive Readout)}. Mean per-domain Spearman's $\rho$, Pearson's $r$, and raw RMSE (kcal/mol) across the 20 double-mutant test domains of \texttt{mega\_splits} ($n=18{,}574$ doubles). One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). Best values in each metric column are indicated in bold.}
+\label{tab:si_megasplits_doubles}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccccc}
+\toprule
+{} & \multicolumn{4}{c}{Epistatic Readout ($n$=18,574)} & \multicolumn{4}{c}{Additive Readout ($n$=18,574)} \\
+\cmidrule(lr){2-5} \cmidrule(lr){6-9}
+ID & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ \\
+\midrule
+ESM-MSR & \textbf{0.662} & \textbf{0.674} & 1.434 & --- & 0.564 & \textbf{0.582} & 2.080 & --- \\
+SPURS & 0.598 & 0.612 & 1.040 & 0.019 & \textbf{0.567} & 0.579 & 1.555 & 0.589 \\
+Mutate Everything & 0.595 & 0.625 & 1.041 & 0.008 & 0.509 & 0.527 & 1.714 & 0.012 \\
+ThermoMPNN & 0.615 & 0.626 & \textbf{0.946} & 0.072 & 0.557 & 0.572 & \textbf{1.308} & 0.357 \\
+Rosetta & 0.459 & 0.448 & 2.805 & $<10^{-4}$ & 0.421 & 0.418 & 3.258 & $<10^{-4}$ \\
+ESM3-small-open & 0.353 & 0.370 & 1.561 & $<10^{-4}$ & 0.347 & 0.366 & 2.778 & $<10^{-4}$ \\
+ProteinMPNN & 0.287 & 0.317 & 5.399 & $<10^{-4}$ & 0.273 & 0.300 & 5.795 & $<10^{-4}$ \\
+ProSST & --- & --- & --- & --- & 0.370 & 0.390 & 12.221 & $<10^{-4}$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+
+
+% ==================== table_S2d_megascale_backbone_origin.tex ====================
+
+\begin{table}[H]
+\centering
+\caption{\textbf{Main Model Comparison on Homology-Restricted MegaScale Test Set Stratified by Backbone Stability and Domain Origin}. Mean per-library Spearman's $\rho$, Pearson's $r$, and raw RMSE (kcal/mol) stratified by wild-type backbone type (native vs.\ pre-destabilized mutant backgrounds) and protein origin (natural vs.\ de novo synthetic domains). One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). Best values in each metric column are indicated in bold.}
+\label{tab:si_megascale_backbone_origin}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccccccccccccc}
+\toprule
+{} & \multicolumn{4}{c}{Native Backbone ($n$=40,866)} & \multicolumn{4}{c}{Destabilized Backbone ($n$=7,874)} & \multicolumn{4}{c}{Natural Domains ($n$=37,542)} & \multicolumn{4}{c}{Synthetic Domains ($n$=11,198)} \\
+\cmidrule(lr){2-5} \cmidrule(lr){6-9} \cmidrule(lr){10-13} \cmidrule(lr){14-17}
+ID & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ \\
+\midrule
+ESM-MSR & \textbf{0.827} & \textbf{0.832} & 0.640 & --- & \textbf{0.879} & \textbf{0.855} & 0.675 & --- & \textbf{0.845} & \textbf{0.839} & 0.675 & --- & \textbf{0.811} & \textbf{0.822} & 0.590 & --- \\
+SPURS & 0.796 & 0.809 & \textbf{0.613} & 0.005 & 0.845 & 0.834 & 0.632 & $<10^{-4}$ & 0.821 & 0.823 & \textbf{0.648} & 0.043 & 0.770 & 0.794 & \textbf{0.552} & 0.001 \\
+Mutate Everything & 0.761 & 0.782 & 0.629 & $<10^{-4}$ & 0.849 & 0.830 & \textbf{0.624} & $<10^{-4}$ & 0.802 & 0.805 & 0.666 & 0.001 & 0.720 & 0.750 & 0.567 & $<10^{-4}$ \\
+ThermoMPNN & 0.781 & 0.788 & 0.635 & $<10^{-4}$ & 0.819 & 0.802 & 0.633 & $<10^{-4}$ & 0.797 & 0.794 & 0.660 & 0.0005 & 0.765 & 0.778 & 0.576 & $<10^{-4}$ \\
+GeoDDG-3D & 0.596 & 0.608 & 0.911 & $<10^{-4}$ & 0.751 & 0.734 & 0.903 & $<10^{-4}$ & 0.663 & 0.665 & 0.980 & $<10^{-4}$ & 0.525 & 0.546 & 0.808 & $<10^{-4}$ \\
+Rosetta & 0.661 & 0.617 & 1.956 & $<10^{-4}$ & 0.703 & 0.585 & 2.132 & $<10^{-4}$ & 0.686 & 0.620 & 2.009 & $<10^{-4}$ & 0.627 & 0.597 & 1.918 & $<10^{-4}$ \\
+ESM3-small-open & 0.564 & 0.579 & 1.139 & $<10^{-4}$ & 0.645 & 0.628 & 1.287 & $<10^{-4}$ & 0.622 & 0.622 & 1.218 & $<10^{-4}$ & 0.481 & 0.507 & 1.079 & $<10^{-4}$ \\
+ProteinMPNN & 0.537 & 0.519 & 3.113 & $<10^{-4}$ & 0.636 & 0.631 & 2.664 & $<10^{-4}$ & 0.627 & 0.617 & 3.162 & $<10^{-4}$ & 0.410 & 0.389 & 2.959 & $<10^{-4}$ \\
+ProSST & 0.592 & 0.626 & 6.679 & $<10^{-4}$ & 0.703 & 0.679 & 6.643 & $<10^{-4}$ & 0.663 & 0.673 & 7.330 & $<10^{-4}$ & 0.495 & 0.546 & 5.713 & $<10^{-4}$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+
+
+% ==================== table_S3a_epistasis_hierarchy.tex ====================
+
+\begin{table}[H]
+\centering
+\caption{\textbf{Main Model Comparison Across the 5-Level Epistasis Hierarchy on Homology-Restricted MegaScale Test Doubles}. Evaluation of predicted epistasis ($\widehat{\Delta\Delta\Delta G} = \hat{y}_{AB} - \hat{y}_A - \hat{y}_B$) on the 12,455 MegaScale test doubles with both constituent singles measured across 13 domains (7,405 doubles with $\Delta G_{\mathrm{add}}>0$). Columns report all 5 hierarchy levels (Naive $\rho$, Beyond-global $\rho$, Pair $\rho$, Line $\rho$, and double-centred Cell magnitude on all doubles and $\Delta G_{\mathrm{add}}>0$) together with one-sided paired domain-cluster $\times$ seed bootstrap $p$-values ($B=10{,}000$; uncorrected; testing $H_1\colon \text{ESM-MSR} > \text{model}$), plus pooled $\Delta\Delta\Delta G$ Pearson's $r$ and RMSE (kcal/mol). Internal controls (context control and $-\Delta G_{\mathrm{add}}$ floor ceiling) are shown for reference and excluded from bolding of best external models.}
+\label{tab:si_epistasis_hierarchy}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccccccccccc}
+\toprule
+{} & \multicolumn{2}{c}{Naive $\rho$} & \multicolumn{2}{c}{Beyond $\rho$} & \multicolumn{2}{c}{Pair $\rho$} & \multicolumn{2}{c}{Line $\rho$} & \multicolumn{2}{c}{Cell mag. (all)} & \multicolumn{2}{c}{Cell mag. ($\Delta G_{\mathrm{add}}>0$)} & \multicolumn{2}{c}{All Doubles $\Delta\Delta\Delta G$} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9} \cmidrule(lr){10-11} \cmidrule(lr){12-13} \cmidrule(lr){14-15}
+ID & Score & $p$ & Score & $p$ & Score & $p$ & Score & $p$ & Score & $p$ & Score & $p$ & $r$ & RMSE \\
+\midrule
+ESM-MSR & \textbf{0.479} & --- & \textbf{0.487} & --- & \textbf{0.616} & --- & \textbf{0.400} & --- & \textbf{0.215} & --- & \textbf{0.291} & --- & \textbf{0.444} & \textbf{0.786} \\
+ESM-MSR (context control) & 0.475 & 0.422 & 0.482 & 0.352 & 0.649 & 0.603 & 0.375 & 0.152 & 0.179 & 0.005 & 0.267 & 0.070 & 0.452 & 0.765 \\
+SPURS-multi & 0.371 & 0.068 & 0.344 & 0.010 & 0.434 & 0.065 & 0.337 & 0.171 & 0.012 & $<10^{-3}$ & 0.025 & 0.002 & 0.373 & 0.878 \\
+Mutate Everything (Stage 2) & 0.409 & 0.166 & 0.227 & 0.003 & 0.132 & 0.036 & 0.229 & 0.004 & 0.144 & 0.027 & 0.192 & 0.052 & 0.422 & 0.904 \\
+ThermoMPNN-D & 0.077 & $<10^{-3}$ & 0.071 & $<10^{-3}$ & $-$0.003 & $<10^{-3}$ & 0.197 & $<10^{-3}$ & 0.023 & $<10^{-3}$ & 0.039 & $<10^{-3}$ & 0.070 & 1.030 \\
+GeoDDG-3D & 0.055 & $<10^{-3}$ & 0.046 & $<10^{-3}$ & 0.083 & $<10^{-3}$ & 0.087 & $<10^{-3}$ & 0.086 & $<10^{-3}$ & 0.131 & $<10^{-3}$ & 0.074 & 1.195 \\
+Rosetta & 0.381 & 0.169 & 0.246 & $<10^{-3}$ & 0.357 & 0.047 & 0.192 & $<10^{-3}$ & 0.081 & $<10^{-3}$ & 0.104 & $<10^{-3}$ & 0.343 & 1.146 \\
+ESM3-small-open & 0.289 & 0.002 & 0.379 & 0.081 & 0.556 & 0.252 & 0.190 & $<10^{-3}$ & 0.093 & $<10^{-3}$ & 0.147 & $<10^{-3}$ & 0.319 & 0.947 \\
+ProteinMPNN & 0.314 & 0.028 & 0.273 & $<10^{-3}$ & 0.473 & 0.031 & 0.125 & $<10^{-3}$ & 0.116 & $<10^{-3}$ & 0.171 & 0.006 & 0.279 & 0.992 \\
+$-\Delta G_{\mathrm{add}}$ (floor ceiling) & 0.642 & 0.754 & 0.000 & $<10^{-3}$ & 0.000 & $<10^{-3}$ & 0.000 & $<10^{-3}$ & 0.000 & $<10^{-3}$ & 0.000 & $<10^{-3}$ & 0.676 & 1.472 \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+
+
+% ==================== table_S3b_epistasis_calibration_mcc.tex ====================
+
+\begin{table}[H]
+\centering
+\caption{\textbf{Epistasis $\Delta\Delta\Delta G$ Calibration (RMSE, Pearson $r$) and Sign Classification (MCC) on MegaScale Test Doubles}. Epistasis calibration RMSE (kcal/mol, lower is better) and Pearson's $r$ on all 12,455 test doubles and on the 7,405 non-floor doubles ($\Delta G_{\mathrm{add}}>0$), alongside Matthews Correlation Coefficient (MCC) for classifying epistasis sign on raw $\Delta\Delta\Delta G>0$ and saturation-corrected residuals $r>0$. One-sided $p$-values test ESM-MSR superiority (lower RMSE or higher MCC) via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). Best values in each metric column are indicated in bold.}
+\label{tab:si_epistasis_calibration_mcc}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccccccc}
+\toprule
+{} & \multicolumn{3}{c}{All Doubles ($n$=12,455)} & \multicolumn{3}{c}{$\Delta G_{\mathrm{add}}>0$ ($n$=7,405)} & \multicolumn{2}{c}{Sign MCC (Raw)} & \multicolumn{2}{c}{Sign MCC (Sat.-Corr.)} \\
+\cmidrule(lr){2-4} \cmidrule(lr){5-7} \cmidrule(lr){8-9} \cmidrule(lr){10-11}
+ID & RMSE & $r$ & $p_{\mathrm{RMSE}}$ & RMSE & $r$ & $p_{\mathrm{RMSE}}$ & MCC & $p_{\mathrm{MCC}}$ & MCC & $p_{\mathrm{MCC}}$ \\
+\midrule
+ESM-MSR & \textbf{0.786} & \textbf{0.444} & --- & \textbf{0.554} & \textbf{0.433} & --- & \textbf{0.198} & --- & \textbf{0.378} & --- \\
+SPURS & --- & --- & --- & --- & --- & --- & 0.053 & 0.059 & 0.245 & 0.003 \\
+SPURS-multi & 0.878 & 0.373 & 0.010 & 0.815 & 0.113 & $<10^{-4}$ & --- & --- & --- & --- \\
+Mutate Everything & --- & --- & --- & --- & --- & --- & 0.025 & 0.007 & 0.169 & $<10^{-4}$ \\
+Mutate Everything (Stage 2) & 0.904 & 0.422 & $<10^{-4}$ & 0.892 & 0.110 & $<10^{-4}$ & --- & --- & --- & --- \\
+ThermoMPNN & --- & --- & --- & --- & --- & --- & 0.004 & 0.0002 & 0.066 & $<10^{-4}$ \\
+ThermoMPNN-D & 1.031 & 0.069 & $<10^{-4}$ & 0.837 & $-$0.042 & $<10^{-4}$ & --- & --- & --- & --- \\
+GeoDDG-3D & 1.195 & 0.074 & $<10^{-4}$ & 0.781 & 0.067 & $<10^{-4}$ & 0.039 & 0.012 & 0.034 & $<10^{-4}$ \\
+Rosetta & 1.146 & 0.343 & $<10^{-4}$ & 0.972 & 0.273 & $<10^{-4}$ & 0.101 & 0.086 & 0.198 & 0.002 \\
+ESM3-small-open & 0.947 & 0.319 & 0.045 & 0.937 & 0.259 & $<10^{-4}$ & 0.063 & 0.031 & 0.268 & 0.018 \\
+ProteinMPNN & 0.992 & 0.279 & $<10^{-4}$ & 0.721 & 0.334 & $<10^{-4}$ & 0.148 & 0.292 & 0.234 & 0.0009 \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+
+
+% ==================== table_S4a_thermostability_part1.tex ====================
+
+\begin{table}[H]
+\centering
+\caption{\textbf{Main Model Comparison on External Thermostability Benchmarks (Part 1: Ssym, S461, K2369, S783)}. Pooled Spearman's $\rho$, Pearson's $r$, and raw (unrecalibrated) RMSE (kcal/mol) across external thermostability benchmarks (singles-only heads on single-mutant datasets; multi-mutant heads on PTMUL; 3-seed mean for retrained models). One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ under both mutation $\times$ seed resampling ($p_{\mathrm{mut}}$, primary) and protein-cluster $\times$ seed resampling ($p_{\mathrm{prot}}$, conservative sensitivity check; $B=10{,}000$; uncorrected). Best values among clean (non-overlapping) models in each metric column are indicated in bold. $^*$Documented training-set homology overlap with the benchmark; excluded from clean bolding and Bonferroni families.}
+\label{tab:si_thermostability_p1}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccccccccccccccccc}
+\toprule
+{} & \multicolumn{5}{c}{Ssym ($n$=684; 15 prot.)} & \multicolumn{5}{c}{S461 ($n$=461; 48 prot.)} & \multicolumn{5}{c}{K2369 ($n$=2,369; 181 prot.)} & \multicolumn{5}{c}{S783 ($n$=783; 55 prot.)} \\
+\cmidrule(lr){2-6} \cmidrule(lr){7-11} \cmidrule(lr){12-16} \cmidrule(lr){17-21}
+ID & $\rho$ & $r$ & RMSE & $p_{\mathrm{mut}}$ & $p_{\mathrm{prot}}$ & $\rho$ & $r$ & RMSE & $p_{\mathrm{mut}}$ & $p_{\mathrm{prot}}$ & $\rho$ & $r$ & RMSE & $p_{\mathrm{mut}}$ & $p_{\mathrm{prot}}$ & $\rho$ & $r$ & RMSE & $p_{\mathrm{mut}}$ & $p_{\mathrm{prot}}$ \\
+\midrule
+ESM-MSR & \textbf{0.778} & \textbf{0.790} & \textbf{1.156} & --- & --- & \textbf{0.768} & \textbf{0.766} & \textbf{0.839} & --- & --- & \textbf{0.719} & \textbf{0.755} & \textbf{1.062} & --- & --- & \textbf{0.707} & \textbf{0.733} & \textbf{1.375} & --- & --- \\
+SPURS & 0.747 & 0.746 & 1.274 & 0.050 & 0.076 & 0.641 & 0.615 & 1.101 & $<10^{-4}$ & 0.0003 & 0.627 & 0.658 & 1.217 & $<10^{-4}$ & 0.023 & 0.677 & 0.699 & 1.562 & 0.046 & 0.143 \\
+Mutate Everything & 0.674 & 0.688 & 1.428 & $<10^{-4}$ & 0.017 & 0.721 & 0.717 & 0.942 & 0.011 & 0.007 & 0.674 & 0.689 & 1.173 & $<10^{-4}$ & 0.061 & 0.706 & 0.724 & 1.530 & 0.463 & 0.488 \\
+ThermoMPNN & 0.711 & 0.721 & 1.389 & 0.0006 & 0.018 & 0.655 & 0.632 & 1.126 & $<10^{-4}$ & 0.002 & 0.649 & 0.683 & 1.227 & $<10^{-4}$ & 0.0010 & 0.689 & 0.703 & 1.636 & 0.173 & 0.246 \\
+GeoDDG-3D & 0.914$^*$ & 0.882 & 0.908 & 1.000 & 1.000 & 0.664$^*$ & 0.665 & 1.015 & 0.0002 & 0.004 & 0.830$^*$ & 0.850 & 0.855 & 1.000 & 1.000 & 0.865$^*$ & 0.839 & 1.132 & 1.000 & 1.000 \\
+ESM3$\Delta G$ & 0.735 & 0.763 & 1.605 & 0.003 & 0.016 & 0.682 & 0.654 & 1.348 & $<10^{-4}$ & 0.005 & 0.598$^*$ & 0.545 & 1.425 & $<10^{-4}$ & 0.002 & 0.653 & 0.558 & 2.010 & 0.007 & 0.112 \\
+Rosetta & 0.619 & 0.580 & 1.812 & $<10^{-4}$ & 0.013 & 0.612 & 0.555 & 1.301 & $<10^{-4}$ & $<10^{-4}$ & 0.616 & 0.579 & 1.785 & $<10^{-4}$ & $<10^{-4}$ & 0.645 & 0.630 & 1.730 & 0.002 & 0.024 \\
+ESM3-small-open & 0.578 & 0.591 & 1.546 & $<10^{-4}$ & $<10^{-4}$ & 0.404 & 0.395 & 1.232 & $<10^{-4}$ & $<10^{-4}$ & 0.447 & 0.474 & 1.553 & $<10^{-4}$ & $<10^{-4}$ & 0.497 & 0.536 & 1.682 & $<10^{-4}$ & $<10^{-4}$ \\
+ProteinMPNN & 0.696 & 0.662 & 2.400 & $<10^{-4}$ & 0.0005 & 0.442 & 0.410 & 2.166 & $<10^{-4}$ & $<10^{-4}$ & 0.436 & 0.434 & 2.819 & $<10^{-4}$ & $<10^{-4}$ & 0.561 & 0.536 & 2.423 & $<10^{-4}$ & 0.0004 \\
+ProSST & 0.519 & 0.521 & 4.217 & $<10^{-4}$ & $<10^{-4}$ & 0.561 & 0.540 & 4.437 & $<10^{-4}$ & 0.0002 & 0.497 & 0.558 & 5.358 & $<10^{-4}$ & $<10^{-4}$ & 0.564 & 0.597 & 4.847 & $<10^{-4}$ & 0.0002 \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+
+
+% ==================== table_S4b_thermostability_part2.tex ====================
+
+\begin{table}[H]
+\centering
+\caption{\textbf{Main Model Comparison on External Thermostability Benchmarks (Part 2: S2648, Q3421, S8754, PTMUL)}. Pooled Spearman's $\rho$, Pearson's $r$, and raw (unrecalibrated) RMSE (kcal/mol) across external thermostability benchmarks (singles-only heads on single-mutant datasets; multi-mutant heads on PTMUL; 3-seed mean for retrained models). One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ under both mutation $\times$ seed resampling ($p_{\mathrm{mut}}$, primary) and protein-cluster $\times$ seed resampling ($p_{\mathrm{prot}}$, conservative sensitivity check; $B=10{,}000$; uncorrected). Best values among clean (non-overlapping) models in each metric column are indicated in bold. $^*$Documented training-set homology overlap with the benchmark; excluded from clean bolding and Bonferroni families.}
+\label{tab:si_thermostability_p2}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccccccccccccccccc}
+\toprule
+{} & \multicolumn{5}{c}{S2648 ($n$=2,648; 131 prot.)} & \multicolumn{5}{c}{Q3421 ($n$=3,421; 148 prot.)} & \multicolumn{5}{c}{S8754 ($n$=8,754; 301 prot.)} & \multicolumn{5}{c}{PTMUL ($n$=914; 90 prot.)} \\
+\cmidrule(lr){2-6} \cmidrule(lr){7-11} \cmidrule(lr){12-16} \cmidrule(lr){17-21}
+ID & $\rho$ & $r$ & RMSE & $p_{\mathrm{mut}}$ & $p_{\mathrm{prot}}$ & $\rho$ & $r$ & RMSE & $p_{\mathrm{mut}}$ & $p_{\mathrm{prot}}$ & $\rho$ & $r$ & RMSE & $p_{\mathrm{mut}}$ & $p_{\mathrm{prot}}$ & $\rho$ & $r$ & RMSE & $p_{\mathrm{mut}}$ & $p_{\mathrm{prot}}$ \\
+\midrule
+ESM-MSR & 0.664 & 0.634 & 1.148 & --- & --- & 0.618 & 0.542 & \textbf{1.662} & --- & --- & 0.617 & \textbf{0.599} & \textbf{1.593} & --- & --- & \textbf{0.592} & \textbf{0.599} & \textbf{1.888} & --- & --- \\
+SPURS & 0.653 & 0.642 & 1.184 & 0.187 & 0.345 & 0.593 & 0.541 & 1.719 & 0.009 & 0.160 & 0.577 & 0.544 & 1.698 & $<10^{-4}$ & 0.133 & 0.385 & 0.352 & 2.211 & $<10^{-4}$ & 0.0004 \\
+Mutate Everything & \textbf{0.701} & \textbf{0.690} & \textbf{1.116} & 0.999 & 0.897 & \textbf{0.638} & \textbf{0.560} & 1.691 & 0.967 & 0.795 & \textbf{0.623} & 0.571 & 1.665 & 0.811 & 0.637 & 0.510 & 0.477 & 2.062 & 0.002 & 0.011 \\
+ThermoMPNN & 0.648 & 0.642 & 1.215 & 0.099 & 0.308 & 0.591 & 0.541 & 1.752 & 0.008 & 0.160 & 0.602 & 0.576 & 1.705 & 0.010 & 0.280 & 0.433 & 0.405 & 2.141 & $<10^{-4}$ & 0.004 \\
+GeoDDG-3D & 0.892$^*$ & 0.858 & 0.776 & 1.000 & 1.000 & 0.822$^*$ & 0.719 & 1.380 & 1.000 & 1.000 & 0.841$^*$ & 0.775 & 1.267 & 1.000 & 1.000 & 0.717$^*$ & 0.711 & 1.810 & 1.000 & 0.992 \\
+ESM3$\Delta G$ & 0.642$^*$ & 0.582 & 1.511 & 0.032 & 0.160 & 0.572 & 0.483 & 2.003 & 0.0003 & 0.031 & 0.543$^*$ & 0.475 & 1.939 & $<10^{-4}$ & 0.092 & 0.409$^*$ & 0.411 & 2.264 & $<10^{-4}$ & 0.011 \\
+Rosetta & 0.605 & 0.578 & 1.411 & $<10^{-4}$ & 0.029 & 0.554 & 0.482 & 1.917 & $<10^{-4}$ & 0.007 & 0.569 & 0.517 & 1.950 & $<10^{-4}$ & 0.011 & 0.544 & 0.508 & 2.356 & 0.034 & 0.126 \\
+ESM3-small-open & 0.386 & 0.350 & 1.492 & $<10^{-4}$ & $<10^{-4}$ & 0.388 & 0.326 & 1.931 & $<10^{-4}$ & $<10^{-4}$ & 0.372 & 0.357 & 1.926 & $<10^{-4}$ & $<10^{-4}$ & 0.192 & 0.220 & 2.484 & $<10^{-4}$ & $<10^{-4}$ \\
+ProteinMPNN & 0.506 & 0.488 & 2.374 & $<10^{-4}$ & 0.0003 & 0.494 & 0.425 & 2.613 & $<10^{-4}$ & 0.002 & 0.438 & 0.388 & 2.841 & $<10^{-4}$ & 0.0002 & 0.382 & 0.359 & 5.546 & $<10^{-4}$ & 0.017 \\
+ProSST & 0.436 & 0.401 & 4.742 & $<10^{-4}$ & $<10^{-4}$ & 0.416 & 0.372 & 5.019 & $<10^{-4}$ & $<10^{-4}$ & 0.428 & 0.476 & 5.408 & $<10^{-4}$ & $<10^{-4}$ & 0.182 & 0.218 & 10.257 & $<10^{-4}$ & $<10^{-4}$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+
+
+% ==================== table_S4c_thermostability_rmse_and_ssym_antisym.tex ====================
+
+\begin{table}[H]
+\centering
+\caption{\textbf{Calibration RMSE Comparison Across MegaScale and 8 External Thermostability Benchmarks (Raw (Unrecalibrated))}. Raw (Unrecalibrated) RMSE (kcal/mol, lower is better) across Homology-Restricted MegaScale test (33 domains) and 8 external thermostability sets. One-sided $p$-values test $H_1\colon \text{RMSE}_{\text{ESM-MSR}} < \text{RMSE}_{\text{model}}$ via paired bootstrap (domain-cluster $\times$ seed on MegaScale; mutation $\times$ seed on external sets; $B=10{,}000$; uncorrected). Lowest clean (non-overlapping) RMSE per column is bolded. $^*$Documented training overlap.}
+\label{tab:si_thermo_rmse_raw}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccccccccccccccc}
+\toprule
+{} & \multicolumn{2}{c}{MegaScale} & \multicolumn{2}{c}{Ssym} & \multicolumn{2}{c}{S461} & \multicolumn{2}{c}{K2369} & \multicolumn{2}{c}{S783} & \multicolumn{2}{c}{S2648} & \multicolumn{2}{c}{Q3421} & \multicolumn{2}{c}{S8754} & \multicolumn{2}{c}{PTMUL} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9} \cmidrule(lr){10-11} \cmidrule(lr){12-13} \cmidrule(lr){14-15} \cmidrule(lr){16-17} \cmidrule(lr){18-19}
+ID & RMSE & $p$ & RMSE & $p$ & RMSE & $p$ & RMSE & $p$ & RMSE & $p$ & RMSE & $p$ & RMSE & $p$ & RMSE & $p$ & RMSE & $p$ \\
+\midrule
+ESM-MSR & 0.798 & --- & \textbf{1.156} & --- & \textbf{0.839} & --- & \textbf{1.062} & --- & \textbf{1.375} & --- & 1.148 & --- & \textbf{1.662} & --- & \textbf{1.593} & --- & \textbf{1.888} & --- \\
+SPURS & \textbf{0.717} & 0.837 & 1.274 & 0.0003 & 1.101 & $<10^{-4}$ & 1.217 & $<10^{-4}$ & 1.562 & $<10^{-4}$ & 1.184 & 0.033 & 1.719 & 0.003 & 1.698 & $<10^{-4}$ & 2.211 & $<10^{-4}$ \\
+Mutate Everything & 0.744 & 0.766 & 1.428 & $<10^{-4}$ & 0.942 & 0.0003 & 1.173 & $<10^{-4}$ & 1.530 & $<10^{-4}$ & \textbf{1.116} & 0.963 & 1.691 & 0.047 & 1.665 & $<10^{-4}$ & 2.062 & $<10^{-4}$ \\
+ThermoMPNN & 0.755 & 0.768 & 1.389 & $<10^{-4}$ & 1.126 & $<10^{-4}$ & 1.227 & $<10^{-4}$ & 1.636 & $<10^{-4}$ & 1.215 & 0.0006 & 1.752 & $<10^{-4}$ & 1.705 & $<10^{-4}$ & 2.130 & $<10^{-4}$ \\
+GeoDDG-3D & 1.007 & 0.072 & 0.908$^*$ & 1.000 & 1.015$^*$ & $<10^{-4}$ & 0.855$^*$ & 1.000 & 1.132$^*$ & 1.000 & 0.776$^*$ & 1.000 & 1.380$^*$ & 1.000 & 1.267$^*$ & 1.000 & 1.810$^*$ & 0.932 \\
+ESM3$\Delta G$ & --- & --- & 1.605 & $<10^{-4}$ & 1.348 & $<10^{-4}$ & 1.425$^*$ & $<10^{-4}$ & 2.010 & $<10^{-4}$ & 1.511$^*$ & $<10^{-4}$ & 2.003 & $<10^{-4}$ & 1.939$^*$ & $<10^{-4}$ & 2.264$^*$ & $<10^{-4}$ \\
+Rosetta & 2.098 & $<10^{-4}$ & 1.812 & $<10^{-4}$ & 1.301 & $<10^{-4}$ & 1.785 & $<10^{-4}$ & 1.730 & $<10^{-4}$ & 1.411 & $<10^{-4}$ & 1.917 & $<10^{-4}$ & 1.950 & $<10^{-4}$ & 2.356 & $<10^{-4}$ \\
+ESM3-small-open & 1.209 & $<10^{-4}$ & 1.546 & $<10^{-4}$ & 1.232 & $<10^{-4}$ & 1.553 & $<10^{-4}$ & 1.682 & $<10^{-4}$ & 1.492 & $<10^{-4}$ & 1.931 & $<10^{-4}$ & 1.926 & $<10^{-4}$ & 2.484 & $<10^{-4}$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{\textbf{Ssym Direct--Reverse Antisymmetry and Bias Across Models (342 Mutation Pairs)}. Direct--reverse Pearson correlation $r_{\mathrm{dir,rev}}$ (ideal $-1.000$), absolute mean antisymmetry bias $|\langle\delta\rangle|$ (kcal/mol, ideal $0.000$), pooled Ssym Pearson's $r$, and raw RMSE (kcal/mol) across the 342 direct/reverse mutation pairs ($n=684$). One-sided $p$-values test ESM-MSR (Dual-view) superiority (more negative $r_{\mathrm{dir,rev}}$ or smaller $|\langle\delta\rangle|$) via paired mutation-pair $\times$ seed bootstrap ($B=10{,}000$; uncorrected). Best clean (non-overlapping) values are bolded. $^*$Documented Ssym training overlap.}
+\label{tab:si_ssym_antisymmetry}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccc}
+\toprule
+{} & \multicolumn{2}{c}{Antisymmetry ($r_{\mathrm{dir,rev}}$)} & \multicolumn{2}{c}{Abs. Bias ($|\langle\delta\rangle|$)} & \multicolumn{2}{c}{Pooled Ssym} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7}
+ID & $r_{\mathrm{dir,rev}}$ & $p$ & $|\langle\delta\rangle|$ & $p$ & $r$ & RMSE \\
+\midrule
+ESM-MSR (Dual-view) & $-$0.901 & --- & 0.092 & --- & \textbf{0.796} & \textbf{1.145} \\
+ESM-MSR (WT-view) & $-$0.832 & $<10^{-4}$ & 0.221 & $<10^{-4}$ & 0.790 & 1.156 \\
+SPURS & $-$0.872 & 0.068 & 0.182 & $<10^{-4}$ & 0.746 & 1.274 \\
+Mutate Everything & $-$0.445 & $<10^{-4}$ & 0.203 & $<10^{-4}$ & 0.688 & 1.428 \\
+ThermoMPNN & $-$0.785 & $<10^{-4}$ & 0.302 & $<10^{-4}$ & 0.721 & 1.389 \\
+GeoDDG-3D$^*$ & $-$0.999 & 1.000 & 0.001 & 1.000 & 0.882 & 0.908 \\
+ESM3$\Delta G$ & \textbf{$-$0.963} & 1.000 & \textbf{0.012} & 1.000 & 0.763 & 1.605 \\
+Rosetta & $-$0.323 & $<10^{-4}$ & 0.656 & $<10^{-4}$ & 0.580 & 1.812 \\
+ESM3-small-open & $-$0.675 & $<10^{-4}$ & 0.171 & $<10^{-4}$ & 0.593 & 1.483 \\
+ProteinMPNN & $-$0.597 & $<10^{-4}$ & 0.662 & $<10^{-4}$ & 0.662 & 2.400 \\
+ProSST & $-$0.783 & $<10^{-4}$ & 3.134 & $<10^{-4}$ & 0.521 & 4.217 \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+
+
+% ==================== table_S5a_heldout_ood_benchmarks.tex ====================
+
+\begin{table}[H]
+\centering
+\caption{\textbf{Main Model Comparison on Large-Scale Held-Out Out-of-Distribution Benchmarks}. Comparison across four homology-held-out benchmarks: ProteinGym (173 held-out DMS assays, equal-category-weighted macro-average Spearman's $\rho$ and Pearson's $r$; RMSE omitted because assays span heterogeneous fitness units), Domainome (436 held-out domains, $n=451{,}569$), MGnify stability ($n=612{,}406$ variants across 140,694 held-out scaffolds), and Rocklin de novo designs ($n=109{,}581$ variants across 623 held-out scaffolds). One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired cluster/assay $\times$ seed bootstrap ($B=10{,}000$ on ProteinGym/Domainome; $B=1{,}000$ on MGnify/Rocklin; uncorrected). Best values among clean external models (excluding internal $\sigma=0.5$ variant and overlapping models) are indicated in bold. $^*$Documented training overlap (ESM3$\Delta G$: H 2\% on ProteinGym; trained directly on MGnify stability data). --- indicates not evaluated or not applicable.}
+\label{tab:si_heldout_ood}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lccccccccccccccc}
+\toprule
+{} & \multicolumn{3}{c}{ProteinGym (173 assays)} & \multicolumn{4}{c}{Domainome (436 domains)} & \multicolumn{4}{c}{MGnify ($n$=612,406)} & \multicolumn{4}{c}{Rocklin Designs ($n$=109,581)} \\
+\cmidrule(lr){2-4} \cmidrule(lr){5-8} \cmidrule(lr){9-12} \cmidrule(lr){13-16}
+ID & $\rho$ & $r$ & $p$ & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ \\
+\midrule
+ESM-MSR & 0.509 & 0.518 & --- & 0.540 & \textbf{0.600} & 1.222 & --- & \textbf{0.644} & \textbf{0.692} & \textbf{0.722} & --- & \textbf{0.454} & \textbf{0.436} & \textbf{0.748} & --- \\
+ESM-MSR ($\sigma$=0.5) & 0.509 & 0.508 & 0.457 & 0.568 & 0.612 & 1.521 & 1.000 & 0.576 & 0.640 & 0.821 & $<10^{-3}$ & 0.417 & 0.417 & 0.811 & $<10^{-3}$ \\
+SPURS & 0.457 & 0.465 & $<10^{-4}$ & 0.480 & 0.503 & 0.884 & $<10^{-4}$ & 0.589 & 0.612 & 0.742 & $<10^{-3}$ & 0.252 & 0.228 & 1.279 & $<10^{-3}$ \\
+Mutate Everything & 0.455 & 0.463 & $<10^{-4}$ & 0.510 & 0.555 & 0.975 & $<10^{-4}$ & --- & --- & --- & --- & 0.229 & 0.211 & 1.338 & $<10^{-3}$ \\
+ThermoMPNN & 0.439 & 0.442 & $<10^{-4}$ & 0.435 & 0.460 & 0.810 & $<10^{-4}$ & 0.550 & 0.584 & 0.815 & $<10^{-3}$ & 0.187 & 0.168 & 1.357 & $<10^{-3}$ \\
+GeoDDG-3D & 0.384 & 0.384 & $<10^{-4}$ & 0.411 & 0.462 & 1.133 & $<10^{-4}$ & 0.436 & 0.473 & 1.036 & $<10^{-3}$ & 0.214 & 0.181 & 1.348 & $<10^{-3}$ \\
+ESM3$\Delta G$ & 0.381$^*$ & 0.398 & $<10^{-4}$ & 0.501 & 0.539 & \textbf{0.744} & $<10^{-4}$ & 0.686$^*$ & 0.742 & 0.642 & 1.000 & 0.384$^*$ & 0.343 & 0.748 & $<10^{-3}$ \\
+Rosetta & 0.378 & 0.377 & $<10^{-4}$ & --- & --- & --- & --- & --- & --- & --- & --- & --- & --- & --- & --- \\
+ESM3-small-open & 0.447 & 0.438 & $<10^{-4}$ & \textbf{0.550} & 0.576 & 1.500 & 0.998 & 0.376 & 0.427 & 1.738 & $<10^{-3}$ & 0.111 & 0.104 & 3.018 & $<10^{-3}$ \\
+ProteinMPNN & 0.409 & 0.392 & $<10^{-4}$ & 0.544 & 0.536 & 3.012 & 0.854 & 0.388 & 0.417 & 2.927 & $<10^{-3}$ & 0.114 & 0.094 & 5.803 & $<10^{-3}$ \\
+ProSST & \textbf{0.513} & \textbf{0.530} & 0.623 & 0.527 & 0.574 & 7.259 & 0.0004 & 0.403 & 0.458 & 7.080 & $<10^{-3}$ & 0.114 & 0.092 & 14.514 & $<10^{-3}$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+
+
+% ==================== table_S5b_proteingym_sigma_categories.tex ====================
+
+\begin{table}[H]
+\centering
+\caption{\textbf{ESM-MSR LoRA Scale ($\sigma$) Breakdown Across the 5 Held-Out ProteinGym Functional Categories}. Per-category mean Spearman's $\rho$ and Pearson's $r$ across the 173 held-out ProteinGym DMS assays under the deployed readout for zero-shot ESM3-small-open ($\sigma=0$), ESM-MSR ($\sigma=0.5$), and ESM-MSR ($\sigma=1.0$). One-sided paired assay $\times$ seed bootstrap $p$-values ($B=10{,}000$; uncorrected) test $H_1\colon \rho_{\sigma=0.5} > \rho_{\sigma=0}$ ($p_{0.5\text{ vs }0}$), $H_1\colon \rho_{\sigma=1.0} > \rho_{\sigma=0}$ ($p_{1.0\text{ vs }0}$), and $H_1\colon \rho_{\sigma=1.0} > \rho_{\sigma=0.5}$ ($p_{1.0\text{ vs }0.5}$). Best $\rho$ and $r$ per row are indicated in bold.}
+\label{tab:si_proteingym_sigma}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lccccccccc}
+\toprule
+{} & \multicolumn{2}{c}{$\sigma=0$ (ESM3)} & \multicolumn{3}{c}{ESM-MSR ($\sigma=0.5$)} & \multicolumn{4}{c}{ESM-MSR ($\sigma=1.0$)} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-6} \cmidrule(lr){7-10}
+Category & $\rho$ & $r$ & $\rho$ & $r$ & $p_{0.5\text{ vs }0}$ & $\rho$ & $r$ & $p_{1.0\text{ vs }0}$ & $p_{1.0\text{ vs }0.5}$ \\
+\midrule
+Stability ($n$=37) & 0.627 & 0.625 & 0.791 & 0.788 & $<10^{-4}$ & \textbf{0.827} & \textbf{0.822} & $<10^{-4}$ & $<10^{-4}$ \\
+Expression ($n$=18) & 0.437 & 0.434 & 0.492 & 0.504 & 0.0002 & \textbf{0.519} & \textbf{0.547} & 0.0002 & 0.005 \\
+Activity ($n$=38) & 0.411 & 0.404 & \textbf{0.448} & \textbf{0.449} & $<10^{-4}$ & 0.434 & 0.442 & 0.029 & 0.963 \\
+Binding ($n$=13) & 0.371 & 0.343 & \textbf{0.384} & \textbf{0.366} & 0.193 & 0.349 & 0.346 & 0.693 & 0.982 \\
+Org. Fitness ($n$=67) & 0.390 & 0.384 & \textbf{0.428} & \textbf{0.432} & $<10^{-4}$ & 0.415 & 0.430 & 0.015 & 0.945 \\
+\midrule
+Macro average (173 assays) & 0.447 & 0.438 & \textbf{0.509} & 0.508 & --- & \textbf{0.509} & \textbf{0.518} & $<10^{-4}$ & 0.457 \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+
+
+% ==================== table_S6a_ndcg96_and_property_gain.tex ====================
+
+\begin{table}[H]
+\centering
+\caption{\textbf{Main Model Comparison on MegaScale Test NDCG@96 (Shifted and Rectified Variants)}. Mean per-domain shifted and rectified NDCG@96 across the 33 Homology-Restricted MegaScale test domains (Overall, Singles, and Doubles; 13 domains for doubles). One-sided $p$-values test $H_1\colon \text{NDCG@96}_{\text{ESM-MSR}} > \text{NDCG@96}_{\text{model}}$ via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). Best values per column are indicated in bold.}
+\label{tab:si_megascale_ndcg96}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccccccccc}
+\toprule
+{} & \multicolumn{2}{c}{Shifted Overall} & \multicolumn{2}{c}{Shifted Singles} & \multicolumn{2}{c}{Shifted Doubles} & \multicolumn{2}{c}{Rectified Overall} & \multicolumn{2}{c}{Rectified Singles} & \multicolumn{2}{c}{Rectified Doubles} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9} \cmidrule(lr){10-11} \cmidrule(lr){12-13}
+ID & NDCG & $p$ & NDCG & $p$ & NDCG & $p$ & NDCG & $p$ & NDCG & $p$ & NDCG & $p$ \\
+\midrule
+ESM-MSR & \textbf{0.907} & --- & \textbf{0.921} & --- & \textbf{0.911} & --- & \textbf{0.562} & --- & \textbf{0.589} & --- & \textbf{0.714} & --- \\
+SPURS & 0.903 & 0.310 & 0.908 & 0.002 & 0.862 & 0.017 & 0.525 & 0.059 & 0.540 & 0.004 & 0.433 & 0.012 \\
+Mutate Everything & 0.867 & 0.0010 & 0.878 & $<10^{-4}$ & 0.882 & 0.131 & 0.395 & $<10^{-4}$ & 0.406 & $<10^{-4}$ & 0.506 & 0.043 \\
+ThermoMPNN & 0.885 & $<10^{-4}$ & 0.900 & $<10^{-4}$ & 0.852 & 0.0008 & 0.475 & $<10^{-4}$ & 0.504 & $<10^{-4}$ & 0.431 & $<10^{-4}$ \\
+GeoDDG-3D & 0.806 & $<10^{-4}$ & 0.820 & $<10^{-4}$ & 0.782 & $<10^{-4}$ & 0.338 & $<10^{-4}$ & 0.355 & $<10^{-4}$ & 0.401 & 0.0003 \\
+Rosetta & 0.837 & $<10^{-4}$ & 0.854 & $<10^{-4}$ & 0.782 & $<10^{-4}$ & 0.344 & $<10^{-4}$ & 0.367 & $<10^{-4}$ & 0.290 & $<10^{-4}$ \\
+ESM3-small-open & 0.819 & $<10^{-4}$ & 0.833 & $<10^{-4}$ & 0.769 & $<10^{-4}$ & 0.304 & $<10^{-4}$ & 0.314 & $<10^{-4}$ & 0.395 & $<10^{-4}$ \\
+ProteinMPNN & 0.828 & $<10^{-4}$ & 0.834 & $<10^{-4}$ & 0.795 & $<10^{-4}$ & 0.329 & $<10^{-4}$ & 0.340 & $<10^{-4}$ & 0.504 & 0.016 \\
+ProSST & 0.828 & $<10^{-4}$ & 0.830 & $<10^{-4}$ & 0.776 & $<10^{-4}$ & 0.333 & $<10^{-4}$ & 0.341 & $<10^{-4}$ & 0.309 & $<10^{-4}$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{\textbf{Rectified Stabilizing Gain Across Hydrophobicity $\times$ Solvent-Accessibility Quadrants ($k=96$ Picks per Domain)}. Mean per-domain total rectified stabilizing gain ($\sum \max(0, \Delta\Delta G)$, kcal/mol) among the top $k=96$ predicted single mutants across the 33 Homology-Restricted MegaScale test domains, decomposed by hydrophobicity change ($\Delta H$) and relative solvent accessibility (Buried: $\mathrm{rASA}\le 0.5$; Surface: $\mathrm{rASA}>0.5$). One-sided $p$-values test $H_1\colon \text{Gain}_{\text{ESM-MSR}} > \text{Gain}_{\text{model}}$ via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). Oracle (top 96 per domain) is shown as an upper bound and excluded from bolding.}
+\label{tab:si_property_gain}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccccccc}
+\toprule
+{} & \multicolumn{2}{c}{Total Gain ($k$=96)} & \multicolumn{2}{c}{$\Delta H\le 0$, Buried} & \multicolumn{2}{c}{$\Delta H\le 0$, Surface} & \multicolumn{2}{c}{$\Delta H>0$, Buried} & \multicolumn{2}{c}{$\Delta H>0$, Surface} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9} \cmidrule(lr){10-11}
+ID & Gain & $p$ & Gain & $p$ & Gain & $p$ & Gain & $p$ & Gain & $p$ \\
+\midrule
+ESM-MSR (WT-view) & 26.57 & --- & 3.47 & --- & 3.63 & --- & 9.36 & --- & 10.11 & --- \\
+SPURS & 24.75 & 0.002 & 3.07 & 0.179 & 3.36 & 0.151 & 8.91 & 0.081 & 9.41 & 0.096 \\
+Mutate Everything & 20.26 & $<10^{-4}$ & 2.08 & 0.0002 & 3.00 & 0.020 & 6.53 & $<10^{-4}$ & 8.65 & 0.002 \\
+ThermoMPNN & 23.77 & $<10^{-4}$ & 2.80 & 0.015 & 2.82 & $<10^{-4}$ & 8.58 & 0.093 & 9.57 & 0.160 \\
+GeoDDG-3D & 16.44 & $<10^{-4}$ & 2.60 & 0.011 & 1.66 & $<10^{-4}$ & 6.74 & $<10^{-4}$ & 5.45 & $<10^{-4}$ \\
+Rosetta & 17.33 & $<10^{-4}$ & 2.07 & 0.001 & 2.25 & $<10^{-4}$ & 6.42 & $<10^{-4}$ & 6.60 & $<10^{-4}$ \\
+ESM3-small-open & 13.46 & $<10^{-4}$ & 2.41 & $<10^{-4}$ & 3.52 & 0.310 & 3.33 & $<10^{-4}$ & 4.20 & $<10^{-4}$ \\
+ProteinMPNN & 15.67 & $<10^{-4}$ & 3.08 & 0.131 & 4.55 & 0.998 & 4.15 & $<10^{-4}$ & 3.89 & $<10^{-4}$ \\
+ProSST & 15.04 & $<10^{-4}$ & 2.87 & 0.001 & 3.41 & 0.238 & 4.69 & $<10^{-4}$ & 4.07 & $<10^{-4}$ \\
+Oracle (top 96 per domain) & \textbf{42.89} & 1.000 & \textbf{6.50} & 1.000 & \textbf{6.49} & 1.000 & \textbf{13.25} & 1.000 & \textbf{16.65} & 1.000 \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+
+
+% ==================== table_S6b_screening_enrichment.tex ====================
+
+\begin{table}[H]
+\centering
+\caption{\textbf{Practical Library Screening Performance on MegaScale Singles (33 domains, no-Cys)}. Top-$K$ stabilizing hit rate ($\Delta\Delta G>0.5$ kcal/mol) and probability of at least one hit $P(\ge 1)$ across library budgets $K$, alongside full-pool Pearson's $r$ and raw RMSE (kcal/mol). One-sided $p$-values test ESM-MSR (WT-view) superiority via paired cluster/assay $\times$ seed bootstrap ($B=10{,}000$; uncorrected). Best clean values per column are indicated in bold.}
+\label{tab:si_screening_figure4b_megascale_singles_nocys}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccccccccc}
+\toprule
+{} & \multicolumn{2}{c}{Hit$>0.5$ @$K$=1} & \multicolumn{2}{c}{Hit$>0.5$ @$K$=10} & \multicolumn{2}{c}{Hit$>0.5$ @$K$=50} & \multicolumn{2}{c}{$P(\ge 1)$ @$K$=10} & \multicolumn{2}{c}{$P(\ge 1)$ @$K$=50} & \multicolumn{2}{c}{Pool} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9} \cmidrule(lr){10-11} \cmidrule(lr){12-13}
+ID & Rate & $p$ & Rate & $p$ & Rate & $p$ & Rate & $p$ & Rate & $p$ & $r$ & RMSE \\
+\midrule
+ESM-MSR (WT-view) & \textbf{0.586} & --- & \textbf{0.446} & --- & \textbf{0.270} & --- & \textbf{0.879} & --- & 0.909 & --- & \textbf{0.846} & 0.587 \\
+SPURS & 0.414 & 0.020 & 0.405 & 0.058 & 0.247 & 0.015 & 0.869 & 0.552 & \textbf{0.929} & 0.710 & 0.826 & \textbf{0.566} \\
+Mutate Everything (Stage 1) & 0.323 & 0.009 & 0.259 & $<10^{-4}$ & 0.184 & $<10^{-4}$ & 0.717 & 0.002 & 0.909 & 0.539 & 0.799 & 0.580 \\
+ThermoMPNN & 0.434 & 0.017 & 0.352 & 0.0006 & 0.230 & 0.0002 & 0.727 & 0.002 & 0.879 & 0.214 & 0.800 & 0.583 \\
+GeoDDG-3D & 0.364 & 0.008 & 0.264 & 0.0003 & 0.155 & $<10^{-4}$ & 0.758 & 0.012 & 0.879 & 0.214 & 0.621 & 0.857 \\
+Rosetta & 0.364 & 0.009 & 0.267 & $<10^{-4}$ & 0.167 & $<10^{-4}$ & 0.758 & 0.014 & 0.879 & 0.297 & 0.633 & 1.869 \\
+ESM3-small-open & 0.424 & 0.062 & 0.197 & $<10^{-4}$ & 0.116 & $<10^{-4}$ & 0.727 & 0.004 & 0.879 & 0.214 & 0.603 & 1.131 \\
+ProteinMPNN & 0.394 & 0.017 & 0.224 & $<10^{-4}$ & 0.142 & $<10^{-4}$ & 0.727 & 0.005 & 0.909 & 0.548 & 0.545 & 2.543 \\
+ProSST & 0.273 & 0.0007 & 0.242 & $<10^{-4}$ & 0.139 & $<10^{-4}$ & 0.697 & 0.001 & 0.818 & 0.023 & 0.648 & 5.622 \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{\textbf{Practical Library Screening Performance on Domainome Held-Out (436 domains)}. Top-$K$ stabilizing hit rate ($\Delta\Delta G>0$) and probability of at least one hit $P(\ge 1)$ across library budgets $K$, alongside full-pool Pearson's $r$ and raw RMSE (kcal/mol). One-sided $p$-values test ESM-MSR (WT-view) superiority via paired cluster/assay $\times$ seed bootstrap ($B=10{,}000$; uncorrected). Best clean values per column are indicated in bold.}
+\label{tab:si_screening_figure4c_domainome_heldout_singles}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccccccccc}
+\toprule
+{} & \multicolumn{2}{c}{Hit$>$WT @$K$=1} & \multicolumn{2}{c}{Hit$>$WT @$K$=10} & \multicolumn{2}{c}{Hit$>$WT @$K$=50} & \multicolumn{2}{c}{$P(\ge 1)$ @$K$=10} & \multicolumn{2}{c}{$P(\ge 1)$ @$K$=50} & \multicolumn{2}{c}{Pool} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9} \cmidrule(lr){10-11} \cmidrule(lr){12-13}
+ID & Rate & $p$ & Rate & $p$ & Rate & $p$ & Rate & $p$ & Rate & $p$ & $r$ & RMSE \\
+\midrule
+ESM-MSR (WT-view) & 0.482 & --- & 0.415 & --- & 0.378 & --- & 0.955 & --- & \textbf{1.000} & --- & \textbf{0.600} & 1.222 \\
+SPURS & 0.440 & 0.113 & 0.386 & 0.022 & 0.352 & 0.009 & 0.941 & 0.149 & \textbf{1.000} & 1.000 & 0.503 & 0.884 \\
+Mutate Everything (Stage 1) & 0.359 & $<10^{-4}$ & 0.337 & $<10^{-4}$ & 0.330 & $<10^{-4}$ & 0.924 & 0.016 & 0.999 & 0.555 & 0.555 & 0.975 \\
+ThermoMPNN & 0.306 & $<10^{-4}$ & 0.332 & $<10^{-4}$ & 0.325 & $<10^{-4}$ & 0.926 & 0.026 & 0.998 & 0.203 & 0.460 & 0.810 \\
+GeoDDG-3D & 0.381 & 0.001 & 0.340 & $<10^{-4}$ & 0.307 & $<10^{-4}$ & 0.936 & 0.099 & 0.998 & 0.356 & 0.462 & 1.133 \\
+ESM3$\Delta G$ & 0.378 & $<10^{-4}$ & 0.408 & 0.279 & 0.375 & 0.369 & 0.913 & 0.002 & \textbf{1.000} & 1.000 & 0.539 & \textbf{0.744} \\
+ESM3-small-open & 0.544 & 0.975 & 0.520 & 1.000 & 0.458 & 1.000 & 0.984 & 0.998 & 0.998 & 0.369 & 0.576 & 1.500 \\
+ProteinMPNN & \textbf{0.555} & 0.990 & \textbf{0.552} & 1.000 & \textbf{0.491} & 1.000 & \textbf{0.995} & 1.000 & \textbf{1.000} & 1.000 & 0.536 & 3.012 \\
+ProSST & 0.463 & 0.292 & 0.426 & 0.798 & 0.394 & 0.993 & 0.959 & 0.634 & 0.998 & 0.369 & 0.574 & 7.259 \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{\textbf{Practical Library Screening Performance on ProteinGym Activity (38 assays)}. Top-$K$ deleterious harm rate ($\text{activity}<\text{WT}-0.5\text{ SD}$, lower is better) across library budgets $K$, alongside full-pool Pearson's $r$. One-sided $p$-values test ESM-MSR (WT-view) superiority via paired cluster/assay $\times$ seed bootstrap ($B=10{,}000$; uncorrected). Best clean values per column are indicated in bold.}
+\label{tab:si_screening_figure4d_pgym_activity_all_38}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lccccccccccc}
+\toprule
+{} & \multicolumn{2}{c}{Harm @$K$=1} & \multicolumn{2}{c}{Harm @$K$=10} & \multicolumn{2}{c}{Harm @$K$=20} & \multicolumn{2}{c}{Harm @$K$=50} & \multicolumn{2}{c}{Harm @$K$=100} & Pool \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9} \cmidrule(lr){10-11}
+ID & Rate & $p$ & Rate & $p$ & Rate & $p$ & Rate & $p$ & Rate & $p$ & $r$ \\
+\midrule
+ESM-MSR (WT-view) & 0.333 & --- & 0.320 & --- & 0.325 & --- & 0.305 & --- & 0.288 & --- & 0.448 \\
+SPURS & 0.447 & 0.132 & 0.356 & 0.197 & 0.343 & 0.274 & 0.345 & 0.030 & 0.334 & 0.001 & 0.382 \\
+Mutate Everything (Stage 1) & 0.368 & 0.352 & 0.358 & 0.157 & 0.376 & 0.065 & 0.362 & 0.017 & 0.342 & 0.005 & 0.379 \\
+ThermoMPNN & 0.447 & 0.114 & 0.445 & 0.0008 & 0.412 & 0.003 & 0.386 & 0.0005 & 0.372 & $<10^{-4}$ & 0.358 \\
+Rosetta & 0.579 & 0.016 & 0.505 & $<10^{-4}$ & 0.459 & $<10^{-4}$ & 0.424 & $<10^{-4}$ & 0.401 & $<10^{-4}$ & 0.333 \\
+ESM3-small-open & 0.368 & 0.369 & \textbf{0.245} & 0.965 & \textbf{0.253} & 0.987 & \textbf{0.246} & 0.999 & \textbf{0.250} & 0.999 & 0.385 \\
+ProteinMPNN & \textbf{0.325} & 0.544 & 0.321 & 0.494 & 0.309 & 0.704 & 0.308 & 0.433 & 0.306 & 0.137 & 0.294 \\
+ProSST & 0.526 & 0.035 & 0.453 & 0.004 & 0.418 & 0.011 & 0.379 & 0.005 & 0.332 & 0.025 & \textbf{0.506} \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{\textbf{Practical Library Screening Performance on ProteinGym Enzymes (16 assays)}. Top-$K$ deleterious harm rate ($\text{activity}<\text{WT}-0.5\text{ SD}$, lower is better) across library budgets $K$, alongside full-pool Pearson's $r$. One-sided $p$-values test ESM-MSR (WT-view) superiority via paired cluster/assay $\times$ seed bootstrap ($B=10{,}000$; uncorrected). Best clean values per column are indicated in bold.}
+\label{tab:si_screening_figure4d_pgym_activity_enzymes_16}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lccccccccccc}
+\toprule
+{} & \multicolumn{2}{c}{Harm @$K$=1} & \multicolumn{2}{c}{Harm @$K$=10} & \multicolumn{2}{c}{Harm @$K$=20} & \multicolumn{2}{c}{Harm @$K$=50} & \multicolumn{2}{c}{Harm @$K$=100} & Pool \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9} \cmidrule(lr){10-11}
+ID & Rate & $p$ & Rate & $p$ & Rate & $p$ & Rate & $p$ & Rate & $p$ & $r$ \\
+\midrule
+ESM-MSR (WT-view) & 0.333 & --- & 0.331 & --- & 0.340 & --- & 0.320 & --- & 0.311 & --- & 0.481 \\
+SPURS & 0.354 & 0.480 & 0.362 & 0.310 & 0.359 & 0.330 & 0.357 & 0.145 & 0.370 & 0.009 & 0.402 \\
+Mutate Everything (Stage 1) & 0.333 & 0.552 & 0.354 & 0.312 & 0.388 & 0.133 & 0.385 & 0.051 & 0.364 & 0.029 & 0.400 \\
+ThermoMPNN & 0.521 & 0.124 & 0.469 & 0.013 & 0.435 & 0.026 & 0.422 & 0.007 & 0.423 & 0.0002 & 0.378 \\
+Rosetta & 0.500 & 0.203 & 0.531 & $<10^{-4}$ & 0.500 & 0.001 & 0.461 & 0.002 & 0.451 & $<10^{-4}$ & 0.367 \\
+ESM3-small-open & \textbf{0.312} & 0.623 & \textbf{0.287} & 0.844 & \textbf{0.297} & 0.902 & \textbf{0.290} & 0.907 & \textbf{0.288} & 0.932 & 0.413 \\
+ProteinMPNN & 0.417 & 0.332 & 0.340 & 0.422 & 0.321 & 0.668 & 0.339 & 0.257 & 0.337 & 0.134 & 0.312 \\
+ProSST & 0.688 & 0.014 & 0.481 & 0.023 & 0.484 & 0.004 & 0.446 & $<10^{-4}$ & 0.401 & 0.007 & \textbf{0.484} \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+
