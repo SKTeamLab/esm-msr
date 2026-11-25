@@ -1431,15 +1431,419 @@ def run_tobit_floor_link_only(split: str = 'capped') -> list[Path]:
     return saved
 
 
+def build_supp_epistasis_mcc_figure(split: str = 'capped', B: int = 10_000) -> Path:
+    """Build 2-panel supplementary epistasis classification MCC figure (a: raw dddG > 0; b: saturation-corrected r > 0).
+
+    Uses canonical manuscript model order (epi_columns), threshold 0 on both measured and predicted values,
+    pooled MCC over all usable doubles with both measured singles (E.Table, matching Figure 2e), and paired
+    domain-cluster x seed bootstrap (B=10,000) for 95% CIs and one-sided ESM-MSR > X p-values.
+    """
+    from scipy.stats import pearsonr
+    from esm_msr import epi_metrics as E
+    from msr_analysis.boot import ci as boot_ci
+    from msr_analysis.epistasis import make_epi_table
+    from msr_analysis.stats import make_domain_seed_draws
+    from ._tsu_common import BEST_LABEL, best_other, epi_columns, fig_width
+
+    ds = tsu_datasets(split)[1]
+    fr = load_frame(ds)
+    sp = fr.spine
+    best, _ = best_other(fr)
+    name_map = {'best other ddG': BEST_LABEL[best]} if best else {}
+    cols = [c for c in epi_columns(fr, best) if c.get('draw', True)]
+
+    # Exact (singles_key, doubles_key) pairs matching Figure 2e / p06_epistasis_hierarchy.py
+    key_pairs = {
+        'ProteinMPNN': ('pmpnn+', 'pmpnn'),
+        'ESM3-small-open': ('msrrel@0:wt', 'msrrel@0:comb'),
+        'ESM-MSR': ('msrp0:wt', 'msrp0:comb'),
+        'MutateEverything': ('me1', 'me2'),
+        'ThermoMPNN': ('tmpnn', 'tmpnnd'),
+        'SPURS': ('spurs', 'spursm'),
+        'best other ddG': ('geoddg+', 'geoddg'),
+        'Rosetta': ('rosetta+', 'rosetta'),
+    }
+
+    def _mcc_from_counts(tp, tn, fp, fn):
+        num = tp * tn - fp * fn
+        den = np.sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn))
+        with np.errstate(divide='ignore', invalid='ignore'):
+            return np.where(den > 0, num / den, 0.0)
+
+    def _one_sided_p(diffs: np.ndarray) -> tuple[float, int, int]:
+        fin = diffs[np.isfinite(diffs)]
+        nf = int(np.sum(fin <= 0.0))
+        return float((nf + 1) / (len(fin) + 1)), nf, int(len(fin))
+
+    # Build E.Table for each model x seed, verify common domain set
+    ref_tab = make_epi_table(sp, fr.preds['msrp0:wt'][0], fr.preds['msrp0:comb'][0], comb=fr.preds['msrp0:comb'][0], heads=('comb', 'add'))
+    libs = np.unique(ref_tab.lib)
+    n_libs = len(libs)
+    lib_idx = {l: i for i, l in enumerate(libs)}
+    dom_counts, seed_w = make_domain_seed_draws(n_libs, B=B, seed=2026, seed_counts=(3,))
+
+    # Map E.Table lib ids back to domain names for per-domain source data
+    use_idx = np.flatnonzero(sp['use'].to_numpy(dtype=bool))
+    code_col = 'code' if 'code' in sp else 'code_wt'
+    lib_names_map: dict[int, str] = {}
+    sp_grp = sp['group'].astype(str).to_numpy()[use_idx]
+    sp_code = sp[code_col].astype(str).to_numpy()[use_idx]
+    # Reconstruct exact lib_id -> code_wt mapping in E.Table order
+    code_to_grp = dict(zip(sp_code, sp_grp))
+    # Use ref_tab.lib indices alongside spine codes
+    sp_mut = sp['mut'].astype(str).to_numpy()[use_idx]
+    from msr_analysis.epistasis import parse_mut_key
+    keys_all = [parse_mut_key(m, c) for m, c in zip(sp_mut, sp_code)]
+    st_all = ['single' if k and len(k) == 1 else ('double' if k and len(k) == 2 else 'other') for k in keys_all]
+    gt_all = sp['y'].to_numpy(float)[use_idx]
+    dd_all = sp['dddG_ML'].to_numpy(float)[use_idx]
+    c_all = sp['dG_wt'].to_numpy(float)[use_idx]
+    singles_set = {tuple(k[0]) for i, k in enumerate(keys_all) if st_all[i] == 'single' and k is not None and len(k) == 1 and np.isfinite(gt_all[i])}
+    seen_libs: dict[tuple, int] = {}
+    for i, k in enumerate(keys_all):
+        if st_all[i] != 'double' or k is None or len(k) != 2:
+            continue
+        if not (np.isfinite(dd_all[i]) and np.isfinite(gt_all[i]) and np.isfinite(c_all[i])):
+            continue
+        m1, m2 = tuple(k[0]), tuple(k[1])
+        if m1[:-1] > m2[:-1]:
+            m1, m2 = m2, m1
+        if m1 not in singles_set or m2 not in singles_set:
+            continue
+        lk = tuple(k[0][:-2])
+        if lk not in seen_libs:
+            lid = len(seen_libs)
+            seen_libs[lk] = lid
+            lib_names_map[lid] = code_to_grp.get(str(lk[0]), str(lk[0]))
+
+    summary_rows = []
+    per_dom_rows = []
+    reps_store: dict[tuple[str, str], np.ndarray] = {}
+    pt_store: dict[tuple[str, str], float] = {}
+    extra_stats: dict[tuple[str, str], tuple[float, float]] = {}  # (pearson_r, rmse)
+    n_var_by_panel: dict[str, int] = {}
+
+    for c in cols:
+        cname = c['name']
+        disp = name_map.get(cname, cname)
+        kw, kd = key_pairs[cname]
+        wt_arr = fr.preds[kw]
+        db_arr = fr.preds[kd]
+        ns = min(wt_arr.shape[0], db_arr.shape[0])
+
+        for panel_key in ('raw', 'sat_corrected'):
+            # Per-seed, per-domain 2x2 counts (ns, n_libs)
+            tp_mat = np.zeros((ns, n_libs), dtype=float)
+            tn_mat = np.zeros((ns, n_libs), dtype=float)
+            fp_mat = np.zeros((ns, n_libs), dtype=float)
+            fn_mat = np.zeros((ns, n_libs), dtype=float)
+            seed_mccs, seed_accs, seed_f1s, seed_precs, seed_recs = [], [], [], [], []
+            seed_rhos, seed_rs, seed_rmses = [], [], []
+            n_ok_last = 0
+
+            for s in range(ns):
+                tab = make_epi_table(sp, wt_arr[s], db_arr[s], comb=db_arr[s], heads=('comb', 'add'))
+                if panel_key == 'raw':
+                    ym = tab.dddG
+                    yp, _ = E.predicted_dddg(tab, 'comb')
+                else:
+                    ym, yp = E.beyond_global(tab, 'comb')
+                ok = np.isfinite(ym) & np.isfinite(yp)
+                n_ok_last = int(ok.sum())
+                y_b = ym[ok] > 0.0
+                p_b = yp[ok] > 0.0
+                lib_ok = tab.lib[ok]
+
+                for l_val in libs:
+                    ml = (lib_ok == l_val)
+                    li = lib_idx[l_val]
+                    tp = float(np.sum(y_b[ml] & p_b[ml]))
+                    tn = float(np.sum((~y_b[ml]) & (~p_b[ml])))
+                    fp = float(np.sum((~y_b[ml]) & p_b[ml]))
+                    fn = float(np.sum(y_b[ml] & (~p_b[ml])))
+                    tp_mat[s, li], tn_mat[s, li], fp_mat[s, li], fn_mat[s, li] = tp, tn, fp, fn
+                    per_dom_rows.append(dict(
+                        panel=panel_key, model=disp, column=cname, domain=lib_names_map.get(int(l_val), str(l_val)),
+                        seed=s + 1, n_variants=int(ml.sum()), tp=int(tp), tn=int(tn), fp=int(fp), fn=int(fn),
+                        mcc=float(_mcc_from_counts(tp, tn, fp, fn)),
+                    ))
+
+                tp_t, tn_t, fp_t, fn_t = tp_mat[s].sum(), tn_mat[s].sum(), fp_mat[s].sum(), fn_mat[s].sum()
+                seed_mccs.append(float(_mcc_from_counts(tp_t, tn_t, fp_t, fn_t)))
+                seed_accs.append(float((tp_t + tn_t) / max(tp_t + tn_t + fp_t + fn_t, 1.0)))
+                prec = float(tp_t / max(tp_t + fp_t, 1.0))
+                rec = float(tp_t / max(tp_t + fn_t, 1.0))
+                seed_precs.append(prec)
+                seed_recs.append(rec)
+                seed_f1s.append(float(2 * prec * rec / max(prec + rec, 1e-12)))
+                seed_rhos.append(float(spearmanr(yp[ok], ym[ok])[0]) if np.ptp(yp[ok]) > 0 else np.nan)
+                seed_rs.append(float(pearsonr(yp[ok], ym[ok])[0]) if np.ptp(yp[ok]) > 0 else np.nan)
+                seed_rmses.append(float(np.sqrt(np.mean((yp[ok] - ym[ok]) ** 2))))
+
+            # Exact vectorized domain-cluster x seed bootstrap: (B, ns)
+            tp_b = dom_counts @ tp_mat.T
+            tn_b = dom_counts @ tn_mat.T
+            fp_b = dom_counts @ fp_mat.T
+            fn_b = dom_counts @ fn_mat.T
+            mcc_b_seed = _mcc_from_counts(tp_b, tn_b, fp_b, fn_b)
+            if ns > 1:
+                sw = seed_w[ns]
+                reps = np.sum(mcc_b_seed * sw, axis=1)
+            else:
+                reps = mcc_b_seed[:, 0]
+
+            pt = float(np.mean(seed_mccs))
+            lo, hi = boot_ci(reps)
+            reps_store[(panel_key, disp)] = reps
+            pt_store[(panel_key, disp)] = pt
+            extra_stats[(panel_key, disp)] = (float(np.nanmean(seed_rs)), float(np.nanmean(seed_rmses)))
+            n_var_by_panel[panel_key] = n_ok_last
+
+            summary_rows.append(dict(
+                panel=panel_key,
+                column=cname,
+                model=disp,
+                subset=panel_key,
+                value=pt,
+                lo=lo,
+                hi=hi,
+                accuracy=float(np.mean(seed_accs)),
+                f1=float(np.mean(seed_f1s)),
+                precision=float(np.mean(seed_precs)),
+                recall=float(np.mean(seed_recs)),
+                tp_mean=float(tp_mat.sum(axis=1).mean()),
+                tn_mean=float(tn_mat.sum(axis=1).mean()),
+                fp_mean=float(fp_mat.sum(axis=1).mean()),
+                fn_mean=float(fn_mat.sum(axis=1).mean()),
+                spearman_rho=float(np.nanmean(seed_rhos)),
+                pearson_r=float(np.nanmean(seed_rs)),
+                rmse=float(np.nanmean(seed_rmses)),
+                n_variants=n_ok_last,
+                n_libraries=n_libs,
+                n_seeds=ns,
+            ))
+
+    df_sum = pd.DataFrame(summary_rows)
+    df_raw = df_sum[df_sum['panel'] == 'raw'].copy()
+    df_sat = df_sum[df_sum['panel'] == 'sat_corrected'].copy()
+
+    # Two-panel stacked bar figure (a: raw dddG > 0; b: saturation-corrected r > 0), no overall title
+    w_fig = max(11.4, fig_width(cols))
+    fig = plt.figure(figsize=(w_fig, 9.6), facecolor='white')
+    gs = fig.add_gridspec(2, 1, left=0.080, right=0.985, top=0.950, bottom=0.125, hspace=0.46)
+    ax_a = fig.add_subplot(gs[0, 0])
+    ax_b = fig.add_subplot(gs[1, 0])
+
+    lo_a = min(-0.08, float(np.floor((df_raw['lo'].min() - 0.04) * 20) / 20))
+    hi_a = max(0.35, float(np.ceil((df_raw['hi'].max() + 0.11) * 20) / 20))
+    lo_b = min(-0.08, float(np.floor((df_sat['lo'].min() - 0.04) * 20) / 20))
+    hi_b = max(0.55, float(np.ceil((df_sat['hi'].max() + 0.11) * 20) / 20))
+
+    style.bar_panel(
+        ax_a, cols, df_raw, ('raw',), ('raw epistasis (δΔΔG > 0)',),
+        ylabel='Epistasis sign MCC\n(raw δΔΔG > 0)',
+        ylim=(lo_a, hi_a),
+        zero_line=True, tick_fs=8.5,
+    )
+    style.bar_panel(
+        ax_b, cols, df_sat, ('sat_corrected',), ('saturation-corrected (r > 0)',),
+        ylabel='Epistasis sign MCC\n(saturation-corrected r > 0)',
+        ylim=(lo_b, hi_b),
+        zero_line=True, tick_fs=8.5,
+    )
+    for ax_s in (ax_a, ax_b):
+        for txt in ax_s.texts:
+            if txt.get_fontsize() < 8.0:
+                txt.set_fontsize(8.0)
+
+    fig.canvas.draw()
+    pa, pb = ax_a.get_position(), ax_b.get_position()
+    fig.text(0.012, pa.y1 + 0.032, 'a', ha='left', va='top', fontsize=16, fontweight='bold')
+    fig.text(0.012, pb.y1 + 0.032, 'b', ha='left', va='top', fontsize=16, fontweight='bold')
+
+    supp_dir = out_dir('supplementary_figs')
+    out_path = supp_dir / '_epi_mcc'
+    style.save(fig, out_path)
+
+    # Export source data (gitignored *_sourcedata.csv) + paired one-sided bootstrap p-value table & annotation
+    src_dir = supp_dir / 'source_data'
+    pval_dir = supp_dir / 'pvalues'
+    src_dir.mkdir(parents=True, exist_ok=True)
+    pval_dir.mkdir(parents=True, exist_ok=True)
+    atomic_to_csv(df_sum, src_dir / '_epi_mcc_summary_sourcedata.csv', index=False, float_format='%.4f')
+    atomic_to_csv(pd.DataFrame(per_dom_rows), src_dir / '_epi_mcc_per_domain_sourcedata.csv', index=False, float_format='%.6f')
+
+    models_disp = [name_map.get(c['name'], c['name']) for c in cols]
+    comps = [m for m in models_disp if m != 'ESM-MSR']
+    m_clean = len(comps)
+    p_rows = []
+    for panel_key, metric_lbl in (
+        ('raw', 'epistasis_sign_MCC_raw_dddG_gt0'),
+        ('sat_corrected', 'epistasis_sign_MCC_saturation_corrected_r_gt0'),
+    ):
+        msr_pt = pt_store[(panel_key, 'ESM-MSR')]
+        msr_rp = reps_store[(panel_key, 'ESM-MSR')]
+        msr_r, msr_e = extra_stats[(panel_key, 'ESM-MSR')]
+        n_v = n_var_by_panel[panel_key]
+        p_by_c = {}
+        d_list = []
+        for comp in comps:
+            d_arr = msr_rp - reps_store[(panel_key, comp)]
+            p_one, nf, b_eff = _one_sided_p(d_arr)
+            p_by_c[comp] = p_one
+            d_list.append(d_arr)
+            lo_d, hi_d = boot_ci(d_arr)
+            cr, ce = extra_stats[(panel_key, comp)]
+            p_rows.append(dict(
+                benchmark='MegaScale_capped_test_epistasis',
+                subset_or_metric=metric_lbl,
+                resampling_unit='domain_cluster_x_seed',
+                test_type='pairwise',
+                msr_model='ESM-MSR',
+                comparator=comp,
+                direction='ESM-MSR > comparator',
+                value_msr=msr_pt,
+                value_comparator=pt_store[(panel_key, comp)],
+                pearson_r_msr=msr_r,
+                pearson_r_comparator=cr,
+                rmse_msr=msr_e,
+                rmse_comparator=ce,
+                delta_favoring_msr=msr_pt - pt_store[(panel_key, comp)],
+                ci95_lo=lo_d,
+                ci95_hi=hi_d,
+                n_units=n_libs,
+                n_variants=n_v,
+                B=b_eff,
+                n_boot_fail=nf,
+                p_one_sided_uncorrected=p_one,
+                bonferroni_m=m_clean,
+                p_one_sided_bonferroni=min(1.0, m_clean * p_one),
+            ))
+        best_c = max(comps, key=lambda x: pt_store[(panel_key, x)])
+        d_nb = msr_rp - reps_store[(panel_key, best_c)]
+        p_nb, nf_nb, b_nb = _one_sided_p(d_nb)
+        lo_nb, hi_nb = boot_ci(d_nb)
+        cr, ce = extra_stats[(panel_key, best_c)]
+        p_rows.append(dict(
+            benchmark='MegaScale_capped_test_epistasis',
+            subset_or_metric=metric_lbl,
+            resampling_unit='domain_cluster_x_seed',
+            test_type='next_best_clean',
+            msr_model='ESM-MSR',
+            comparator=best_c,
+            direction='ESM-MSR > comparator',
+            value_msr=msr_pt,
+            value_comparator=pt_store[(panel_key, best_c)],
+            pearson_r_msr=msr_r,
+            pearson_r_comparator=cr,
+            rmse_msr=msr_e,
+            rmse_comparator=ce,
+            delta_favoring_msr=msr_pt - pt_store[(panel_key, best_c)],
+            ci95_lo=lo_nb,
+            ci95_hi=hi_nb,
+            n_units=n_libs,
+            n_variants=n_v,
+            B=b_nb,
+            n_boot_fail=nf_nb,
+            p_one_sided_uncorrected=p_nb,
+            bonferroni_m=m_clean,
+            p_one_sided_bonferroni=min(1.0, m_clean * p_nb),
+        ))
+        worst_c = max(comps, key=lambda x: p_by_c[x])
+        d_w = msr_rp - reps_store[(panel_key, worst_c)]
+        p_iut, nf_w, b_w = _one_sided_p(d_w)
+        lo_w, hi_w = boot_ci(d_w)
+        cr, ce = extra_stats[(panel_key, worst_c)]
+        p_rows.append(dict(
+            benchmark='MegaScale_capped_test_epistasis',
+            subset_or_metric=metric_lbl,
+            resampling_unit='domain_cluster_x_seed',
+            test_type='all_clean_IUT',
+            msr_model='ESM-MSR',
+            comparator=f'ALL_CLEAN_IUT (limiting: {worst_c})',
+            direction='ESM-MSR > comparator',
+            value_msr=msr_pt,
+            value_comparator=pt_store[(panel_key, worst_c)],
+            pearson_r_msr=msr_r,
+            pearson_r_comparator=cr,
+            rmse_msr=msr_e,
+            rmse_comparator=ce,
+            delta_favoring_msr=msr_pt - pt_store[(panel_key, worst_c)],
+            ci95_lo=lo_w,
+            ci95_hi=hi_w,
+            n_units=n_libs,
+            n_variants=n_v,
+            B=b_w,
+            n_boot_fail=nf_w,
+            p_one_sided_uncorrected=p_iut,
+            bonferroni_m=1,
+            p_one_sided_bonferroni=p_iut,
+        ))
+        d_min = np.nanmin(np.vstack(d_list), axis=0)
+        p_jm, nf_jm, b_jm = _one_sided_p(d_min)
+        lo_jm, hi_jm = boot_ci(d_min)
+        p_rows.append(dict(
+            benchmark='MegaScale_capped_test_epistasis',
+            subset_or_metric=metric_lbl,
+            resampling_unit='domain_cluster_x_seed',
+            test_type='all_clean_joint_max',
+            msr_model='ESM-MSR',
+            comparator=f'ALL_CLEAN_JOINT_MAX (max of {m_clean} clean models per draw)',
+            direction='ESM-MSR > comparator',
+            value_msr=msr_pt,
+            value_comparator=np.nan,
+            pearson_r_msr=msr_r,
+            pearson_r_comparator=np.nan,
+            rmse_msr=msr_e,
+            rmse_comparator=np.nan,
+            delta_favoring_msr=msr_pt - max(pt_store[(panel_key, x)] for x in comps),
+            ci95_lo=lo_jm,
+            ci95_hi=hi_jm,
+            n_units=n_libs,
+            n_variants=n_v,
+            B=b_jm,
+            n_boot_fail=nf_jm,
+            p_one_sided_uncorrected=p_jm,
+            bonferroni_m=1,
+            p_one_sided_bonferroni=p_jm,
+        ))
+
+    atomic_to_csv(pd.DataFrame(p_rows), pval_dir / '_epi_mcc_pvalues.csv', index=False, float_format='%.6g')
+    atomic_write_text(
+        pval_dir / '_epi_mcc_pvalues_annotation.txt',
+        f"""Statistical Annotation: _epi_mcc_pvalues.csv
+============================================
+Figure / Panel: Supplementary Figure (_epi_mcc), Panel a (raw epistasis sign classification, threshold = 0 on both measured dddG and predicted dddG) and Panel b (saturation-corrected epistasis sign classification, threshold = 0 on both measured residual r = dddG - E[dddG | dG_add] and predicted residual r' = dddG' - E[dddG' | dG_add']).
+
+Metric Tested:
+  Pooled Matthews Correlation Coefficient (MCC) across all {n_var_by_panel['raw']:,} usable Homology-Restricted MegaScale test doubles with both constituent singles measured ({n_libs} test domains; 3-seed average for retrained transfer models). ProSST is omitted because it is strictly additive (predicted dddG = 0 identically).
+  Mean Pearson's r and RMSE (kcal/mol) on the same raw / saturation-corrected quantities are included alongside MCC.
+
+Statistical Test & Resampling Procedure:
+  Paired nonparametric domain-cluster x seed bootstrap (B = {B:,}, deterministic seed).
+  In each replicate, the {n_libs} test domains are resampled with replacement via a single shared Multinomial({n_libs}, 1/{n_libs}) weight vector applied to every model's per-domain 2x2 contingency counts (TP, TN, FP, FN), and 3-seed retrained models are resampled jointly across training seeds.
+  One-sided Phipson & Smyth (2010) p-value: p = (1 + #{{b : delta^(b) <= 0}}) / (B + 1).
+  Bonferroni correction adjusts within each panel over m = {m_clean} clean comparator models.
+  `all_clean_IUT` gives Berger's (1982) Intersection-Union Test (p_IUT = max_j p_j); `all_clean_joint_max` evaluates min_j(MCC_ESM-MSR^(b) - MCC_j^(b)) per draw.
+""",
+    )
+    return out_path
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = base_parser(STAGE, DESCRIPTION, with_split=True)
     ap.add_argument('--exploratory', action='store_true', help='Also render exploratory multi-option drafts (option_*, link_option_*)')
     ap.add_argument('--pair-pngs', action='store_true', help='Also render all 30 individual 20x20 pair-epistasis PNG grids')
     ap.add_argument('--per-model-pngs', action='store_true', help='Also render all 36 individual per-model dddG scatter PNGs')
     ap.add_argument('--workers', type=int, default=4, help='Worker processes for Rosetta bootstrap')
-    ap.add_argument('--only', choices=('all', 'fig6', 'fig7', 'link', 'tobit_floor_link', 'heatmaps', 'rosetta'), default='all', help='Optional substage selector')
+    ap.add_argument('--only', choices=('all', 'fig6', 'fig7', 'link', 'tobit_floor_link', 'heatmaps', 'rosetta', 'epi_mcc'), default='all', help='Optional substage selector')
     args = ap.parse_args(argv)
     B = resolve_b(args)
+
+    if args.only == 'epi_mcc':
+        out = build_supp_epistasis_mcc_figure(split=args.split, B=max(B, 10_000))
+        print(f'[p07:epistasis_mechanisms] Saved {out}.{{png,pdf}}')
+        return 0
 
     if args.only == 'tobit_floor_link':
         out = run_tobit_floor_link_only(split=args.split)
