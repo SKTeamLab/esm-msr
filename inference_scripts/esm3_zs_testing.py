@@ -115,6 +115,24 @@ def timed_call(func, *args, **kwargs):
     return result, elapsed
 
 
+def _compact_backbone_coords(coords_obj) -> list:
+    """Keep only N, CA, C backbone atoms (indices 0..2, the only atoms ESM3 encodes)
+    rounded to 0.001 A PDB precision, with None for remaining 34 atom37 slots.
+
+    Bit-exact for ESM3 structure tokenization and logits while keeping proteins up to
+    ~1,500 aa under Forge's 1 MB Next.js JSON request body limit.
+    """
+    arr = coords_obj.tolist() if hasattr(coords_obj, "tolist") else coords_obj
+    null_pad = [[None, None, None]] * 34
+    out = []
+    for res in arr:
+        bb = []
+        for atom in res[:3]:
+            bb.append([None if (v is None or v != v) else round(float(v), 3) for v in atom])
+        out.append(bb + null_pad)
+    return out
+
+
 class AdaptiveTokenLimiter:
     """Sliding-window token + request rate limiter that auto-tunes to Forge 429 caps."""
 
@@ -251,6 +269,7 @@ class ESM3ForgePredictor:
         full_url = f"{self.url}/api/v1/{endpoint}"
         headers = self._headers(return_bytes=return_bytes)
         payload["potential_sequence_of_concern"] = False
+        body_bytes = json.dumps(payload, separators=(",", ":")).encode("utf-8")
 
         for attempt in range(self.max_retries):
             await self._limiter.acquire(n_tokens)
@@ -258,7 +277,7 @@ class ESM3ForgePredictor:
                 try:
                     resp = await http_client.post(
                         full_url,
-                        json=payload,
+                        content=body_bytes,
                         headers=headers,
                         timeout=self.request_timeout,
                     )
@@ -339,7 +358,7 @@ class ESM3ForgePredictor:
                 "sequence": wt_seq,
                 "secondary_structure": None,
                 "sasa": None,
-                "coordinates": maybe_list(coords, convert_nan_to_none=True),
+                "coordinates": _compact_backbone_coords(coords),
             },
         }
         data = await self._post_json(http_client, sem, "encode", payload, n_tokens=len(wt_seq) + 2, return_bytes=False)
@@ -351,7 +370,7 @@ class ESM3ForgePredictor:
             "wt_seq": wt_seq,
             "sequence": list(outputs["sequence"]),
             "structure": outputs["structure"],
-            "coordinates": outputs["coordinates"],
+            "coordinates": _compact_backbone_coords(outputs["coordinates"]),
             "n_tokens": len(outputs["sequence"]),
         }
         self._encode_cache[key] = encoded
