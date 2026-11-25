@@ -693,11 +693,418 @@ def build_supp_sequence_length_combined():
     return out_path
 
 
+def build_supp_ssym_antisymmetry_bias(B: int = 10_000) -> Path:
+    """Build 2-panel supplementary Ssym antisymmetry (a) and bias (b) figure across all 10 main methods.
+
+    Uses all 342 exact direct-reverse pairs in Ssym (index_rev = index_dir + 342; 684 variants across 15 WT proteins).
+    - Panel a: Antisymmetry Pearson r(y_dir, y_rev) (ideal = -1.0).
+    - Panel b: Bias <delta> = mean(y_dir + y_rev) / 2 (ideal = 0.0; Pucci et al. 2018 convention).
+    Shows WT-view (hatched) alongside Dual-view (solid) for ESM-MSR and ESM3-small-open, and canonical single-mutant
+    readout (solid) for the other 8 methods. No overall figure title.
+    """
+    from matplotlib.patches import Patch
+    from scipy.stats import pearsonr
+    from msr_analysis import models as M
+    from msr_analysis.boot import ci as boot_ci
+    from msr_analysis.common import leak_table
+    from msr_analysis.paths import TASKS, atomic_write_text
+
+    fr = load_frame('ssym')
+    sp = fr.spine
+    t = pd.read_csv(TASKS / 'ssym.csv.gz')
+    d_df = t[t['index'] < 342].set_index('index').sort_index()
+    r_df = t[t['index'] >= 342].assign(pair_idx=lambda x: x['index'] - 342).set_index('pair_idx').sort_index()
+    assert len(d_df) == 342 and len(r_df) == 342
+    assert bool((d_df['wt_code'] == r_df['wt_code']).all())
+    assert bool(((d_df['wild_type'] == r_df['mutation']) & (d_df['mutation'] == r_df['wild_type'])).all())
+
+    id2i = {int(rid): i for i, rid in enumerate(sp['row_id'].to_numpy())}
+    i_dir = np.array([id2i[int(rid)] for rid in d_df['row_id']], dtype=int)
+    i_rev = np.array([id2i[int(rid)] for rid in r_df['row_id']], dtype=int)
+    y_dir = sp['y'].to_numpy(float)[i_dir]
+    y_rev = sp['y'].to_numpy(float)[i_rev]
+    y_all = np.concatenate([y_dir, y_rev])
+    n_pairs = len(i_dir)
+    n_prots = int(d_df['wt_code'].nunique())
+    lk = leak_table()
+
+    # All 10 canonical main methods in manuscript order
+    # Each entry: (name, cat, color, label, [(view_tag, key), ...])
+    specs = []
+    for name in M.UNIFIED:
+        m = M.BY_NAME[name]
+        is_leak = bool(lk.get((m.single, 'ssym'), False))
+        lbl = f'{name}*' if is_leak else name
+        if name in ('ESM-MSR', 'ESM3-small-open'):
+            views = [('wt', m.single), ('dual', m.multi)]
+            lbl = f'{name}\n(WT / Dual-view)'
+        else:
+            views = [('dual', m.single)]
+        specs.append(dict(name=name, cat=m.group, color=m.color, label=lbl, views=views, leak=is_leak))
+
+    # Shared paired bootstrap draws: B x n_pairs multinomial weights + B x 3 seed weights
+    rng = np.random.default_rng(20260)
+    pair_w = rng.multinomial(n_pairs, np.full(n_pairs, 1.0 / n_pairs), size=B).astype(float)  # (B, 342)
+    seed_w3 = rng.multinomial(3, np.full(3, 1.0 / 3.0), size=B).astype(float) / 3.0
+
+    def _w_pearson(x: np.ndarray, yv: np.ndarray, w: np.ndarray) -> np.ndarray:
+        """Vectorized weighted Pearson r for 1D arrays x, yv and (B, N) weight matrix w."""
+        ws = w.sum(axis=1, keepdims=True)
+        mx = (w @ x)[:, None] / ws
+        my = (w @ yv)[:, None] / ws
+        dx = x[None, :] - mx
+        dy = yv[None, :] - my
+        cov = np.sum(w * dx * dy, axis=1)
+        vx = np.sum(w * dx * dx, axis=1)
+        vy = np.sum(w * dy * dy, axis=1)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            return cov / np.sqrt(vx * vy)
+
+    def _one_sided_p(diffs: np.ndarray) -> tuple[float, int, int]:
+        fin = diffs[np.isfinite(diffs)]
+        nf = int(np.sum(fin <= 0.0))
+        return float((nf + 1) / (len(fin) + 1)), nf, int(len(fin))
+
+    sum_rows = []
+    pair_rows = []
+    r_reps_map: dict[tuple[str, str], np.ndarray] = {}
+    b_reps_map: dict[tuple[str, str], np.ndarray] = {}
+    pt_map: dict[tuple[str, str], dict] = {}
+
+    for spc in specs:
+        name = spc['name']
+        for vtag, key in spc['views']:
+            arr = fr.preds[key]
+            ns = arr.shape[0]
+            seed_r_draws = np.empty((B, ns), dtype=float)
+            seed_b_draws = np.empty((B, ns), dtype=float)
+            s_r, s_rho_dr, s_bias, s_std_b = [], [], [], []
+            s_rho_d, s_rho_r, s_rho_all, s_pr_all, s_rmse_all = [], [], [], [], []
+
+            for s in range(ns):
+                pd_ = arr[s, i_dir].astype(float)
+                pr_ = arr[s, i_rev].astype(float)
+                ok = np.isfinite(pd_) & np.isfinite(pr_)
+                w_eff = pair_w[:, ok] if not ok.all() else pair_w
+                seed_r_draws[:, s] = _w_pearson(pd_[ok], pr_[ok], w_eff)
+                delta = 0.5 * (pd_[ok] + pr_[ok])
+                seed_b_draws[:, s] = (w_eff @ delta) / w_eff.sum(axis=1)
+
+                s_r.append(float(pearsonr(pd_[ok], pr_[ok])[0]))
+                s_rho_dr.append(float(spearmanr(pd_[ok], pr_[ok])[0]))
+                s_bias.append(float(np.mean(delta)))
+                p_all = np.concatenate([pd_[ok], pr_[ok]])
+                y_ok = np.concatenate([y_dir[ok], y_rev[ok]])
+                s_std_b.append(float(np.mean(delta) / max(np.std(p_all), 1e-12)))
+                s_rho_d.append(float(spearmanr(pd_[ok], y_dir[ok])[0]))
+                s_rho_r.append(float(spearmanr(pr_[ok], y_rev[ok])[0]))
+                s_rho_all.append(float(spearmanr(p_all, y_ok)[0]))
+                s_pr_all.append(float(pearsonr(p_all, y_ok)[0]))
+                s_rmse_all.append(float(np.sqrt(np.mean((p_all - y_ok) ** 2))))
+
+            r_reps = np.sum(seed_r_draws * seed_w3, axis=1) if ns == 3 else seed_r_draws.mean(axis=1)
+            b_reps = np.sum(seed_b_draws * seed_w3, axis=1) if ns == 3 else seed_b_draws.mean(axis=1)
+            r_pt = float(np.mean(s_r))
+            b_pt = float(np.mean(s_bias))
+            r_lo, r_hi = boot_ci(r_reps)
+            b_lo, b_hi = boot_ci(b_reps)
+
+            r_reps_map[(name, vtag)] = r_reps
+            b_reps_map[(name, vtag)] = b_reps
+            pt_map[(name, vtag)] = dict(
+                r=r_pt, bias=b_pt, pearson_r=float(np.mean(s_pr_all)), rmse=float(np.mean(s_rmse_all)),
+                leak=spc['leak'],
+            )
+            sum_rows.append(dict(
+                model=name, view=vtag, key=key, group=spc['cat'], leak_flag=spc['leak'],
+                r_dir_rev=r_pt, r_lo=r_lo, r_hi=r_hi,
+                rho_dir_rev=float(np.mean(s_rho_dr)),
+                bias_delta=b_pt, bias_lo=b_lo, bias_hi=b_hi,
+                abs_bias=abs(b_pt),
+                std_bias=float(np.mean(s_std_b)),
+                spearman_dir=float(np.mean(s_rho_d)),
+                spearman_rev=float(np.mean(s_rho_r)),
+                spearman_all=float(np.mean(s_rho_all)),
+                pearson_r=float(np.mean(s_pr_all)),
+                rmse=float(np.mean(s_rmse_all)),
+                n_pairs=n_pairs, n_variants=2 * n_pairs, n_proteins=n_prots, n_seeds=ns,
+            ))
+
+            # Per-pair seed-mean predictions for full reproducibility
+            pd_mean = arr[:, i_dir].mean(axis=0)
+            pr_mean = arr[:, i_rev].mean(axis=0)
+            for pidx in range(n_pairs):
+                pair_rows.append(dict(
+                    pair_idx=pidx, wt_code=str(d_df['wt_code'].iloc[pidx]),
+                    id_dir=str(d_df['id'].iloc[pidx]), id_rev=str(r_df['id'].iloc[pidx]),
+                    y_dir=float(y_dir[pidx]), y_rev=float(y_rev[pidx]),
+                    model=name, view=vtag, key=key,
+                    pred_dir=float(pd_mean[pidx]), pred_rev=float(pr_mean[pidx]),
+                    delta_half=0.5 * float(pd_mean[pidx] + pr_mean[pidx]),
+                ))
+
+    df_sum = pd.DataFrame(sum_rows)
+
+    # Render 2-panel stacked figure (a: r_dir_rev; b: bias <delta>), global grouped styling, no overall title
+    xs, spans = style.layout_grouped_columns(specs, gap=0.7)
+    w_fig = max(12.4, (12.5 / 11.85) * (xs[-1] - xs[0] + 1.45))
+    fig = plt.figure(figsize=(w_fig, 10.2), facecolor='white')
+    gs = fig.add_gridspec(2, 1, left=0.075, right=0.985, top=0.945, bottom=0.125, hspace=0.46)
+    ax_a = fig.add_subplot(gs[0, 0])
+    ax_b = fig.add_subplot(gs[1, 0])
+
+    def _style_grouped_ax(ax, ylabel: str, ylim: tuple[float, float], show_legend: bool = False):
+        ax.set_xticks(xs)
+        ax.set_xticklabels([s['label'] for s in specs], fontsize=8.5, rotation=30, ha='right', rotation_mode='anchor')
+        ax.set_ylabel(ylabel)
+        ax.set_ylim(*ylim)
+        ax.set_xlim(xs[0] - 0.7, xs[-1] + 0.75)
+        ax.grid(axis='y', color=style.GRID, lw=0.6, zorder=0)
+        ax.axhline(0.0, color='black', lw=0.85, zorder=2.5)
+        for i_s, (cat, (x0, x1)) in enumerate(spans.items()):
+            if i_s % 2:
+                ax.axvspan(x0 - 0.5 - (0.35 if i_s else 0), x1 + 0.5 + 0.35, color='#000000', alpha=0.045, lw=0, zorder=0)
+            if cat in M.GROUP_TITLE:
+                tr = ax.get_xaxis_transform()
+                ax.plot([x0 - 0.45, x1 + 0.45], [1.012, 1.012], transform=tr, clip_on=False, color='#444444', lw=1.1)
+                ax.text((x0 + x1) / 2, 1.02, M.GROUP_TITLE[cat], transform=tr, ha='center', va='bottom', fontsize=8.8, fontweight='bold', color='#333333')
+        if show_legend:
+            handles = [
+                Patch(fc='#999999', ec='#999999', alpha=0.55, hatch='////', label='WT-view (single pass)'),
+                Patch(fc='#999999', ec='black', label='Dual-view / standard readout'),
+                Line2D([0], [0], color='#555555', ls='--', lw=1.2, label='ideal antisymmetry (r = −1.0)'),
+            ]
+            ax.legend(handles=handles, ncol=3, loc='lower left', fontsize=8.2, framealpha=0.92, borderpad=0.35, columnspacing=1.1)
+
+    # Panel a: Antisymmetry r_dir_rev (bars hang downward from 0 toward -1.0)
+    ylim_a = (-1.20, 0.08)
+    _style_grouped_ax(ax_a, 'Antisymmetry, Pearson r(ΔΔG_dir, ΔΔG_rev)', ylim_a, show_legend=True)
+    ax_a.axhline(-1.0, color='#555555', ls='--', lw=1.15, zorder=2.2)
+
+    for s, x in zip(specs, xs):
+        sub_df = df_sum[df_sum['model'] == s['name']]
+        two = len(sub_df) == 2
+        bar_w = 0.32 if two else 0.50
+        offs = (-0.17, 0.17) if two else (0.0,)
+        for j, (_, row) in enumerate(sub_df.iterrows()):
+            xx = x + offs[j]
+            hatched = two and (row['view'] == 'wt')
+            v, lo, hi = float(row['r_dir_rev']), float(row['r_lo']), float(row['r_hi'])
+            ax_a.bar(
+                xx, v, bar_w, color=s['color'],
+                alpha=0.55 if hatched else 0.95,
+                edgecolor=s['color'] if hatched else 'black',
+                hatch='////' if hatched else None, lw=0.8, zorder=3,
+            )
+            ax_a.errorbar(
+                xx, v, yerr=[[max(v - lo, 0.0)], [max(hi - v, 0.0)]],
+                fmt='none', ecolor=style.RING, elinewidth=1.3, capsize=2.5, zorder=5,
+            )
+            ax_a.text(
+                xx, min(lo, v) - 0.018, f'{v:.2f}',
+                ha='center', va='top', fontsize=8.0, rotation=90, zorder=8,
+                bbox=dict(fc='white', ec='none', alpha=0.72, pad=0.5),
+            )
+
+    # Panel b: Bias <delta> = mean(y_dir + y_rev) / 2 (ideal = 0.0)
+    ylim_b = (-0.98, 0.09)
+    _style_grouped_ax(ax_b, 'Bias ⟨δ⟩ = mean(ΔΔG_dir + ΔΔG_rev) / 2 (kcal/mol)', ylim_b, show_legend=False)
+    handles_b = [
+        Patch(fc='#999999', ec='#999999', alpha=0.55, hatch='////', label='WT-view (single pass)'),
+        Patch(fc='#999999', ec='black', label='Dual-view / standard readout'),
+    ]
+    ax_b.legend(handles=handles_b, ncol=2, loc='lower right', fontsize=8.2, framealpha=0.92, borderpad=0.35, columnspacing=1.1)
+
+    trunc_y = -0.84
+    for s, x in zip(specs, xs):
+        sub_df = df_sum[df_sum['model'] == s['name']]
+        two = len(sub_df) == 2
+        bar_w = 0.32 if two else 0.50
+        offs = (-0.17, 0.17) if two else (0.0,)
+        for j, (_, row) in enumerate(sub_df.iterrows()):
+            xx = x + offs[j]
+            hatched = two and (row['view'] == 'wt')
+            v, lo, hi = float(row['bias_delta']), float(row['bias_lo']), float(row['bias_hi'])
+            if v < trunc_y:
+                # Off-scale uncalibrated log-odds bar (ProSST = -3.12): truncate cleanly with // break mark
+                ax_b.bar(xx, trunc_y, bar_w, color=s['color'], alpha=0.95, edgecolor='black', lw=0.8, zorder=3)
+                # Draw white diagonal break slashes across the bar near bottom
+                by = trunc_y * 0.80
+                for dy_s in (-0.016, 0.016):
+                    ax_b.plot([xx - bar_w * 0.54, xx + bar_w * 0.54], [by + dy_s - 0.018, by + dy_s + 0.018], color='white', lw=3.2, zorder=6)
+                    ax_b.plot([xx - bar_w * 0.54, xx + bar_w * 0.54], [by + dy_s - 0.018, by + dy_s + 0.018], color='#333333', lw=0.9, zorder=7)
+                ax_b.text(
+                    xx, trunc_y - 0.016, f'{v:.2f}\n(log-odds)',
+                    ha='center', va='top', fontsize=7.6, color='#222222', zorder=8,
+                    bbox=dict(fc='white', ec='none', alpha=0.80, pad=0.4),
+                )
+            else:
+                ax_b.bar(
+                    xx, v, bar_w, color=s['color'],
+                    alpha=0.55 if hatched else 0.95,
+                    edgecolor=s['color'] if hatched else 'black',
+                    hatch='////' if hatched else None, lw=0.8, zorder=3,
+                )
+                ax_b.errorbar(
+                    xx, v, yerr=[[max(v - lo, 0.0)], [max(hi - v, 0.0)]],
+                    fmt='none', ecolor=style.RING, elinewidth=1.3, capsize=2.5, zorder=5,
+                )
+                lbl_val = f'{v:+.2f}' if abs(v) >= 0.005 else '0.00'
+                ax_b.text(
+                    xx, min(lo, v) - 0.018, lbl_val,
+                    ha='center', va='top', fontsize=8.0, rotation=90, zorder=8,
+                    bbox=dict(fc='white', ec='none', alpha=0.72, pad=0.5),
+                )
+
+    fig.canvas.draw()
+    pa, pb = ax_a.get_position(), ax_b.get_position()
+    fig.text(0.012, pa.y1 + 0.030, 'a', ha='left', va='top', fontsize=16, fontweight='bold')
+    fig.text(0.012, pb.y1 + 0.030, 'b', ha='left', va='top', fontsize=16, fontweight='bold')
+
+    supp_dir = results_dir('supplementary_figs')
+    out_path = supp_dir / '_ssym_antisymmetry_bias'
+    style.save(fig, out_path)
+
+    # Export source data + paired one-sided bootstrap p-value table & annotation
+    src_dir = supp_dir / 'source_data'
+    pval_dir = supp_dir / 'pvalues'
+    src_dir.mkdir(parents=True, exist_ok=True)
+    pval_dir.mkdir(parents=True, exist_ok=True)
+    atomic_to_csv(df_sum, src_dir / '_ssym_antisymmetry_bias_summary_sourcedata.csv', index=False, float_format='%.4f')
+    atomic_to_csv(pd.DataFrame(pair_rows), src_dir / '_ssym_antisymmetry_bias_per_pair_sourcedata.csv', index=False, float_format='%.5f')
+
+    # Paired one-sided bootstrap p-values comparing ESM-MSR Dual-view against every other method
+    msr_key = ('ESM-MSR', 'dual')
+    msr_info = pt_map[msr_key]
+    comp_keys = [(s['name'], 'dual') for s in specs if s['name'] != 'ESM-MSR'] + [('ESM-MSR', 'wt')]
+    p_rows = []
+    for metric_name, is_bias in (('antisymmetry_r_dir_rev', False), ('abs_bias_delta', True)):
+        # Clean family = all external models without Ssym direct training overlap (excludes GeoDDG-3D and internal ESM-MSR WT-view)
+        clean_comps = [(n, vt) for (n, vt) in comp_keys if n != 'ESM-MSR' and not pt_map[(n, vt)]['leak']]
+        m_clean = len(clean_comps)
+        clean_ps, clean_deltas = {}, []
+        for cname, vtag in comp_keys:
+            is_internal = (cname == 'ESM-MSR')
+            is_leak = bool(pt_map[(cname, vtag)]['leak'])
+            is_clean = (not is_internal) and (not is_leak)
+            disp_c = f'{cname} (WT-view)' if is_internal else cname
+            if not is_bias:
+                # Better antisymmetry = more negative r_dir_rev -> (-r_msr) > (-r_comp) => r_comp - r_msr > 0
+                d_arr = r_reps_map[(cname, vtag)] - r_reps_map[msr_key]
+                v_msr = msr_info['r']
+                v_cmp = pt_map[(cname, vtag)]['r']
+                delta_pt = v_cmp - v_msr
+                direction = 'ESM-MSR more negative r_dir_rev'
+            else:
+                # Smaller |bias| -> |b_comp| - |b_msr| > 0
+                d_arr = np.abs(b_reps_map[(cname, vtag)]) - np.abs(b_reps_map[msr_key])
+                v_msr = abs(msr_info['bias'])
+                v_cmp = abs(pt_map[(cname, vtag)]['bias'])
+                delta_pt = v_cmp - v_msr
+                direction = 'ESM-MSR smaller |bias|'
+            p_one, nf, b_eff = _one_sided_p(d_arr)
+            lo_d, hi_d = boot_ci(d_arr)
+            if is_clean:
+                clean_ps[disp_c] = p_one
+                clean_deltas.append(d_arr)
+            p_rows.append(dict(
+                benchmark='Ssym_342_pairs',
+                subset_or_metric=metric_name,
+                resampling_unit='mutation_pair_x_seed',
+                test_type='pairwise',
+                msr_model='ESM-MSR (Dual-view)',
+                comparator=disp_c,
+                excluded_training_overlap=is_leak,
+                internal_control_or_variant=is_internal,
+                direction=direction,
+                value_msr=v_msr,
+                value_comparator=v_cmp,
+                pearson_r_msr=msr_info['pearson_r'],
+                pearson_r_comparator=pt_map[(cname, vtag)]['pearson_r'],
+                rmse_msr=msr_info['rmse'],
+                rmse_comparator=pt_map[(cname, vtag)]['rmse'],
+                delta_favoring_msr=delta_pt,
+                ci95_lo=lo_d, ci95_hi=hi_d,
+                n_units=n_pairs, n_variants=2 * n_pairs, B=b_eff, n_boot_fail=nf,
+                p_one_sided_uncorrected=p_one,
+                bonferroni_m=m_clean if is_clean else np.nan,
+                p_one_sided_bonferroni=min(1.0, m_clean * p_one) if is_clean else np.nan,
+            ))
+        # Summary rows over clean comparators
+        if clean_comps:
+            if not is_bias:
+                best_k = min(clean_comps, key=lambda k: pt_map[k]['r'])
+                d_nb = r_reps_map[best_k] - r_reps_map[msr_key]
+                v_msr, v_cmp = msr_info['r'], pt_map[best_k]['r']
+                delta_nb = v_cmp - v_msr
+                direction = 'ESM-MSR more negative r_dir_rev'
+            else:
+                best_k = min(clean_comps, key=lambda k: abs(pt_map[k]['bias']))
+                d_nb = np.abs(b_reps_map[best_k]) - np.abs(b_reps_map[msr_key])
+                v_msr, v_cmp = abs(msr_info['bias']), abs(pt_map[best_k]['bias'])
+                delta_nb = v_cmp - v_msr
+                direction = 'ESM-MSR smaller |bias|'
+            p_nb, nf_nb, b_nb = _one_sided_p(d_nb)
+            lo_nb, hi_nb = boot_ci(d_nb)
+            p_rows.append(dict(
+                benchmark='Ssym_342_pairs', subset_or_metric=metric_name, resampling_unit='mutation_pair_x_seed',
+                test_type='next_best_clean', msr_model='ESM-MSR (Dual-view)', comparator=best_k[0],
+                excluded_training_overlap=False, internal_control_or_variant=False, direction=direction,
+                value_msr=v_msr, value_comparator=v_cmp,
+                pearson_r_msr=msr_info['pearson_r'], pearson_r_comparator=pt_map[best_k]['pearson_r'],
+                rmse_msr=msr_info['rmse'], rmse_comparator=pt_map[best_k]['rmse'],
+                delta_favoring_msr=delta_nb, ci95_lo=lo_nb, ci95_hi=hi_nb,
+                n_units=n_pairs, n_variants=2 * n_pairs, B=b_nb, n_boot_fail=nf_nb,
+                p_one_sided_uncorrected=p_nb, bonferroni_m=m_clean,
+                p_one_sided_bonferroni=min(1.0, m_clean * p_nb),
+            ))
+            worst_name = max(clean_ps, key=lambda k: clean_ps[k])
+            worst_k = next(k for k in clean_comps if k[0] == worst_name)
+            d_w = (r_reps_map[worst_k] - r_reps_map[msr_key]) if not is_bias else (np.abs(b_reps_map[worst_k]) - np.abs(b_reps_map[msr_key]))
+            p_iut, nf_w, b_w = _one_sided_p(d_w)
+            lo_w, hi_w = boot_ci(d_w)
+            p_rows.append(dict(
+                benchmark='Ssym_342_pairs', subset_or_metric=metric_name, resampling_unit='mutation_pair_x_seed',
+                test_type='all_clean_IUT', msr_model='ESM-MSR (Dual-view)', comparator=f'ALL_CLEAN_IUT (limiting: {worst_name})',
+                excluded_training_overlap=False, internal_control_or_variant=False, direction=direction,
+                value_msr=v_msr, value_comparator=pt_map[worst_k]['r'] if not is_bias else abs(pt_map[worst_k]['bias']),
+                pearson_r_msr=msr_info['pearson_r'], pearson_r_comparator=pt_map[worst_k]['pearson_r'],
+                rmse_msr=msr_info['rmse'], rmse_comparator=pt_map[worst_k]['rmse'],
+                delta_favoring_msr=(pt_map[worst_k]['r'] - v_msr) if not is_bias else (abs(pt_map[worst_k]['bias']) - v_msr),
+                ci95_lo=lo_w, ci95_hi=hi_w,
+                n_units=n_pairs, n_variants=2 * n_pairs, B=b_w, n_boot_fail=nf_w,
+                p_one_sided_uncorrected=p_iut, bonferroni_m=1, p_one_sided_bonferroni=p_iut,
+            ))
+
+    atomic_to_csv(pd.DataFrame(p_rows), pval_dir / '_ssym_antisymmetry_bias_pvalues.csv', index=False, float_format='%.6g')
+    atomic_write_text(
+        pval_dir / '_ssym_antisymmetry_bias_pvalues_annotation.txt',
+        f"""Statistical Annotation: _ssym_antisymmetry_bias_pvalues.csv
+===========================================================
+Figure / Panel: Supplementary Figure (_ssym_antisymmetry_bias) on Ssym (342 exact direct-reverse mutation pairs; 684 variants across 15 WT protein structures).
+  - Panel a: Antisymmetry Pearson r(ddG_dir, ddG_rev) (ideal = -1.0; more negative is better).
+  - Panel b: Bias <delta> = mean(ddG_dir + ddG_rev) / 2 (Pucci et al., 2018; ideal = 0.0; smaller |<delta>| is better). Note: ProSST (-3.12) and ProteinMPNN (-0.66) output uncalibrated log-odds rather than kcal/mol; scale-free standardized bias (<delta> / SD) is also provided in the summary source data table.
+
+Statistical Test & Resampling Procedure:
+  Paired nonparametric mutation-pair x seed bootstrap (B = {B:,}, deterministic seed).
+  In each replicate, the 342 direct-reverse pairs are resampled with replacement via one shared Multinomial(342, 1/342) weight vector across all models, and 3-seed retrained models are resampled jointly over training seeds.
+  One-sided Phipson & Smyth (2010) p-value: p = (1 + #{{b : delta^(b) <= 0}}) / (B + 1).
+  GeoDDG-3D (trained on S2648 with 50% direct mutation overlap with Ssym, and antisymmetric by construction) is flagged `excluded_training_overlap=True` and excluded from the m = 8 clean comparator family. ESM3dG predicts absolute dG(mut) - dG(wt) (structurally antisymmetric up to crystal structure differences) and is retained in the clean family (no direct mutation leak).
+""",
+    )
+    return out_path
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = base_parser(STAGE, DESCRIPTION)
-    ap.add_argument('--only', choices=('all', 'supp_figure6'), default='all', help='Optional substage selector')
+    ap.add_argument('--only', choices=('all', 'supp_figure6', 'ssym_antisym'), default='all', help='Optional substage selector')
     args = ap.parse_args(argv)
     B = resolve_b(args)
+
+    if args.only == 'ssym_antisym':
+        out = build_supp_ssym_antisymmetry_bias(B=max(B, 10_000))
+        print(f'[p08:calibration_length] Saved {out}.{{png,pdf}}')
+        return 0
 
     if args.only == 'supp_figure6':
         out = build_supp_figure6()

@@ -1,0 +1,11 @@
+Statistical Annotation: _ssym_antisymmetry_bias_pvalues.csv
+===========================================================
+Figure / Panel: Supplementary Figure (_ssym_antisymmetry_bias) on Ssym (342 exact direct-reverse mutation pairs; 684 variants across 15 WT protein structures).
+  - Panel a: Antisymmetry Pearson r(ddG_dir, ddG_rev) (ideal = -1.0; more negative is better).
+  - Panel b: Bias <delta> = mean(ddG_dir + ddG_rev) / 2 (Pucci et al., 2018; ideal = 0.0; smaller |<delta>| is better). Note: ProSST (-3.12) and ProteinMPNN (-0.66) output uncalibrated log-odds rather than kcal/mol; scale-free standardized bias (<delta> / SD) is also provided in the summary source data table.
+
+Statistical Test & Resampling Procedure:
+  Paired nonparametric mutation-pair x seed bootstrap (B = 10,000, deterministic seed).
+  In each replicate, the 342 direct-reverse pairs are resampled with replacement via one shared Multinomial(342, 1/342) weight vector across all models, and 3-seed retrained models are resampled jointly over training seeds.
+  One-sided Phipson & Smyth (2010) p-value: p = (1 + #{b : delta^(b) <= 0}) / (B + 1).
+  GeoDDG-3D (trained on S2648 with 50% direct mutation overlap with Ssym, and antisymmetric by construction) is flagged `excluded_training_overlap=True` and excluded from the m = 8 clean comparator family. ESM3dG predicts absolute dG(mut) - dG(wt) (structurally antisymmetric up to crystal structure differences) and is retained in the clean family (no direct mutation leak).
