@@ -661,6 +661,7 @@ def _load_frame(ds: str, refresh: bool = False, check_sources: bool = False) -> 
             _load_msr(fr, ds, out, sources)
             if ds in TSU_MEGA:
                 _load_mega(fr, ds, out, sources)
+                _load_public(fr, ds, out, sources)
                 fr.preds = synthesize_missing_epi(_tidy(out))
                 return _finish(fr, pkl, sources)
             _load_me(fr, ds, out, sources)
