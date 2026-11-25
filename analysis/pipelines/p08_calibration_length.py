@@ -1095,11 +1095,332 @@ Statistical Test & Resampling Procedure:
     return out_path
 
 
+def build_supp_thermostability_rmse(B: int = 10_000) -> Path:
+    """Build single-panel supplementary raw RMSE figure across all 9 main-text thermostability datasets
+    (`MegaScale test`, `Ssym`, `S461`, `K2369`, `S783`, `S2648`, `Q3421`, `S8754`, `PTMUL`) for all 8
+    kcal/mol-scale main models (omitting uncalibrated log-odds ProSST & ProteinMPNN).
+    Matches Main Figure 3a dot-and-whisker style, hollow singles vs filled doubles, red training-overlap rings; no overall title.
+    """
+    from scipy.stats import pearsonr
+    from msr_analysis import models as M
+    from msr_analysis.boot import ci as boot_ci
+    from msr_analysis.common import leak_table
+    from msr_analysis.paths import atomic_write_text
+    from msr_analysis.registry import LABEL, MODELS
+    from .p05_summary_main import _overlap_short_labels
+
+    # Exact Figure 1 + Figure 3a dataset order
+    datasets = ['tsuboyama_capped_test', 'ssym', 's461', 'k2369', 's783', 's2648', 'q3421', 's8754', 'ptmul']
+    ds_labels_a = {
+        'tsuboyama_capped_test': 'MegaScale\ntest', 'ssym': 'Ssym', 's461': 'S461',
+        'k2369': 'K2369', 's783': 'S783', 's2648': 'S2648', 'q3421': 'Q3421', 's8754': 'S8754', 'ptmul': 'PTMUL',
+    }
+
+    all_models = list(M.UNIFIED)  # 10 canonical main methods
+    raw_models = [m for m in all_models if m not in ('ProSST', 'ProteinMPNN')]
+    lk = leak_table()
+    ov_labels = _overlap_short_labels()
+
+    def _key_spec(m_name: str, ds: str, fr):
+        m = M.BY_NAME[m_name]
+        if ds == 'tsuboyama_capped_test':
+            if m.single != m.multi and m.single in fr.preds and m.multi in fr.preds:
+                return ('composite', m.single, m.multi, 'doubles')
+            return ('single', m.single, None, '') if m.single in fr.preds else None
+        if ds == 'ptmul':
+            if m.multi in fr.preds:
+                return ('single', m.multi, None, 'doubles' if m.two_versions else '')
+            return ('single', m.single, None, 'singles' if m.two_versions else '') if m.single in fr.preds else None
+        if m.single in fr.preds:
+            return ('single', m.single, None, 'singles' if m.two_versions else '')
+        return None
+
+    def _get_preds(fr, spec):
+        if spec[0] == 'composite':
+            n1 = (fr.spine['n_mut'] == 1).to_numpy()
+            return np.where(n1[None, :], fr.preds[spec[1]], fr.preds[spec[2]])
+        return fr.preds[spec[1]]
+
+    # Fit linear recalibration on S461 (per seed)
+    fr_donor = load_frame('s461')
+    ok_d = fr_donor.spine['use'].to_numpy()
+    yd = fr_donor.spine['y'].to_numpy(float)[ok_d]
+    cal_map: dict[str, list[tuple[float, float]]] = {}
+    for m_name in all_models:
+        sp_d = _key_spec(m_name, 's461', fr_donor)
+        arr_d = _get_preds(fr_donor, sp_d)
+        ab_list = []
+        for p in arr_d:
+            x = p[ok_d]
+            m_ok = np.isfinite(x) & np.isfinite(yd)
+            a, b = np.polyfit(x[m_ok], yd[m_ok], 1)
+            ab_list.append((float(a), float(b)))
+        cal_map[m_name] = ab_list
+
+    def _one_sided_p(diffs: np.ndarray) -> tuple[float, int, int]:
+        fin = diffs[np.isfinite(diffs)]
+        nf = int(np.sum(fin <= 0.0))
+        return float((nf + 1) / (len(fin) + 1)), nf, int(len(fin))
+
+    rows = []
+    p_rows = []
+    rng_base = 20270
+
+    for d_i, ds in enumerate(datasets):
+        fr = load_frame(ds)
+        sp = fr.spine
+        use = sp['use'].to_numpy()
+        y = sp['y'].to_numpy(float)
+        is_mega = (ds == 'tsuboyama_capped_test')
+        unit_col = 'group' if is_mega else None
+        n_prots = int(sp.loc[use, 'cluster'].astype(str).nunique()) if 'cluster' in sp else int(sp.loc[use, 'group'].astype(str).nunique())
+
+        # Shared bootstrap weights for this dataset
+        rng = np.random.default_rng(rng_base + d_i)
+        idx_use = np.flatnonzero(use & np.isfinite(y))
+        y_u = y[idx_use]
+        n_var = len(idx_use)
+        seed_w3 = rng.multinomial(3, np.full(3, 1.0 / 3.0), size=B).astype(float) / 3.0
+
+        if is_mega:
+            grp_u = sp['group'].astype(str).to_numpy()[idx_use]
+            u_doms, inv_dom = np.unique(grp_u, return_inverse=True)
+            n_units = len(u_doms)
+            dom_w = rng.multinomial(n_units, np.full(n_units, 1.0 / n_units), size=B).astype(float)  # (B, 33)
+            resamp_unit = 'domain_cluster_x_seed'
+        else:
+            n_units = n_var
+            # Vectorized chunked multinomial or index bootstrap for MSE: draw (B, n_var) counts via multinomial if n_var <= 10000
+            mut_w = rng.multinomial(n_var, np.full(n_var, 1.0 / n_var), size=B).astype(float)  # (B, n_var)
+            resamp_unit = 'mutation_x_seed'
+
+        def _boot_rmse_from_sq(sq_err: np.ndarray) -> np.ndarray:
+            """sq_err: shape (ns, n_var) with NaN allowed -> (B,) bootstrap RMSE draws."""
+            ns_ = sq_err.shape[0]
+            draws_s = np.empty((B, ns_), dtype=float)
+            for s_ in range(ns_):
+                e2 = sq_err[s_]
+                fin = np.isfinite(e2)
+                e2_z = np.where(fin, e2, 0.0)
+                if is_mega:
+                    # Per-domain sums of e2 and count
+                    dom_sum = np.bincount(inv_dom, weights=e2_z, minlength=n_units)
+                    dom_cnt = np.bincount(inv_dom, weights=fin.astype(float), minlength=n_units)
+                    num = dom_w @ dom_sum
+                    den = dom_w @ dom_cnt
+                else:
+                    num = mut_w @ e2_z
+                    den = mut_w @ fin.astype(float)
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    draws_s[:, s_] = np.sqrt(num / den)
+            return np.sum(draws_s * seed_w3, axis=1) if ns_ == 3 else draws_s.mean(axis=1)
+
+        reps_mode: dict[tuple[str, str], np.ndarray] = {}
+        pt_mode: dict[tuple[str, str], dict] = {}
+
+        for m_name in all_models:
+            spec = _key_spec(m_name, ds, fr)
+            if spec is None:
+                continue
+            arr = _get_preds(fr, spec)[:, idx_use]
+            ns = arr.shape[0]
+            k_lbl = f'{spec[1]}|{spec[2]}' if spec[0] == 'composite' else spec[1]
+            ver = spec[3]
+            raw_key_lk = spec[1] if spec[0] != 'composite' else spec[2]
+            is_leak = bool(lk.get((raw_key_lk, ds), False) or lk.get((M.BY_NAME[m_name].single, ds), False))
+            ov_lbl = ov_labels.get((ds, m_name), '')
+
+            # Compute raw and S461-recalibrated squared errors
+            sq_raw = (arr - y_u[None, :]) ** 2
+            arr_cal = np.empty_like(arr)
+            slopes, intercepts = [], []
+            for s_i in range(ns):
+                a, b = cal_map[m_name][min(s_i, len(cal_map[m_name]) - 1)]
+                arr_cal[s_i] = a * arr[s_i] + b
+                slopes.append(a)
+                intercepts.append(b)
+            sq_cal = (arr_cal - y_u[None, :]) ** 2
+
+            # Spearman & Pearson (scale invariant)
+            s_rhos = [float(spearmanr(arr[s_i][np.isfinite(arr[s_i])], y_u[np.isfinite(arr[s_i])])[0]) for s_i in range(ns)]
+            s_rs = [float(pearsonr(arr[s_i][np.isfinite(arr[s_i])], y_u[np.isfinite(arr[s_i])])[0]) for s_i in range(ns)]
+            mean_rho, mean_r = float(np.mean(s_rhos)), float(np.mean(s_rs))
+            n_ok = int(np.isfinite(arr).all(axis=0).sum())
+
+            for mode, sq_m in (('raw', sq_raw), ('recalibrated', sq_cal)):
+                pt = float(np.mean([np.sqrt(np.nanmean(sq_m[s_i])) for s_i in range(ns)]))
+                rp = _boot_rmse_from_sq(sq_m)
+                lo, hi = boot_ci(rp)
+                reps_mode[(mode, m_name)] = rp
+                pt_mode[(mode, m_name)] = dict(
+                    rmse=pt, pearson_r=mean_r, spearman_rho=mean_rho, leak=is_leak,
+                )
+                rows.append(dict(
+                    mode=mode, dataset=ds, model=m_name, key=k_lbl, version=ver,
+                    rmse=pt, lo=lo, hi=hi,
+                    spearman_rho=mean_rho, pearson_r=mean_r,
+                    cal_slope=float(np.mean(slopes)) if mode == 'recalibrated' else 1.0,
+                    cal_intercept=float(np.mean(intercepts)) if mode == 'recalibrated' else 0.0,
+                    n_variants=n_ok, n_proteins=n_prots, n_units=n_units, n_seeds=ns,
+                    resampling_unit=resamp_unit, leak_flag=is_leak, overlap_label=ov_lbl,
+                ))
+
+        # Paired one-sided bootstrap p-values: H1 = RMSE_ESM-MSR < RMSE_comparator (i.e. RMSE_comp - RMSE_MSR > 0)
+        for mode, mod_list in (('raw', raw_models), ('recalibrated', all_models)):
+            present = [m for m in mod_list if (mode, m) in pt_mode]
+            if 'ESM-MSR' not in present:
+                continue
+            msr_i = pt_mode[(mode, 'ESM-MSR')]
+            msr_rp = reps_mode[(mode, 'ESM-MSR')]
+            comps = [m for m in present if m != 'ESM-MSR']
+            clean_comps = [m for m in comps if not pt_mode[(mode, m)]['leak']]
+            m_clean = len(clean_comps)
+            clean_ps, clean_deltas = {}, []
+            for comp in comps:
+                ci_info = pt_mode[(mode, comp)]
+                is_clean = not ci_info['leak']
+                d_arr = reps_mode[(mode, comp)] - msr_rp  # positive favors ESM-MSR (lower RMSE)
+                p_one, nf, b_eff = _one_sided_p(d_arr)
+                lo_d, hi_d = boot_ci(d_arr)
+                if is_clean:
+                    clean_ps[comp] = p_one
+                    clean_deltas.append(d_arr)
+                p_rows.append(dict(
+                    benchmark=ds, subset_or_metric=f'rmse_{mode}', resampling_unit=resamp_unit,
+                    test_type='pairwise', msr_model='ESM-MSR', comparator=comp,
+                    excluded_training_overlap=ci_info['leak'], direction='ESM-MSR < comparator (lower RMSE)',
+                    value_msr=msr_i['rmse'], value_comparator=ci_info['rmse'],
+                    pearson_r_msr=msr_i['pearson_r'], pearson_r_comparator=ci_info['pearson_r'],
+                    spearman_rho_msr=msr_i['spearman_rho'], spearman_rho_comparator=ci_info['spearman_rho'],
+                    delta_favoring_msr=ci_info['rmse'] - msr_i['rmse'],
+                    ci95_lo=lo_d, ci95_hi=hi_d,
+                    n_units=n_units, n_variants=n_var, B=b_eff, n_boot_fail=nf,
+                    p_one_sided_uncorrected=p_one,
+                    bonferroni_m=m_clean if is_clean else np.nan,
+                    p_one_sided_bonferroni=min(1.0, m_clean * p_one) if is_clean else np.nan,
+                ))
+            if clean_comps:
+                best_c = min(clean_comps, key=lambda m: pt_mode[(mode, m)]['rmse'])
+                d_nb = reps_mode[(mode, best_c)] - msr_rp
+                p_nb, nf_nb, b_nb = _one_sided_p(d_nb)
+                lo_nb, hi_nb = boot_ci(d_nb)
+                p_rows.append(dict(
+                    benchmark=ds, subset_or_metric=f'rmse_{mode}', resampling_unit=resamp_unit,
+                    test_type='next_best_clean', msr_model='ESM-MSR', comparator=best_c,
+                    excluded_training_overlap=False, direction='ESM-MSR < comparator (lower RMSE)',
+                    value_msr=msr_i['rmse'], value_comparator=pt_mode[(mode, best_c)]['rmse'],
+                    pearson_r_msr=msr_i['pearson_r'], pearson_r_comparator=pt_mode[(mode, best_c)]['pearson_r'],
+                    spearman_rho_msr=msr_i['spearman_rho'], spearman_rho_comparator=pt_mode[(mode, best_c)]['spearman_rho'],
+                    delta_favoring_msr=pt_mode[(mode, best_c)]['rmse'] - msr_i['rmse'],
+                    ci95_lo=lo_nb, ci95_hi=hi_nb,
+                    n_units=n_units, n_variants=n_var, B=b_nb, n_boot_fail=nf_nb,
+                    p_one_sided_uncorrected=p_nb, bonferroni_m=m_clean,
+                    p_one_sided_bonferroni=min(1.0, m_clean * p_nb),
+                ))
+                worst_c = max(clean_comps, key=lambda m: (clean_ps[m], -pt_mode[(mode, m)]['rmse']))
+                d_w = reps_mode[(mode, worst_c)] - msr_rp
+                p_iut, nf_w, b_w = _one_sided_p(d_w)
+                lo_w, hi_w = boot_ci(d_w)
+                p_rows.append(dict(
+                    benchmark=ds, subset_or_metric=f'rmse_{mode}', resampling_unit=resamp_unit,
+                    test_type='all_clean_IUT', msr_model='ESM-MSR', comparator=f'ALL_CLEAN_IUT (limiting: {worst_c})',
+                    excluded_training_overlap=False, direction='ESM-MSR < comparator (lower RMSE)',
+                    value_msr=msr_i['rmse'], value_comparator=pt_mode[(mode, worst_c)]['rmse'],
+                    pearson_r_msr=msr_i['pearson_r'], pearson_r_comparator=pt_mode[(mode, worst_c)]['pearson_r'],
+                    spearman_rho_msr=msr_i['spearman_rho'], spearman_rho_comparator=pt_mode[(mode, worst_c)]['spearman_rho'],
+                    delta_favoring_msr=pt_mode[(mode, worst_c)]['rmse'] - msr_i['rmse'],
+                    ci95_lo=lo_w, ci95_hi=hi_w,
+                    n_units=n_units, n_variants=n_var, B=b_w, n_boot_fail=nf_w,
+                    p_one_sided_uncorrected=p_iut, bonferroni_m=1, p_one_sided_bonferroni=p_iut,
+                ))
+
+    df = pd.DataFrame(rows)
+    df_raw = df[(df['mode'] == 'raw') & df['model'].isin(raw_models)].drop(columns=['mode', 'cal_slope', 'cal_intercept']).reset_index(drop=True)
+    df_p_raw = pd.DataFrame(p_rows)
+    df_p_raw = df_p_raw[df_p_raw['subset_or_metric'] == 'rmse_raw'].reset_index(drop=True)
+
+    # Single-panel Figure 3a-style dot plot (raw RMSE only, no recalibration, no a/b, no overall title)
+    fig = plt.figure(figsize=(13.6, 5.9), facecolor='white')
+    ax = fig.add_axes([0.068, 0.115, 0.918, 0.725])
+
+    table = {(r.dataset, r.model): r.rmse for r in df_raw.itertuples()}
+    cis = {(r.dataset, r.model): (r.lo, r.hi) for r in df_raw.itertuples()}
+    hollow = {(r.dataset, r.model) for r in df_raw.itertuples() if r.version == 'singles'}
+    spread = 0.78
+    ymax = float(np.ceil((df_raw['hi'].max() + 0.14) * 5) / 5)
+    ymin = max(0.4, float(np.floor((df_raw['lo'].min() - 0.12) * 5) / 5))
+    style.dot_panel(
+        ax, datasets, raw_models, table, cis,
+        highlight=['ESM-MSR'], hollow=hollow,
+        ylabel='RMSE (kcal/mol; lower is better)',
+        xlabels=[ds_labels_a[d] for d in datasets],
+        rot=0, ylim=(ymin, ymax), spread=spread, size=6.4,
+    )
+    offs = np.linspace(-spread / 2, spread / 2, len(raw_models))
+    for i, d in enumerate(datasets):
+        for j, m in enumerate(raw_models):
+            r = df_raw[(df_raw['dataset'] == d) & (df_raw['model'] == m)]
+            if len(r) and r.iloc[0]['leak_flag']:
+                x_pt = i + offs[j]
+                y_pt = float(r.iloc[0]['rmse'])
+                ax.plot(x_pt, y_pt, marker='o', ms=10.8, mfc='none', mec=style.RING, mew=1.1, ls='none', zorder=6)
+                lbl = str(r.iloc[0]['overlap_label'])
+                if lbl:
+                    lo_ci = float(r.iloc[0]['lo'])
+                    ax.text(
+                        x_pt, lo_ci - 0.045, lbl, ha='center', va='top',
+                        fontsize=6.6, fontweight='semibold', color=style.RING, zorder=8,
+                        bbox=dict(fc='white', ec='none', alpha=0.72, pad=0.35),
+                    )
+
+    hs = [Line2D([0], [0], label=MODELS[m]['label'], **style.marker_kwargs(m, size=6.8)) for m in raw_models]
+    flagged = [m for m in raw_models if df_raw[df_raw['model'] == m]['leak_flag'].any()]
+    hs.append(Line2D([0], [0], marker='o', ms=8.5, mfc='none', mec=style.RING, mew=1.1, ls='none', label=f'training overlap ({", ".join(flagged)})'))
+    hs += style.version_handles()
+    fig.legend(
+        handles=hs, loc='upper center', bbox_to_anchor=(0.525, 0.985), ncol=4, fontsize=8.3,
+        frameon=True, facecolor='white', edgecolor='#cccccc', columnspacing=1.15, handletextpad=0.35, borderpad=0.45,
+    )
+
+    supp_dir = results_dir('supplementary_figs')
+    out_path = supp_dir / '_thermostability_rmse'
+    style.save(fig, out_path)
+
+    src_dir = supp_dir / 'source_data'
+    pval_dir = supp_dir / 'pvalues'
+    src_dir.mkdir(parents=True, exist_ok=True)
+    pval_dir.mkdir(parents=True, exist_ok=True)
+    atomic_to_csv(df_raw, src_dir / '_thermostability_rmse_sourcedata.csv', index=False, float_format='%.4f')
+    atomic_to_csv(df_p_raw, pval_dir / '_thermostability_rmse_pvalues.csv', index=False, float_format='%.6g')
+    atomic_write_text(
+        pval_dir / '_thermostability_rmse_pvalues_annotation.txt',
+        f"""Statistical Annotation: _thermostability_rmse_pvalues.csv
+=========================================================
+Figure: Supplementary Figure (_thermostability_rmse) — raw RMSE (kcal/mol; no recalibration) across all 9 main-text thermostability datasets (`MegaScale test`, `Ssym`, `S461`, `K2369`, `S783`, `S2648`, `Q3421`, `S8754`, `PTMUL`) for all 8 kcal/mol-scale main models (omitting uncalibrated log-odds ProSST and ProteinMPNN).
+
+Metric Tested:
+  Pooled raw RMSE (kcal/mol; lower is better), averaged over 3 training seeds for retrained transfer models; Spearman rho and Pearson r are included alongside.
+
+Statistical Test & Resampling Procedure:
+  Paired nonparametric bootstrap (B = {B:,}, deterministic seed): domain-cluster x seed bootstrap on MegaScale test (33 domains) and mutation x seed bootstrap on each of the 8 external thermostability benchmarks (matching Main Figures 1 & 3a).
+  One-sided Phipson & Smyth (2010) p-value for H1: RMSE_ESM-MSR < RMSE_X:
+    p = (1 + #{{b : RMSE_X^(b) - RMSE_ESM-MSR^(b) <= 0}}) / (B + 1).
+  Models with documented direct training overlap on a dataset (GeoDDG-3D / ESM3dG where flagged) are marked `excluded_training_overlap=True` and excluded from the clean Bonferroni family.
+""",
+    )
+    return out_path
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = base_parser(STAGE, DESCRIPTION)
-    ap.add_argument('--only', choices=('all', 'supp_figure6', 'ssym_antisym'), default='all', help='Optional substage selector')
+    ap.add_argument('--only', choices=('all', 'supp_figure6', 'ssym_antisym', 'thermo_rmse'), default='all', help='Optional substage selector')
     args = ap.parse_args(argv)
     B = resolve_b(args)
+
+    if args.only == 'thermo_rmse':
+        out = build_supp_thermostability_rmse(B=max(B, 10_000))
+        print(f'[p08:calibration_length] Saved {out}.{{png,pdf}}')
+        return 0
 
     if args.only == 'ssym_antisym':
         out = build_supp_ssym_antisymmetry_bias(B=max(B, 10_000))
