@@ -4,7 +4,7 @@ Every benchmarked model has one canonical name, group, order, colour, marker, li
 mapping across all figures and tables:
 
     zero-shot            ProSST, ProteinMPNN, ESM3-small-open
-    transfer             ESM-MSR (sigma = 1, then sigma = 0.5), MutateEverything, ThermoMPNN, SPURS
+    transfer             ESM-MSR (sigma = 0.5, then sigma = 1), MutateEverything, ThermoMPNN, SPURS
     supervised           GeoDDG-3D, Rosetta, ESM3ΔG
     megascale            ESMtherm, IFUM, DDGemb, DDMut
 

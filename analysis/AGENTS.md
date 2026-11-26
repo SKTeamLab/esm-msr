@@ -38,8 +38,8 @@ Every agent or contributor editing evaluation scripts, scoring tables, statistic
 Always arrange models in this exact group order (and use the immutable colors/markers in `analysis/msr_analysis/models.py`):
 1. **Zero-shot** *(ending with ESM3)*:
    - `ProSST`, `ProteinMPNN`, `ESM3-small-open`
-2. **Transfer-learned / retrained on Homology-Restricted MegaScale** *(starting with ESM-MSR)*:
-   - `ESM-MSR` *(followed by `ESM-MSR σ=0.5` when LoRA scaling is shown)*, `MutateEverything`, `ThermoMPNN`, `SPURS`
+2. **Transfer-learned / retrained on Homology-Restricted MegaScale** *(starting with ESM-MSR, monotonic `σ = 0 → 0.5 → 1` when LoRA scaling is shown)*:
+   - `ESM-MSR σ=0.5` *(when shown)*, `ESM-MSR`, `MutateEverything`, `ThermoMPNN`, `SPURS`
 3. **Externally supervised (not trained on MegaScale, where relevant)**:
    - `GeoDDG-3D`, `Rosetta`, `ESM3ΔG`
 4. **Supplement-only (unsplit MegaScale-trained, only when explicitly requested)**:
