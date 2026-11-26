@@ -5,7 +5,7 @@ ROOT=${ROOT:-/lustre07/scratch/sareeves/esm-msr}; cd $ROOT
 export OUT=${OUT:-$ROOT/rosetta_predictions_rocklin}
 S=$(dirname "$0"); TAG=$(basename $OUT)
 while pgrep -u $USER -f "rocklin/drive.sh" > /dev/null; do sleep 120; done
-while [ "$(squeue -u $USER -h -r -n ros-ddg-mg | wc -l)" -gt 0 ]; do sleep 120; done
+until q=$(squeue -u $USER -h -r -n ros-ddg-mg) && [ -z "$q" ]; do sleep 120; done
 find $OUT/ddg -maxdepth 2 -name DONE | sed "s#.*/chunk_0*\([0-9]*\)/DONE#\1#; s#^\$#0#" | sort > logs/${TAG}_done_ids.txt
 NC=$(( $(wc -l < $OUT/tasks/chunks.csv) - 1 ))
 seq 0 $((NC-1)) | sort | comm -23 - logs/${TAG}_done_ids.txt | sort -n > logs/${TAG}_missing_final.txt
