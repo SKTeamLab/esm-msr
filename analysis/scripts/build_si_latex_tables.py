@@ -2012,35 +2012,315 @@ def build_table_s0_dataset_summary() -> Path:
     return write_tex('table_S0_dataset_summary.tex', '\n'.join(lines))
 
 
+def build_table_s7_leakage_audit_summary() -> Path:
+    """Table S7 (tab:si_leakage_audit_summary & tab:si_leakage_code_definitions):
+    Full leakage audit summary matrix across all audited benchmarks and model training inventories,
+    plus complete structured definitions of every leak code and audited training inventory.
+    """
+    lam = pd.read_csv(WT_SI / 'analysis/reference/leak_audit_matrix.csv')
+    ros = pd.read_csv(WT_SI / 'docs/benchmarks/leak_audit_rosetta.csv')
+
+    inv_ds_code: dict[tuple[str, str], str] = {}
+    for _, r in lam.iterrows():
+        inv = str(r['inventory'])
+        ds = str(r['dataset'])
+        code = '' if pd.isna(r['code']) else str(r['code']).strip()
+        if code in ('–', '-', 'nan', ''):
+            code = '---'
+        inv_ds_code[(inv, ds)] = code
+
+    # Populate Rosetta calibration fractions for all 15 datasets from leak_audit_rosetta.csv
+    for _, r in ros.iterrows():
+        ds = 'PG avg' if str(r['dataset']) == 'proteingym' else str(r['dataset'])
+        f = float(r['frac_tuned'])
+        if f >= 0.01:
+            rc = f'V.{round(f * 100):02d}'
+        elif f >= 0.001:
+            rc = f'V.{round(f * 1000):03d}'
+        elif f > 0.0:
+            rc = 'V<.001'
+        else:
+            rc = '---'
+        inv_ds_code[('rosetta_beta_nov16', ds)] = rc
+
+    invs = [
+        ('corpus', 'Zero-Shot'),
+        ('esm_msr_capped', 'Capped Retrains'),
+        ('rosetta_beta_nov16', 'Rosetta'),
+        ('geoddg_s8754', 'GeoDDG-3D'),
+        ('esm3dg_mgnify', r'ESM3$\Delta$G'),
+        ('esmtherm', 'ESMtherm'),
+        ('ifum', 'IFUM'),
+        ('ddgemb_s2450', 'DDGemb'),
+        ('ddmut', 'DDMut'),
+    ]
+
+    # Row specs: (display_label, audit_dataset_key, overrides_by_inv)
+    row_blocks = [
+        [
+            ('MegaScale -- Validation ($n$=35,473)', 'tsu_capped_val', {}),
+            ('MegaScale -- Test ($n$=52,071)', 'tsu_capped_test', {}),
+        ],
+        [
+            ('K2369 ($n$=2,369)', 'k2369', {}),
+            ('K3822 ($n$=3,822)', 'k3822', {}),
+            ('PTMUL ($n$=914)', 'ptmul', {}),
+            ('PTMUL-D ($n$=536)', 'ptmuld', {}),
+            ('Q3421 ($n$=3,421)', 'q3421', {}),
+            ('S461 ($n$=461)', 's461', {}),
+            ('S571 ($n$=571)', 's571', {}),
+            ('S669 ($n$=669)', 's669', {}),
+            ('S783 ($n$=783)', 's783', {}),
+            ('S2648 ($n$=2,648)', 's2648', {}),
+            ('S8754 ($n$=8,754)', 's8754', {}),
+            ('Ssym ($n$=684)', 'ssym', {}),
+        ],
+        [
+            ('Domainome (all 522; $n$=534,385)', 'domainome', {'rosetta_beta_nov16': 'n.a.', 'ddmut': 'n.a.'}),
+            ('Domainome (low-id 458; $n$=471,652)', 'domainome_low_id', {'rosetta_beta_nov16': 'n.a.', 'ddmut': 'n.a.'}),
+            (r'Domainome (held-out 436; $n$=451,569)$^\dagger$', '__dom_ho__', {
+                'corpus': '---',
+                'esm_msr_capped': '---',
+                'rosetta_beta_nov16': 'n.a.',
+                'geoddg_s8754': 'n.a.',
+                'esm3dg_mgnify': 'n.a.',
+                'esmtherm': 'n.a.',
+                'ifum': 'n.a.',
+                'ddgemb_s2450': 'n.a.',
+                'ddmut': 'n.a.',
+            }),
+            ('ProteinGym (all 217; $n$=2,465,767)', 'PG avg', {
+                'geoddg_s8754': r'P (74 DMS)$^\ddagger$',
+                'ifum': 'n.a.',
+                'ddgemb_s2450': 'n.a.',
+                'ddmut': 'n.a.',
+            }),
+            (r'ProteinGym (held-out 173; $n$=2,351,488)$^\dagger$', '__pg_ho__', {
+                'corpus': '---',
+                'esm_msr_capped': '---',
+                'rosetta_beta_nov16': r'V$\le$.002',
+                'geoddg_s8754': r'P (GeoFit.)$^\ddagger$',
+                'esm3dg_mgnify': 'n.a.',
+                'esmtherm': 'n.a.',
+                'ifum': 'n.a.',
+                'ddgemb_s2450': 'n.a.',
+                'ddmut': 'n.a.',
+            }),
+            (r'MGnify (all / held-out; 180k $\to$ 141k)$^\dagger$', '__mgnify__', {
+                'corpus': '---',
+                'esm_msr_capped': 'H/h.13 / ---',
+                'rosetta_beta_nov16': 'n.a.',
+                'geoddg_s8754': 'n.a.',
+                'esm3dg_mgnify': r'\# (train src)',
+                'esmtherm': r'n.a.$^\S$',
+                'ifum': r'n.a.$^\S$',
+                'ddgemb_s2450': 'n.a.',
+                'ddmut': 'n.a.',
+            }),
+            (r'Rocklin \textit{de novo} (all / held-out; 1k $\to$ 623)$^\dagger$', '__rocklin__', {
+                'corpus': '---',
+                'esm_msr_capped': 'H/h.25 / ---',
+                'rosetta_beta_nov16': 'n.a.',
+                'geoddg_s8754': 'n.a.',
+                'esm3dg_mgnify': r'\# (same src)',
+                'esmtherm': r'n.a.$^\S$',
+                'ifum': r'n.a.$^\S$',
+                'ddgemb_s2450': 'n.a.',
+                'ddmut': 'n.a.',
+            }),
+        ],
+    ]
+
+    def _fmt_cell(raw: str) -> str:
+        if raw in ('---', 'n.a.') or raw.startswith(('P (', r'\#', r'n.a.$', r'V$\le$')):
+            return raw
+        return tex_escape(raw)
+
+    body_a: list[str] = []
+    for b_idx, blk in enumerate(row_blocks):
+        if b_idx > 0:
+            body_a.append(r'\midrule')
+        for label, ds_key, ovr in blk:
+            cells = [label]
+            for inv_key, _ in invs:
+                if inv_key in ovr:
+                    val = ovr[inv_key]
+                else:
+                    val = inv_ds_code.get((inv_key, ds_key), 'n.a.')
+                cells.append(_fmt_cell(val))
+            body_a.append(' & '.join(cells) + r' \\')
+
+    cap_a = (
+        r'\textbf{Summary of Data-Leakage Audit Across All Benchmarks and Audited Model Training Inventories}. '
+        r'Each cell lists every detected overlap class and its fraction of audited benchmark rows, most severe first '
+        r'(e.g.\ M.50 = 50\%, M1 = 100\%, M$<$.001 = $<0.1\%$ but $\ge 1$ row); see Table~\ref{tab:si_leakage_code_definitions} '
+        r'for exact definitions, mathematical thresholds, superscript precedence, and training inventory provenance of every code '
+        r'(M, M?, m, P, H, h, D, V, V?, \#, ---, n.a.). '
+        r'Zero-Shot covers ProSST, ProteinMPNN, ESM3-small-open ($\sigma=0$), and ESM3-small/medium/large (unsupervised pretraining only). '
+        r'Capped Retrains covers ESM-MSR (all heads/$\sigma$), SPURS/SPURS-multi, MutateEverything Stage~1/2, and ThermoMPNN/ThermoMPNN-D, '
+        r'all trained on subsets of the same 172 Homology-Restricted MegaScale train domains (zero M/m/P/H overlap across all 12 external thermostability sets and MegaScale val/test). '
+        r'Rosetta values report global calibration overlap (\texttt{beta\_nov16\_cart} 20 reference energies and 1/2.94 scale factor tuned with Kellogg-2011 ProTherm and Rocklin-2017 design stability). '
+        r'$^\dagger$Canonical four-part sequence+structure holdout rows (Domainome 436 domains, ProteinGym 173 assays, MGnify 140,694 scored scaffolds, Rocklin \textit{de novo} 623 scored designs) '
+        r'remove every protein matching any of the 172 capped-train libraries at MMseqs2 $E \le 10^{-3}$, BLOSUM62 shorter-chain identity $>0.40$, Foldseek $E \le 10^{-3}$, or $\mathrm{TM}_{\max} > 0.70$, '
+        r'yielding zero overlap (---) for Capped Retrains (for MGnify and Rocklin, cells show pre-filter excluded fraction / post-filter held-out code: 27,687/180,367 MGnify scaffolds [100,365/766,790 rows] and 258/1,000 Rocklin designs [52,642/209,818 rows] removed). '
+        r'$^\ddagger$GeoDDG-3D was not scored on ProteinGym; its GeoFitness encoder was pretrained on 74 DMS fitness assays overlapping ProteinGym at the protein level (P). '
+        r'$^\S$ESMtherm and IFUM were trained on unfiltered MegaScale splits and were not separately row-audited against MGnify/Rocklin.'
+    )
+
+    lines_a = [
+        r'\begin{table}[H]',
+        r'    \centering',
+        f'    \\caption{{{cap_a}}}',
+        r'    \label{tab:si_leakage_audit_summary}',
+        r'    \renewcommand{\arraystretch}{1.3}',
+        r'    \resizebox{\textwidth}{!}{%',
+        r'    \begin{tabular}{@{}l' + 'l' * len(invs) + r'}\toprule',
+        '        Dataset & ' + ' & '.join(hdr for _, hdr in invs) + r' \\\midrule',
+    ]
+    for r in body_a:
+        lines_a.append('        ' + r)
+    lines_a.extend([
+        r'    \bottomrule',
+        r'    \end{tabular}',
+        r'    }',
+        r'    \par\bigskip',
+        r'\end{table}',
+        '',
+    ])
+
+    # Companion Table S7b: Explicit definitions of EVERY leak code + audited model training inventories
+    code_rows = [
+        (r'\textbf{M}', 'Identical variant in training',
+         r'Same protein family and identical mutation set (including construct-aligned and reverse structures); verified row-by-row.',
+         r'Excludes bold ($\ge 0.5\%$); rank~2'),
+        (r'\textbf{M?}', 'Mutation-level ceiling (unverified)',
+         r'Test row matches a public Dataset2 variant of a training domain (IFUM), where per-row filters are undisclosed.',
+         r'Excludes bold ($\ge 0.5\%$); rank~2'),
+        (r'\textbf{m}', 'Constituent single mutation in training',
+         r'Every constituent single mutation of a multi-mutant row appears in training for the same protein, but not the combination.',
+         r'Excludes bold ($\ge 0.5\%$); rank~3'),
+        (r'\textbf{P}', 'Same protein in training',
+         r'No mutation match, but $\ge 95\%$ identity over $\ge 90\%$ shorter-sequence coverage ($\text{len\_ratio} \ge 0.80$) or MMseqs2 $\ge 90\%$ identity over $\ge 50\%$ of test protein.',
+         r'Excludes bold ($\ge 0.5\%$); rank~4'),
+        (r'\textbf{H}', 'Strong homolog in training',
+         r'MMseqs2 $E \le 10^{-3}$ over $\ge 50\%$ of test protein; on Domainome and ProteinGym, also Foldseek $E \le 10^{-3}$ or $\mathrm{qTM} > 0.70$ over $\ge 50\%$.',
+         r'Excludes bold ($\ge 0.5\%$); rank~5'),
+        (r'\textbf{h}', 'Weak / twilight-zone homolog',
+         r'MMseqs2 $E \le 10^{-2}$ or $\ge 30\%$ identity over $\ge 30\%$ of test protein; or Foldseek $E \le 10^{-2}$ over $\ge 30\%$.',
+         r'Retains bold; rank~6'),
+        (r'\textbf{D}', 'Documented derivation',
+         r'Model training set is documented in the original publication as derived from the benchmark (e.g.\ S2450/S9028 from S2648).',
+         r'Excludes bold; fallback flag'),
+        (r'\textbf{V}', 'Validation / calibration set',
+         r'Rows used for checkpoint selection (e.g.\ capped val) or global parameter calibration (Rosetta \texttt{beta\_nov16} on Kellogg-2011 / Rocklin-2017).',
+         r'Retains bold; rank~7'),
+        (r'\textbf{V?}', 'Validation / test block ceiling',
+         r"Rows belonging to IFUM's merged 86-domain validation/test block (exact val vs.\ test split unpublished).",
+         r'Retains bold; rank~7'),
+        (r'\textbf{\#}', 'Test set equals training set',
+         r"Benchmark is identical to (or directly sourced from) the model's training set (e.g.\ GeoDDG-3D on S8754; ESM3$\Delta$G on MGnify).",
+         r'Always wins (rank~1); not a test'),
+        (r'\textbf{---}', 'No detected supervised overlap',
+         r'Unsupervised/zero-shot pretraining only, or zero benchmark rows trigger any overlap class (M/m/P/H/h/V/D/\#).',
+         r'Clean; retains bold'),
+        (r'\textbf{n.a.}', 'Not audited / not evaluated',
+         r'Model was not evaluated on this benchmark or no row-level leakage audit was run for this pair.',
+         r'---'),
+    ]
+
+    inv_rows = [
+        ('Zero-Shot', r'ProSST, ProteinMPNN, ESM3-small-open ($\sigma=0$), ESM3-small/medium/large',
+         'Unsupervised sequence/structure pretraining corpora only (no supervised $\Delta\Delta G$/DMS labels)', 'Documented'),
+        ('Capped Retrains', 'ESM-MSR, SPURS, MutateEverything, ThermoMPNN (all heads/stages)',
+         r'172 Homology-Restricted MegaScale train domains (221,338 unique variants); validated on 23 capped-val domains', 'Row-level verified'),
+        ('Rosetta', r'Rosetta \texttt{cartesian\_ddg} (\texttt{beta\_nov16\_cart})',
+         r'20 reference energies + 1/2.94 scale factor tuned using Kellogg-2011 (1,210 muts / 75 PDB) \& Rocklin-2017', 'Calibration (V)'),
+        ('GeoDDG-3D', 'GeoDDG-3D (FASPR)',
+         r'Fine-tuned on S8754 (8,754 $\Delta\Delta G$ rows); encoder pretrained as GeoFitness on 74 DMS assays', 'Row-level (S8754); protein-level (DMS)'),
+        (r'ESM3$\Delta$G', r'ESM3$\Delta$G (MGnify fine-tune)',
+         '960,216 MGnify Stability training sequences (60--80 aa; 0 identical sequences in external/MegaScale tests)', 'Row-level verified'),
+        ('ESMtherm', 'ESMtherm',
+         r'MegaScale \texttt{K50\_dG} Dataset1+2 (527,785 sequences; 414 domains split 80/10/10 per sequence + 47 test domains)', 'Row-level verified'),
+        ('IFUM', 'IFUM (WT backbone \& ESMFold)',
+         r'MegaScale Dataset2 MMseqs2-30\% split: 322 train domains + 86 merged val/test domains (no public row list)', 'Protein-level ceiling (M?, V?)'),
+        ('DDGemb', 'DDGemb',
+         'S2450 = S2648 minus 198 S669-homologous mutations, doubled with reverse variants (4,900 rows)', 'Row-level verified'),
+        ('DDMut', 'DDMut (deployed)',
+         r'S9028 = S2648 + FireProtDB (9,028 rows, singles) $\cup$ SM1218 + SM444 (1,662 rows, multi-mutants)', 'Row-level verified'),
+    ]
+
+    cap_b = (
+        r'\textbf{Leakage Audit Code Definitions and Audited Model Training Inventories}. '
+        r'Top: exact criteria, verification basis, and precedence for every leak code reported in Table~\ref{tab:si_leakage_audit_summary} '
+        r'and in the Homology / Overlap columns of Tables S2--S6. Fraction suffixes denote the proportion of audited benchmark rows in each class '
+        r'(e.g.\ .50 = 50\%, 1 = 100\%, $<$.001 = $<0.1\%$ with $\ge 1$ row); models with M, M?, m, P, H, D, or \# at $\ge 0.5\%$ of rows are marked $^*$ '
+        r'and excluded from clean bolding in comparison tables, whereas distant homology (h) and calibration/validation flags (V, V?) remain eligible. '
+        r'Bottom: training inventories, dataset sizes, and evidence tiers audited for each model column.'
+    )
+
+    lines_b = [
+        r'\begin{table}[H]',
+        r'    \centering',
+        f'    \\caption{{{cap_b}}}',
+        r'    \label{tab:si_leakage_code_definitions}',
+        r'    \renewcommand{\arraystretch}{1.3}',
+        r'    \resizebox{\textwidth}{!}{%',
+        r'    \begin{tabular}{@{}llll}\toprule',
+        r'        Code & Meaning & Audit Criterion & Precedence / Bolding \\\midrule',
+    ]
+    for c, mean, crit, prec in code_rows:
+        lines_b.append(f'        {c} & {mean} & {crit} & {prec} \\\\')
+    lines_b.extend([
+        r'        \midrule',
+        r'        \multicolumn{4}{@{}l}{\textbf{Audited Model Training Inventories and Evidence Tiers}} \\\midrule',
+        r'        Column & Models Covered & Training / Calibration Inventory & Evidence Tier \\\midrule',
+    ])
+    for col, mods, inv_desc, ev in inv_rows:
+        lines_b.append(f'        {col} & {mods} & {inv_desc} & {ev} \\\\')
+    lines_b.extend([
+        r'    \bottomrule',
+        r'    \end{tabular}',
+        r'    }',
+        r'    \par\bigskip',
+        r'\end{table}',
+        '',
+    ])
+
+    return write_tex('table_S7_leakage_audit_summary.tex', '\n'.join(lines_a + lines_b))
+
+
 def main() -> None:
     extra_df = _load_extra_df()
     tobit_df = _load_tobit_df()
     print(f'Loaded {len(extra_df)} extra-model rows from {EXTRA_CSV.name} and {len(tobit_df)} Tobit-linked override rows from {TOBIT_CSV.name}')
     generated: list[Path] = []
 
-    print('[0/6] Building Table S0 (Dataset Summary / tab:complexity_final)...')
+    print('[0/7] Building Table S0 (Dataset Summary / tab:complexity_final)...')
     generated.append(build_table_s0_dataset_summary())
 
-    print('[1/6] Building Tables S1a–S1b (Ablations: In-Distribution & OOD)...')
+    print('[1/7] Building Tables S1a–S1b (Ablations: In-Distribution & OOD)...')
     generated.extend(build_table_s1_ablations())
 
-    print('[2/6] Building Tables S2a–S2d (MegaScale All Models + Tobit Link + Homology Notes)...')
+    print('[2/7] Building Tables S2a–S2d (MegaScale All Models + Tobit Link + Homology Notes)...')
     generated.append(build_table_s2a_megascale_overall(extra_df, tobit_df))
     generated.append(build_table_s2b_megascale_doubles(extra_df, tobit_df))
     generated.append(build_table_s2c_megasplits(extra_df, tobit_df))
     generated.append(build_table_s2d_backbone_origin(extra_df, tobit_df))
 
-    print('[3/6] Building Tables S3a–S3b (Epistasis Hierarchy & Calibration All Models + Tobit Link + Homology Notes)...')
+    print('[3/7] Building Tables S3a–S3b (Epistasis Hierarchy & Calibration All Models + Tobit Link + Homology Notes)...')
     generated.extend(build_table_s3_epistasis(extra_df, tobit_df))
 
-    print('[4/6] Building Table S4 (Vertical Multi-Page Thermostability Longtable: All 12 Sets x All 19 Models) & S4c...')
+    print('[4/7] Building Table S4 (Vertical Multi-Page Thermostability Longtable: All 12 Sets x All 19 Models) & S4c...')
     generated.extend(build_table_s4_thermostability_longtable(extra_df, tobit_df))
 
-    print('[5/6] Building Tables S5a–S5b (Held-Out OOD All Models Longtable & ProteinGym Sigma)...')
+    print('[5/7] Building Tables S5a–S5b (Held-Out OOD All Models Longtable & ProteinGym Sigma)...')
     generated.extend(build_table_s5_heldout_ood(extra_df, tobit_df))
 
-    print('[6/6] Building Tables S6a–S6b (NDCG@96, Property Gain & Practical Screening + Tobit Link + Homology Notes)...')
+    print('[6/7] Building Tables S6a–S6b (NDCG@96, Property Gain & Practical Screening + Tobit Link + Homology Notes)...')
     generated.extend(build_table_s6_screening_and_ndcg(tobit_df))
+
+    print('[7/7] Building Table S7 (Full Leakage Audit Summary Matrix + Code & Inventory Key)...')
+    generated.append(build_table_s7_leakage_audit_summary())
 
     # Remove superseded horizontal thermostability files if present
     for old_f in ('table_S4a_thermostability_part1.tex', 'table_S4b_thermostability_part2.tex', 'table_S1_ablations_summary.tex'):

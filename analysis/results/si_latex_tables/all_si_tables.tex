@@ -63,7 +63,7 @@ MT-View only & 0.808 $\pm$ 0.001 & 0.829 $\pm$ 0.001 & 0.692 $\pm$ 0.011 & --- &
 $\sigma=0.5$ & 0.799 $\pm$ 0.001 & 0.799 $\pm$ 0.001 & 0.706 $\pm$ 0.005 & 0.419 $\pm$ 0.005 & 0.167 $\pm$ 0.002 & 0.576 $\pm$ 0.002 & 0.417 $\pm$ 0.000 \\
 Indep. mask. (eval only) & 0.820 $\pm$ 0.001 & 0.825 $\pm$ 0.002 & 0.704 $\pm$ 0.003 & 0.440 $\pm$ 0.031 & 0.224 $\pm$ 0.013 & --- & --- \\
 Indep. mask. (Ret.) & 0.835 $\pm$ 0.001 & 0.841 $\pm$ 0.002 & 0.747 $\pm$ 0.004 & \textbf{0.502 $\pm$ 0.018} & \textbf{0.232 $\pm$ 0.015} & 0.638 $\pm$ 0.001 & \textbf{0.458 $\pm$ 0.002} \\
-Indep. mask., eval unmask. (Ret.) & 0.819 $\pm$ 0.003 & 0.822 $\pm$ 0.001 & 0.729 $\pm$ 0.006 & 0.466 $\pm$ 0.012 & 0.181 $\pm$ 0.009 & --- & 0.456 $\pm$ 0.004 \\
+Indep. mask., eval unmask. (Ret.) & 0.819 $\pm$ 0.003 & 0.822 $\pm$ 0.001 & 0.729 $\pm$ 0.006 & 0.466 $\pm$ 0.012 & 0.181 $\pm$ 0.009 & 0.630 $\pm$ 0.000 & 0.456 $\pm$ 0.004 \\
 Masked marg. MT (Ret.) & 0.836 $\pm$ 0.002 & 0.842 $\pm$ 0.001 & 0.721 $\pm$ 0.006 & 0.431 $\pm$ 0.021 & $-$0.013 $\pm$ 0.006 & 0.637 $\pm$ 0.001 & 0.454 $\pm$ 0.002 \\
 No pair loss (Ret.) & 0.843 $\pm$ 0.002 & 0.845 $\pm$ 0.002 & 0.768 $\pm$ 0.002 & 0.416 $\pm$ 0.011 & 0.215 $\pm$ 0.008 & 0.641 $\pm$ 0.002 & 0.451 $\pm$ 0.001 \\
 No rank loss (Ret.) & 0.840 $\pm$ 0.005 & 0.842 $\pm$ 0.003 & 0.765 $\pm$ 0.008 & 0.443 $\pm$ 0.042 & 0.196 $\pm$ 0.012 & 0.638 $\pm$ 0.002 & 0.455 $\pm$ 0.002 \\
@@ -968,6 +968,85 @@ ProSST & 0.688 & 0.014 & 0.481 & 0.023 & 0.484 & 0.004 & 0.446 & $<10^{-4}$ & 0.
 \bottomrule
 \end{tabular}
 }
+\end{table}
+
+
+
+% ==================== table_S7_leakage_audit_summary.tex ====================
+
+\begin{table}[H]
+    \centering
+    \caption{\textbf{Summary of Data-Leakage Audit Across All Benchmarks and Audited Model Training Inventories}. Each cell lists every detected overlap class and its fraction of audited benchmark rows, most severe first (e.g.\ M.50 = 50\%, M1 = 100\%, M$<$.001 = $<0.1\%$ but $\ge 1$ row); see Table~\ref{tab:si_leakage_code_definitions} for exact definitions, mathematical thresholds, superscript precedence, and training inventory provenance of every code (M, M?, m, P, H, h, D, V, V?, \#, ---, n.a.). Zero-Shot covers ProSST, ProteinMPNN, ESM3-small-open ($\sigma=0$), and ESM3-small/medium/large (unsupervised pretraining only). Capped Retrains covers ESM-MSR (all heads/$\sigma$), SPURS/SPURS-multi, MutateEverything Stage~1/2, and ThermoMPNN/ThermoMPNN-D, all trained on subsets of the same 172 Homology-Restricted MegaScale train domains (zero M/m/P/H overlap across all 12 external thermostability sets and MegaScale val/test). Rosetta values report global calibration overlap (\texttt{beta\_nov16\_cart} 20 reference energies and 1/2.94 scale factor tuned with Kellogg-2011 ProTherm and Rocklin-2017 design stability). $^\dagger$Canonical four-part sequence+structure holdout rows (Domainome 436 domains, ProteinGym 173 assays, MGnify 140,694 scored scaffolds, Rocklin \textit{de novo} 623 scored designs) remove every protein matching any of the 172 capped-train libraries at MMseqs2 $E \le 10^{-3}$, BLOSUM62 shorter-chain identity $>0.40$, Foldseek $E \le 10^{-3}$, or $\mathrm{TM}_{\max} > 0.70$, yielding zero overlap (---) for Capped Retrains (for MGnify and Rocklin, cells show pre-filter excluded fraction / post-filter held-out code: 27,687/180,367 MGnify scaffolds [100,365/766,790 rows] and 258/1,000 Rocklin designs [52,642/209,818 rows] removed). $^\ddagger$GeoDDG-3D was not scored on ProteinGym; its GeoFitness encoder was pretrained on 74 DMS fitness assays overlapping ProteinGym at the protein level (P). $^\S$ESMtherm and IFUM were trained on unfiltered MegaScale splits and were not separately row-audited against MGnify/Rocklin.}
+    \label{tab:si_leakage_audit_summary}
+    \renewcommand{\arraystretch}{1.3}
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{@{}llllllllll}\toprule
+        Dataset & Zero-Shot & Capped Retrains & Rosetta & GeoDDG-3D & ESM3$\Delta$G & ESMtherm & IFUM & DDGemb & DDMut \\\midrule
+        MegaScale -- Validation ($n$=35,473) & --- & h.20 V & V.07 & --- & P.19 H.30 h.24 & M.44 P.46 H.03 h.02 V.05 & M?.70 P.01 h.07 V?.28 & --- & n.a. \\
+        MegaScale -- Test ($n$=52,071) & --- & h.16 & V.12 & h.07 & H.41 h.50 & M.51 P.34 H.04 h.03 V.06 & M?.46 P.02 H.07 h.06 V?.47 & h.02 & n.a. \\
+        \midrule
+        K2369 ($n$=2,369) & --- & h$<$.001 & V.13 & M.91 P.003 H.003 h.002 & H.007 h.26 & M.03 P.36 H.03 h.02 V.003 & M?.21 P.17 H.02 h.01 V?.003 & M.33 P.17 H.03 h.003 & M.74 P.14 H.03 \\
+        K3822 ($n$=3,822) & --- & h$<$.001 & V.18 & M.89 P.002 H.002 h.002 & H.009 h.29 & M.02 P.29 H.03 h.02 V.002 & M?.15 P.14 H.02 h.02 V?.002 & M.38 P.19 H.03 h.006 & M.72 P.15 H.03 \\
+        PTMUL ($n$=914) & --- & --- & V.15 & m.73 P.24 H.004 & H.009 h.34 & P.13 H.06 h.01 V.001 & M?.001 P.15 H.03 h.001 & m.48 P.32 H.03 h.003 & M.80 m.11 P.08 H.02 \\
+        PTMUL-D ($n$=536) & --- & --- & V.04 & m.78 P.20 H.006 & H.01 h.32 & P.06 H.06 h.02 & P.07 H.04 h.002 & m.54 P.32 H.04 h.004 & M.95 m.002 P.03 H.02 \\
+        Q3421 ($n$=3,421) & --- & --- & V.28 & M.98 P.002 & H.004 h.37 & M$<$.001 P.06 H.03 h.02 & M?.01 P.05 H.02 h.01 & M.63 P.21 H.02 & M.84 P.11 H.01 \\
+        S461 ($n$=461) & --- & h.002 & V.009 & P.11 H.004 h.03 & h.64 & P.35 h.14 & P.21 h.14 & --- & M.15 P.24 H.004 h.004 \\
+        S571 ($n$=571) & --- & --- & V.04 & M.41 P.09 H.04 & P.01 H.005 h.33 & M.02 P.10 H.03 V.009 & M?.04 P.01 H.08 & M.08 P.21 H.03 h.01 & M.21 P.26 H.05 \\
+        S669 ($n$=669) & --- & h.001 & V.006 & M.01 P.07 H.03 h.03 & h.55 & P.24 H.003 h.09 & P.14 H.003 h.09 & --- & M.10 P.19 H.02 h.004 \\
+        S783 ($n$=783) & --- & --- & V.22 & M.88 h.07 & h.44 & M.004 P.19 h.04 & M?.03 P.006 H.03 h.11 & P.71 H.02 & M.61 P.35 H.005 \\
+        S2648 ($n$=2,648) & --- & --- & V.16 & M1 & H.02 h.33 & P.05 H.02 h.01 & M?.006 P.05 H.02 h.006 & M.92 P.008 H.02 h.001 D & M.98 P.01 H.007 D \\
+        S8754 ($n$=8,754) & --- & --- & V.12 & M1 \# & H.01 h.31 & M.01 P.21 H.02 h.008 V.002 & M?.12 P.10 H.02 h.003 V?.001 & M.44 P.23 H.04 h.004 & M.69 P.21 H.03 h.002 D \\
+        Ssym ($n$=684) & --- & --- & V.19 & M.50 P.50 & h.72 & --- & --- & M.60 P.40 & M.88 P.12 \\
+        \midrule
+        Domainome (all 522; $n$=534,385) & --- & M.004 P.004 H.11 h.02 & n.a. & M.001 P.05 H.28 h.08 & P.005 H.22 h.51 & M.001 P.05 H.37 h.04 V$<$.001 & M?.004 P.04 H.36 h.04 V?.001 & M$<$.001 P.03 H.17 h.07 & n.a. \\
+        Domainome (low-id 458; $n$=471,652) & --- & h.03 & n.a. & M.001 P.06 H.31 h.08 & P.006 H.14 h.56 & M.002 P.04 H.30 h.04 V$<$.001 & M?.005 P.04 H.29 h.04 V?.002 & M$<$.001 P.03 H.19 h.08 & n.a. \\
+        Domainome (held-out 436; $n$=451,569)$^\dagger$ & --- & --- & n.a. & n.a. & n.a. & n.a. & n.a. & n.a. & n.a. \\
+        ProteinGym (all 217; $n$=2,465,767) & --- & M.02 m$<$.001 H.002 h.003 & V.002 & P (74 DMS)$^\ddagger$ & P.003 H.02 h.33 & M.02 P.02 H.004 h$<$.001 V.003 & n.a. & n.a. & n.a. \\
+        ProteinGym (held-out 173; $n$=2,351,488)$^\dagger$ & --- & --- & V$\le$.002 & P (GeoFit.)$^\ddagger$ & n.a. & n.a. & n.a. & n.a. & n.a. \\
+        MGnify (all / held-out; 180k $\to$ 141k)$^\dagger$ & --- & H/h.13 / --- & n.a. & n.a. & \# (train src) & n.a.$^\S$ & n.a.$^\S$ & n.a. & n.a. \\
+        Rocklin \textit{de novo} (all / held-out; 1k $\to$ 623)$^\dagger$ & --- & H/h.25 / --- & n.a. & n.a. & \# (same src) & n.a.$^\S$ & n.a.$^\S$ & n.a. & n.a. \\
+    \bottomrule
+    \end{tabular}
+    }
+    \par\bigskip
+\end{table}
+
+\begin{table}[H]
+    \centering
+    \caption{\textbf{Leakage Audit Code Definitions and Audited Model Training Inventories}. Top: exact criteria, verification basis, and precedence for every leak code reported in Table~\ref{tab:si_leakage_audit_summary} and in the Homology / Overlap columns of Tables S2--S6. Fraction suffixes denote the proportion of audited benchmark rows in each class (e.g.\ .50 = 50\%, 1 = 100\%, $<$.001 = $<0.1\%$ with $\ge 1$ row); models with M, M?, m, P, H, D, or \# at $\ge 0.5\%$ of rows are marked $^*$ and excluded from clean bolding in comparison tables, whereas distant homology (h) and calibration/validation flags (V, V?) remain eligible. Bottom: training inventories, dataset sizes, and evidence tiers audited for each model column.}
+    \label{tab:si_leakage_code_definitions}
+    \renewcommand{\arraystretch}{1.3}
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{@{}llll}\toprule
+        Code & Meaning & Audit Criterion & Precedence / Bolding \\\midrule
+        \textbf{M} & Identical variant in training & Same protein family and identical mutation set (including construct-aligned and reverse structures); verified row-by-row. & Excludes bold ($\ge 0.5\%$); rank~2 \\
+        \textbf{M?} & Mutation-level ceiling (unverified) & Test row matches a public Dataset2 variant of a training domain (IFUM), where per-row filters are undisclosed. & Excludes bold ($\ge 0.5\%$); rank~2 \\
+        \textbf{m} & Constituent single mutation in training & Every constituent single mutation of a multi-mutant row appears in training for the same protein, but not the combination. & Excludes bold ($\ge 0.5\%$); rank~3 \\
+        \textbf{P} & Same protein in training & No mutation match, but $\ge 95\%$ identity over $\ge 90\%$ shorter-sequence coverage ($\text{len\_ratio} \ge 0.80$) or MMseqs2 $\ge 90\%$ identity over $\ge 50\%$ of test protein. & Excludes bold ($\ge 0.5\%$); rank~4 \\
+        \textbf{H} & Strong homolog in training & MMseqs2 $E \le 10^{-3}$ over $\ge 50\%$ of test protein; on Domainome and ProteinGym, also Foldseek $E \le 10^{-3}$ or $\mathrm{qTM} > 0.70$ over $\ge 50\%$. & Excludes bold ($\ge 0.5\%$); rank~5 \\
+        \textbf{h} & Weak / twilight-zone homolog & MMseqs2 $E \le 10^{-2}$ or $\ge 30\%$ identity over $\ge 30\%$ of test protein; or Foldseek $E \le 10^{-2}$ over $\ge 30\%$. & Retains bold; rank~6 \\
+        \textbf{D} & Documented derivation & Model training set is documented in the original publication as derived from the benchmark (e.g.\ S2450/S9028 from S2648). & Excludes bold; fallback flag \\
+        \textbf{V} & Validation / calibration set & Rows used for checkpoint selection (e.g.\ capped val) or global parameter calibration (Rosetta \texttt{beta\_nov16} on Kellogg-2011 / Rocklin-2017). & Retains bold; rank~7 \\
+        \textbf{V?} & Validation / test block ceiling & Rows belonging to IFUM's merged 86-domain validation/test block (exact val vs.\ test split unpublished). & Retains bold; rank~7 \\
+        \textbf{\#} & Test set equals training set & Benchmark is identical to (or directly sourced from) the model's training set (e.g.\ GeoDDG-3D on S8754; ESM3$\Delta$G on MGnify). & Always wins (rank~1); not a test \\
+        \textbf{---} & No detected supervised overlap & Unsupervised/zero-shot pretraining only, or zero benchmark rows trigger any overlap class (M/m/P/H/h/V/D/\#). & Clean; retains bold \\
+        \textbf{n.a.} & Not audited / not evaluated & Model was not evaluated on this benchmark or no row-level leakage audit was run for this pair. & --- \\
+        \midrule
+        \multicolumn{4}{@{}l}{\textbf{Audited Model Training Inventories and Evidence Tiers}} \\\midrule
+        Column & Models Covered & Training / Calibration Inventory & Evidence Tier \\\midrule
+        Zero-Shot & ProSST, ProteinMPNN, ESM3-small-open ($\sigma=0$), ESM3-small/medium/large & Unsupervised sequence/structure pretraining corpora only (no supervised $\Delta\Delta G$/DMS labels) & Documented \\
+        Capped Retrains & ESM-MSR, SPURS, MutateEverything, ThermoMPNN (all heads/stages) & 172 Homology-Restricted MegaScale train domains (221,338 unique variants); validated on 23 capped-val domains & Row-level verified \\
+        Rosetta & Rosetta \texttt{cartesian\_ddg} (\texttt{beta\_nov16\_cart}) & 20 reference energies + 1/2.94 scale factor tuned using Kellogg-2011 (1,210 muts / 75 PDB) \& Rocklin-2017 & Calibration (V) \\
+        GeoDDG-3D & GeoDDG-3D (FASPR) & Fine-tuned on S8754 (8,754 $\Delta\Delta G$ rows); encoder pretrained as GeoFitness on 74 DMS assays & Row-level (S8754); protein-level (DMS) \\
+        ESM3$\Delta$G & ESM3$\Delta$G (MGnify fine-tune) & 960,216 MGnify Stability training sequences (60--80 aa; 0 identical sequences in external/MegaScale tests) & Row-level verified \\
+        ESMtherm & ESMtherm & MegaScale \texttt{K50\_dG} Dataset1+2 (527,785 sequences; 414 domains split 80/10/10 per sequence + 47 test domains) & Row-level verified \\
+        IFUM & IFUM (WT backbone \& ESMFold) & MegaScale Dataset2 MMseqs2-30\% split: 322 train domains + 86 merged val/test domains (no public row list) & Protein-level ceiling (M?, V?) \\
+        DDGemb & DDGemb & S2450 = S2648 minus 198 S669-homologous mutations, doubled with reverse variants (4,900 rows) & Row-level verified \\
+        DDMut & DDMut (deployed) & S9028 = S2648 + FireProtDB (9,028 rows, singles) $\cup$ SM1218 + SM444 (1,662 rows, multi-mutants) & Row-level verified \\
+    \bottomrule
+    \end{tabular}
+    }
+    \par\bigskip
 \end{table}
 
 
