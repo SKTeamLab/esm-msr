@@ -70,10 +70,10 @@ STAGE = 'tsuboyama'
 DESCRIPTION = 'Tsuboyama / MegaScale rankings, NDCG@96, ESM3 scoring variants, and mega_splits comparison'
 
 CAPPED_KEYS = list(dict.fromkeys(
-    k for m in M.ROSTER if not m.sigma and m.name != 'SPURS published*' for k in (m.single, m.multi) if k
+    k for m in M.ROSTER if not m.sigma for k in (m.single, m.multi) if k
 ))
 RETR_KEYS = ['me1', 'me2', 'tmpnn', 'tmpnnd', 'spurs', 'spursm']
-MEGA_EXTRA = ['spursu', 'spursum', 'spurspub', 'spurspubm', 'tmpnnpub', 'tmpnndpub']
+MEGA_EXTRA = ['spursu', 'spursum', 'tmpnnpub', 'tmpnndpub']
 MEGA_BASE = ['msrp0:wt', 'msrp0:comb', *RETR_KEYS]
 MEGA_KEYS = MEGA_BASE + MEGA_EXTRA
 
@@ -1124,14 +1124,14 @@ def run_mega_splits(B: int) -> None:
 
     # Version comparison (03_version_comparison.py)
     ver_name = {
-        'spurs': 'SPURS frozen', 'spursu': 'SPURS trained', 'spurspub': 'SPURS published',
-        'spursm': 'SPURS multi frozen', 'spursum': 'SPURS multi trained', 'spurspubm': 'SPURS multi published',
+        'spurs': 'SPURS frozen', 'spursu': 'SPURS trained',
+        'spursm': 'SPURS multi frozen', 'spursum': 'SPURS multi trained',
         'tmpnn': 'ThermoMPNN retrain', 'tmpnnpub': 'ThermoMPNN published',
         'tmpnnd': 'ThermoMPNN-D retrain', 'tmpnndpub': 'ThermoMPNN-D published',
     }
     ver_pairs = [
-        ('spursu', 'spurs'), ('spurspub', 'spurs'), ('spurspub', 'spursu'),
-        ('spursum', 'spursm'), ('spurspubm', 'spursm'), ('spurspubm', 'spursum'),
+        ('spursu', 'spurs'),
+        ('spursum', 'spursm'),
         ('tmpnnpub', 'tmpnn'), ('tmpnndpub', 'tmpnnd'),
     ]
     ver_pairs = [(a, b) for a, b in ver_pairs if a in fr['test'].preds and b in fr['test'].preds]
@@ -1185,9 +1185,9 @@ def run_mega_splits(B: int) -> None:
 
     # Variant-by-variant agreement matrices
     ag_sets = {
-        'singles': (['spurs', 'spursu', 'spurspub', 'tmpnn', 'tmpnnpub'], ok_t & (sp_t['n_mut'] == 1).to_numpy()),
+        'singles': (['spurs', 'spursu', 'tmpnn', 'tmpnnpub'], ok_t & (sp_t['n_mut'] == 1).to_numpy()),
         'doubles, epistasis term (multi - own-family singles)': (
-            ['spursm:epi', 'spursum:epi', 'spurspubm:epi', 'tmpnndpub:epi', 'tmpnnd:epi'],
+            ['spursm:epi', 'spursum:epi', 'tmpnndpub:epi', 'tmpnnd:epi'],
             ok_t & (sp_t['n_mut'] == 2).to_numpy() & np.isfinite(sp_t['dddG_ML'].to_numpy()),
         ),
     }

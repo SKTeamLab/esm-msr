@@ -6,7 +6,7 @@ mapping across all figures and tables:
     zero-shot            ProSST, ProteinMPNN, ESM3-small-open
     transfer             ESM-MSR (sigma = 1, then sigma = 0.5), MutateEverything, ThermoMPNN, SPURS
     supervised           GeoDDG-3D, Rosetta, ESM3ΔG
-    megascale            ESMtherm, IFUM, SPURS published*, DDGemb, DDMut
+    megascale            ESMtherm, IFUM, DDGemb, DDMut
 
 ``ABLATION_STYLES`` provides non-conflicting styles for all ``FINAL_*`` ablation families (never using
 ``#c0392b``, which is reserved for training-overlap rings, and reserving the black diamond ``'D'`` for
@@ -125,7 +125,6 @@ ROSTER = [
     # ---- trained on Megascale: supplement only ----------------------------------------------------------------------------------------------------------------
     Model('ESMtherm', 'megascale', '#7d6608', '<', single='esmtherm', multi='esmtherm', legend='ESMtherm*', label_all='ESMtherm*'),
     Model('IFUM', 'megascale', '#8d6e63', 'v', single='ifum_wt', multi='ifum_wt', legend='IFUM*', label_all='IFUM*'),
-    Model('SPURS published*', 'megascale', '#e59866', 's', single='spurspub', multi='spurspubm', legend='SPURS (published checkpoint)*', label_all='SPURS (published)*'),
     Model('DDGemb', 'megascale', '#b7950b', '>', single='ddgemb', multi='ddgemb', epi='ddgemb:epi', add='ddgemb+',
           label_all='DDGemb', label_pair='DDGemb\nAdd. singles → sim. double', label_epi='DDGemb\ndirect −\nsum of singles'),
     Model('DDMut', 'megascale', '#d4ac0d', '>', single='ddmut', multi='ddmut', label_all='DDMut'),
@@ -148,7 +147,6 @@ KEY_MODEL = MappingProxyType({
     'tmpnn': 'ThermoMPNN', 'tmpnnd': 'ThermoMPNN',
     'spurs': 'SPURS', 'spursm': 'SPURS',
     'spursu': 'SPURS', 'spursum': 'SPURS',
-    'spurspub': 'SPURS published*', 'spurspubm': 'SPURS published*',
     'tmpnnpub': 'ThermoMPNN', 'tmpnndpub': 'ThermoMPNN',
     'geoddg': 'GeoDDG-3D', 'rosetta': 'Rosetta', 'esm3dg': 'ESM3ΔG',
     'esmtherm': 'ESMtherm', 'ifum_wt': 'IFUM', 'ifum_esmfold': 'IFUM',
@@ -156,7 +154,7 @@ KEY_MODEL = MappingProxyType({
 })
 SINGLES_KEYS = frozenset({
     'msrp0:wt', 'msrp0@0.5:wt', 'msrrel@0:wt',
-    'me1', 'me1+', 'tmpnn', 'spurs', 'spursu', 'spurspub', 'tmpnnpub',
+    'me1', 'me1+', 'tmpnn', 'spurs', 'spursu', 'tmpnnpub',
 })
 
 VARIANT_COLOR = MappingProxyType({

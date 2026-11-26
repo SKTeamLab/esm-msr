@@ -16,7 +16,6 @@
 | SPURS | retrained (single + multi) | 1 | RTX A4500 | 0.29 | 2542 (0) | 9.6 | 10.0 | 0.00 | 0.06 | 0.00 | 0.02 | 0.20 |
 | SPURS | retrained (single + multi) | 2 | RTX A4500 | 0.29 | 2542 (0) | 9.6 | 10.0 | 0.00 | 0.06 | 0.00 | 0.02 | 0.20 |
 | SPURS | retrained (single + multi) | 3 | RTX A4500 | 0.29 | 2542 (0) | 9.7 | 10.0 | 0.00 | 0.06 | 0.00 | 0.02 | 0.20 |
-| SPURS † | published checkpoint | — | RTX A4500 | 0.29 | 2542 (0) | 7.2 | 10.0 | 0.00 | 0.06 | 0.00 | 0.02 | 0.20 |
 | ProteinMPNN † | zero-shot | — | RTX A4500 | 1.81 | 2542 (0) | 4.5 | 17.7 | 0.00 | 0.02 | 0.01 | 0.01 | 1.77 |
 
 † not transfer-learned by us (published checkpoint / zero-shot).

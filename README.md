@@ -154,7 +154,7 @@ Four of the 217 are size extremes that need special handling on a 32 GB card: `B
   * Headline `mpnn_score`: the mean of the log-odds with the wild-type and with the variant sequence as context, each mutated position decoded last.
   * `mpnn_score_wt_seq`: wild-type context only.
   * The encoder runs once per structure, and each distinct (position, other mutations) context is decoded once. All 217 DMS take about 2 h on a 24 GB GPU.
-* **SPURS** (the public HuggingFace weights by default).
+* **SPURS** (retrained single and multi checkpoints via `--checkpoint_single` / `--checkpoint_multi`).
   * Headline `SPURS_multi`.
   * Also `SPURS_single_additive` and `SPURS_multi_additive`.
 * **ThermoMPNN-D** (`--single_checkpoint`, `--epistatic_checkpoint`; set `THERMOMPNN_DIR`).

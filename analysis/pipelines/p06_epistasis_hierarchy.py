@@ -279,7 +279,7 @@ def run_core_epistasis(B: int, split: str = 'capped') -> None:
     epi_keys = ['msrp0:epi', 'me2:epi', 'tmpnnd:epi', 'spursm:epi']
     style_ov = {}
     if mega:
-        epi_keys += ['spursum:epi', 'spurspubm:epi', 'tmpnndpub:epi']
+        epi_keys += ['spursum:epi', 'tmpnndpub:epi']
         style_ov['spursm:epi'] = {'label': 'SPURS multi, frozen adapter (vs singles)'}
 
     # 1a. Naive rho and RMSE recomputed — MegaScale only in 01_megascale/epistasis/, 3-DMS in 99_misc/dms3/
@@ -394,18 +394,18 @@ def run_core_epistasis(B: int, split: str = 'capped') -> None:
     # 1c. Table 2.3: ddG ranking
     ms = ['msrp0:wt', 'msrp0:comb', 'me1', 'me2', 'tmpnn', 'tmpnnd', 'spurs', 'spursm']
     if mega:
-        ms += [k for k in ('spursu', 'spursum', 'spurspub', 'spurspubm', 'tmpnnpub', 'tmpnndpub') if k in fr_test.preds]
+        ms += [k for k in ('spursu', 'spursum', 'tmpnnpub', 'tmpnndpub') if k in fr_test.preds]
     rk_rows = []
     for ds, sp_lbl in zip(tsu_pair, ('val', 'test')):
         fr = load_frame(ds)
         sp_d = fr.spine
         dbl = (sp_d['n_mut'] == 2).to_numpy() & sp_d['use'].to_numpy()
         e_m = dbl & np.isfinite(sp_d['dddG_ML'].to_numpy())
-        epi_src = ['msrp0:epi', 'me2:epi', 'tmpnnd:epi', 'spursm:epi'] + (['spursum:epi', 'spurspubm:epi', 'tmpnndpub:epi'] if mega else [])
+        epi_src = ['msrp0:epi', 'me2:epi', 'tmpnnd:epi', 'spursm:epi'] + (['spursum:epi', 'tmpnndpub:epi'] if mega else [])
         epi_src = [k for k in epi_src if k in fr.preds]
         ren = {
             'msrp0:epi': 'msrp0:comb', 'me2:epi': 'me2', 'tmpnnd:epi': 'tmpnnd', 'spursm:epi': 'spursm',
-            'spursum:epi': 'spursum', 'spurspubm:epi': 'spurspubm', 'tmpnndpub:epi': 'tmpnndpub',
+            'spursum:epi': 'spursum', 'tmpnndpub:epi': 'tmpnndpub',
         }
         sets_rk = {
             'all variants': (fr, ms),
@@ -1545,7 +1545,6 @@ def run_hierarchy_and_composite(B: int, split: str = 'capped', procs: int = 6, T
         if mega:
             plain = plain[:3] + [
                 ('SPURS multi (trained adapter)', 'spursum', 'spursu'),
-                ('SPURS multi (published)', 'spurspubm', 'spurspub'),
                 ('ThermoMPNN-D (published)', 'tmpnndpub', 'tmpnnpub'),
             ] + plain[3:]
         for name, direct, add in plain:
@@ -1581,7 +1580,7 @@ def run_hierarchy_and_composite(B: int, split: str = 'capped', procs: int = 6, T
         T_all = T_all.assign(split=sp_key)
 
         # Slice 1: 11d / 11b standard table & figures
-        std_keep = {m[0] for m in std_entries} | {'−dG_add', 'SPURS multi (trained adapter)', 'SPURS multi (published)', 'ThermoMPNN-D (published)'}
+        std_keep = {m[0] for m in std_entries} | {'−dG_add', 'SPURS multi (trained adapter)', 'ThermoMPNN-D (published)'}
         T_11d = T_all[T_all['model'].isin(std_keep)].copy()
         atomic_to_csv(T_11d, out_epi / f'epistasis_levels_bootstrap_{sp_key}.csv', index=False, float_format='%.5f')
         _draw_hierarchy_figure(T_11d, sp_key, out_epi / f'epistasis_levels_bars_{sp_key}', std_entries, LEVELS_MAIN, FOOT_HIER)
