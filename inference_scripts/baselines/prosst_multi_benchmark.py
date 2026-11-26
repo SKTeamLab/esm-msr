@@ -283,7 +283,9 @@ def run_pgym(out_dir: Path, get_sst, model, tok, args, dev: str, tmp_dir: Path) 
         if p.name == 'summary.csv':
             continue
         hdr = pd.read_csv(p, nrows=2)
-        mcol = 'mut_type_renumbered' if 'mut_type_renumbered' in hdr.columns else ('mut_type' if 'mut_type' in hdr.columns else 'mutant')
+        mcol = next((c for c in ('mut_type_renumbered', 'mut_type', 'mutant') if c in hdr.columns), None)
+        if mcol is None:
+            continue
         s = pd.read_csv(p, usecols=[mcol])[mcol].astype(str)
         n_multi = int(s.str.contains(':').sum())
         if n_multi > 0:
