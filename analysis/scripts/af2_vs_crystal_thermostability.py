@@ -1,26 +1,27 @@
 #!/usr/bin/env python3
 """AF2 (ColabFold) vs. crystal structure analysis on the 12 external thermostability benchmarks.
 
-Retrieves and analyzes the matched ESM-MSR-small (March reference checkpoint) inference runs
-completed on the local cluster (`subhak-gpu.uwaterloo.ca`, job 380998, 2026-10-08) across all 12
-external thermostability datasets (25,632 variants; 805 benchmark groups sharing 762 unique WT
-sequences folded with ColabFold AF2 monomer-ptm, 5 models, 3 recycles, Amber GPU relax).
+Authoritative evaluation using the deployed `FINAL_p0` triplicate checkpoints (seeds 1–3;
+`subhak-gpu.uwaterloo.ca`, gpu4 jobs 391340–391342, 2026-11-25/26) across all 12 external
+thermostability benchmarks (25,632 variants; 805 benchmark groups sharing 762 unique WT
+sequences folded with ColabFold AF2 monomer-pTM, 5 models, 3 recycles, Amber GPU relax).
+Also supports `--model march_small` to reproduce the historical Oct 8, 2026 single-seed
+`ESM-MSR-small` cluster run (`esm-msr-small_af2_vs_crystal.csv`, max diff < 1e-16).
 
-Follows current `analysis/AGENTS.md` and `msr_analysis` conventions:
+Follows all `analysis/AGENTS.md` and `msr_analysis` conventions:
   - Canonical deployed readout: WT-view (`wt_lora_pred`) on the 10 single-mutant sets and
     Dual-view (`combined_pred`) on the 2 multi-mutant sets (`PTMUL`, `PTMUL-D`).
-  - Also reports the original Oct 8 Dual-view (`combined_pred`) readout across all 12 sets for
-    direct continuity with `esm-msr-small_af2_vs_crystal.csv` and `docs/BENCHMARKS_OCT2026.md §4`.
-  - Joint cross-dataset paired protein-cluster bootstrap (using canonical `Frame.spine['cluster']`
-    from `msr_analysis.data.load_frame`, so shared proteins across overlapping subsets/supersets
-    and all 15 Ssym WT families are resampled jointly) and paired mutation-level bootstrap
-    (`B = 10,000`, finite-sample `1/(B+1)` two-sided p-values, Holm adjustment across 12 sets).
+  - Triplicate seed averaging (point estimate = mean of per-seed metrics; sample SD `ddof=1`)
+    with joint `[protein-cluster × seed]` and `[mutation × seed]` paired bootstraps (`B = 10,000`),
+    resampling shared protein clusters jointly across overlapping datasets (`S461 ⊂ S669`,
+    `K2369 ⊂ K3822`, `S2648 ⊂ S8754`, `PTMUL-D ⊂ PTMUL`; 15 WT families in `Ssym`).
+  - Exact two-sided paired bootstrap p-values with `1/(B+1)` floor and Holm adjustment across 12 sets.
   - Ssym direct (WT crystal) vs. reverse (mutant crystal) & 342-pair antisymmetry decomposition.
   - Publication-styled figures via `msr_analysis.style` (`#ffffff`, `dpi=220`, Type 42 PDF fonts,
-    hollow/filled marker encoding) and `.csv` / `.md` / `.tex` booktabs tables via `msr_analysis.tables`.
+    hollow/filled marker encoding) and `.csv` / `.md` / `.tex` booktabs tables.
 
 Usage:
-    PYTHONPATH=src:analysis python analysis/scripts/af2_vs_crystal_thermostability.py [--B 10000]
+    PYTHONPATH=src:analysis python analysis/scripts/af2_vs_crystal_thermostability.py [--model final_p0] [--B 10000]
 """
 from __future__ import annotations
 
@@ -47,11 +48,12 @@ from msr_analysis.boot import _Ranks, ci, global_cluster_index  # noqa: E402
 from msr_analysis.data import load_frame  # noqa: E402
 from msr_analysis.paths import MSR, atomic_to_csv, atomic_write_text, results_dir  # noqa: E402
 from msr_analysis.registry import EXT12, LABEL  # noqa: E402
-from msr_analysis.stats import boot_pvalue, fmt_p, holm  # noqa: E402
+from msr_analysis.stats import boot_pvalue, holm  # noqa: E402
 from msr_analysis.tables import format_stat_table_md  # noqa: E402
 
-AF2_DIR = MSR / 'esm-msr-small_march_af2'
-CRYSTAL_DIR = MSR / 'esm-msr-small_march_crystal'
+FINAL_P0_DIR = MSR / 'af2_vs_crystal_final_p0'
+MARCH_AF2_DIR = MSR / 'esm-msr-small_march_af2'
+MARCH_CRYSTAL_DIR = MSR / 'esm-msr-small_march_crystal'
 
 SINGLE_SETS = ['s571', 's783', 's2648', 's8754', 's669', 's461', 'ssym', 'q3421', 'k3822', 'k2369']
 MULTI_SETS = ['ptmul', 'ptmuld']
@@ -98,55 +100,100 @@ COLOR_DELTA_NEG = '#c0392b'
 COLOR_DELTA_NEUT = '#2c5f8a'
 
 
-def _load_paired_datasets() -> dict[str, dict]:
-    """Load matched crystal and AF2 predictions and assign canonical WT protein clusters."""
+def _load_paired_datasets(model_spec: str) -> tuple[dict[str, dict], list[str], str]:
+    """Load matched crystal and AF2 predictions for all seeds and assign canonical WT protein clusters."""
+    if model_spec == 'final_p0':
+        seeds = ['s1', 's2', 's3']
+        model_label = 'ESM-MSR (FINAL_p0, 3 seeds)'
+    elif model_spec == 'march_small':
+        seeds = ['s1']
+        model_label = 'ESM-MSR-small (March ref., 1 seed)'
+    else:
+        raise ValueError(f'Unknown model_spec: {model_spec}')
+
     data: dict[str, dict] = {}
     for ds in EXT12:
         fr = load_frame(ds)
-        dc = pd.read_csv(CRYSTAL_DIR / f'{ds}.csv')
-        da = pd.read_csv(AF2_DIR / f'{ds}.csv')
-
-        if len(dc) != len(da) or len(dc) != len(fr.spine):
-            raise ValueError(f'Row count mismatch on {ds}: spine={len(fr.spine)}, cry={len(dc)}, af2={len(da)}')
-        if not (dc['id'].astype(str).to_numpy() == da['id'].astype(str).to_numpy()).all():
-            raise ValueError(f'ID order mismatch between crystal and AF2 on {ds}')
-        if not (dc['index'].to_numpy() == da['index'].to_numpy()).all():
-            raise ValueError(f'Row index order mismatch between crystal and AF2 on {ds}')
-
-        y = dc['ddG'].to_numpy(dtype=np.float64)
-        if not np.allclose(y, da['ddG'].to_numpy(dtype=np.float64), equal_nan=False):
-            raise ValueError(f'Ground-truth ddG mismatch between crystal and AF2 on {ds}')
-
-        # Canonical WT protein clustering matching `msr_analysis.data._wt_cluster`:
-        # `wt_code` on Ssym (15 WT families), 4-char PDB `code` on all other external sets.
-        if 'wt_code' in dc.columns:
-            cluster = dc['wt_code'].fillna(dc['code']).astype(str).to_numpy()
-        else:
-            cluster = dc['code'].astype(str).to_numpy()
+        spine_n = len(fr.spine)
         spine_n_cl = int(fr.spine['cluster'].nunique())
-        if len(np.unique(cluster)) != spine_n_cl:
-            raise ValueError(f'Cluster count mismatch on {ds}: {len(np.unique(cluster))} vs spine {spine_n_cl}')
+
+        cry_dep_s, af2_dep_s = [], []
+        cry_wt_s, af2_wt_s = [], []
+        cry_comb_s, af2_comb_s = [], []
+        df_cry_seeds, df_af2_seeds = [], []
+
+        y_ref = None
+        ids_ref = None
+        idx_ref = None
+        cluster = None
+        group_cc = None
 
         is_multi = ds in MULTI_SETS
         dep_col = 'combined_pred' if is_multi else 'wt_lora_pred'
+
+        for s in seeds:
+            if model_spec == 'final_p0':
+                fc = FINAL_P0_DIR / s / 'crystal' / 'predictions' / f'{ds}.csv'
+                fa = FINAL_P0_DIR / s / 'af2' / 'predictions' / f'{ds}.csv'
+            else:
+                fc = MARCH_CRYSTAL_DIR / f'{ds}.csv'
+                fa = MARCH_AF2_DIR / f'{ds}.csv'
+
+            dc = pd.read_csv(fc)
+            da = pd.read_csv(fa)
+            if len(dc) != len(da) or len(dc) != spine_n:
+                raise ValueError(f'Row count mismatch on {ds}/{s}: spine={spine_n}, cry={len(dc)}, af2={len(da)}')
+            ids_c = dc['id'].astype(str).to_numpy()
+            ids_a = da['id'].astype(str).to_numpy()
+            idx_c = dc['index'].to_numpy()
+            idx_a = da['index'].to_numpy()
+            if not (ids_c == ids_a).all() or not (idx_c == idx_a).all():
+                raise ValueError(f'Row order mismatch between crystal and AF2 on {ds}/{s}')
+            y = dc['ddG'].to_numpy(dtype=np.float64)
+            if not np.allclose(y, da['ddG'].to_numpy(dtype=np.float64), equal_nan=False):
+                raise ValueError(f'Ground-truth ddG mismatch between crystal and AF2 on {ds}/{s}')
+
+            if y_ref is None:
+                y_ref, ids_ref, idx_ref = y, ids_c, idx_c
+                if 'wt_code' in dc.columns:
+                    cluster = dc['wt_code'].fillna(dc['code']).astype(str).to_numpy()
+                else:
+                    cluster = dc['code'].astype(str).to_numpy()
+                if len(np.unique(cluster)) != spine_n_cl:
+                    raise ValueError(f'Cluster count mismatch on {ds}: {len(np.unique(cluster))} vs spine {spine_n_cl}')
+                group_cc = (dc['code'].astype(str) + dc['chain'].astype(str)).to_numpy()
+            else:
+                if not (ids_c == ids_ref).all() or not (idx_c == idx_ref).all() or not np.allclose(y, y_ref):
+                    raise ValueError(f'Cross-seed row misalignment on {ds}/{s}')
+
+            cry_dep_s.append(dc[dep_col].to_numpy(dtype=np.float64))
+            af2_dep_s.append(da[dep_col].to_numpy(dtype=np.float64))
+            cry_wt_s.append(dc['wt_lora_pred'].to_numpy(dtype=np.float64))
+            af2_wt_s.append(da['wt_lora_pred'].to_numpy(dtype=np.float64))
+            cry_comb_s.append(dc['combined_pred'].to_numpy(dtype=np.float64))
+            af2_comb_s.append(da['combined_pred'].to_numpy(dtype=np.float64))
+            df_cry_seeds.append(dc)
+            df_af2_seeds.append(da)
+
         data[ds] = dict(
             ds=ds,
+            n_seeds=len(seeds),
             is_multi=is_multi,
             dep_head='Dual-view' if is_multi else 'WT-view',
             dep_col=dep_col,
-            y=y,
+            y=y_ref,
             cluster=cluster,
-            group_cc=(dc['code'].astype(str) + dc['chain'].astype(str)).to_numpy(),
-            cry_dep=dc[dep_col].to_numpy(dtype=np.float64),
-            af2_dep=da[dep_col].to_numpy(dtype=np.float64),
-            cry_wt=dc['wt_lora_pred'].to_numpy(dtype=np.float64),
-            af2_wt=da['wt_lora_pred'].to_numpy(dtype=np.float64),
-            cry_comb=dc['combined_pred'].to_numpy(dtype=np.float64),
-            af2_comb=da['combined_pred'].to_numpy(dtype=np.float64),
-            df_cry=dc,
-            df_af2=da,
+            group_cc=group_cc,
+            cry_dep=np.stack(cry_dep_s, axis=0),   # (S, n)
+            af2_dep=np.stack(af2_dep_s, axis=0),
+            cry_wt=np.stack(cry_wt_s, axis=0),
+            af2_wt=np.stack(af2_wt_s, axis=0),
+            cry_comb=np.stack(cry_comb_s, axis=0),
+            af2_comb=np.stack(af2_comb_s, axis=0),
+            df_cry_seeds=df_cry_seeds,
+            df_af2_seeds=df_af2_seeds,
         )
-    return data
+    return data, seeds, model_label
 
 
 def _ranks_2d(rk: _Ranks, W_ord: np.ndarray) -> np.ndarray:
@@ -186,17 +233,13 @@ def _weighted_spearman_multi(ry_rk: _Ranks, rx_rks: list[_Ranks], W: np.ndarray)
     return outs
 
 
-def _weighted_spearman_batch(ry_rk: _Ranks, rx_rk: _Ranks, W: np.ndarray) -> np.ndarray:
-    """Compute exact weighted Spearman rho across `C` columns of integer row multiplicities `W (n, C)`."""
-    return _weighted_spearman_multi(ry_rk, [rx_rk], W)[0]
-
-
-def _weighted_rmse_batch(err2: np.ndarray, W: np.ndarray) -> np.ndarray:
-    """Compute weighted RMSE across `C` columns of `W (n, C)` given squared errors `err2 (n,)`."""
+def _weighted_rmse_seeds(err2_s: np.ndarray, W: np.ndarray, sw_seeds: np.ndarray) -> np.ndarray:
+    """Seed-weighted RMSE over `(S, n)` squared errors, `(n, C)` row weights, and `(S, C)` seed weights."""
     sw = W.sum(axis=0)
     with np.errstate(invalid='ignore', divide='ignore'):
-        mse = (err2 @ W) / sw
-        out = np.sqrt(mse)
+        mse_s = (err2_s @ W) / sw[None, :]  # (S, C)
+        rmse_s = np.sqrt(mse_s)
+        out = (rmse_s * sw_seeds).sum(axis=0) / sw_seeds.sum(axis=0)
     out[sw <= 0] = np.nan
     return out
 
@@ -215,22 +258,31 @@ def _weighted_pearson_batch(x: np.ndarray, y: np.ndarray, W: np.ndarray) -> np.n
     return r
 
 
-def run_paired_bootstraps(data: dict[str, dict], B: int = 10000, seed: int = 42) -> dict:
-    """Joint paired protein-cluster and mutation-level bootstraps across all 12 datasets.
+def _seed_weighted_mean(vals_s: list[np.ndarray], sw_seeds: np.ndarray) -> np.ndarray:
+    """Weighted mean across `S` seeds (`vals_s` is list of length `S` of `(C,)` arrays; `sw_seeds` is `(S, C)`)."""
+    arr = np.vstack(vals_s)  # (S, C)
+    ok = np.isfinite(arr) & (sw_seeds > 0)
+    with np.errstate(invalid='ignore', divide='ignore'):
+        num = np.where(ok, arr * sw_seeds, 0.0).sum(axis=0)
+        den = np.where(ok, sw_seeds, 0.0).sum(axis=0)
+        return np.where(den > 0, num / den, np.nan)
+
+
+def run_paired_bootstraps(data: dict[str, dict], n_seeds: int, B: int = 10000, seed: int = 42) -> dict:
+    """Joint paired `[protein-cluster × seed]` and `[mutation × seed]` bootstraps across all 12 datasets.
 
     Shared protein clusters across overlapping datasets (`S461 ⊂ S669`, `K2369 ⊂ K3822`,
-    `S2648 ⊂ S8754`, `PTMUL-D ⊂ PTMUL`, and all 15 `Ssym` WT families) are resampled jointly
-    via `global_cluster_index`, so both per-dataset and cross-dataset macro-average CIs/p-values
-    respect full protein-level dependence.
+    `S2648 ⊂ S8754`, `PTMUL-D ⊂ PTMUL`, and all 15 `Ssym` WT families) and replicate seeds
+    (`multinomial(S, 1/S)`) are resampled jointly across Crystal and AF2.
     """
     prep = {}
     for ds, d in data.items():
         g0 = np.zeros(len(d['y']), dtype=np.int64)
         is_multi = d['is_multi']
-        rx_c_dep = _Ranks(d['cry_dep'], g0)
-        rx_a_dep = _Ranks(d['af2_dep'], g0)
-        rx_c_comb = rx_c_dep if is_multi else _Ranks(d['cry_comb'], g0)
-        rx_a_comb = rx_a_dep if is_multi else _Ranks(d['af2_comb'], g0)
+        rx_c_dep = [_Ranks(d['cry_dep'][s], g0) for s in range(n_seeds)]
+        rx_a_dep = [_Ranks(d['af2_dep'][s], g0) for s in range(n_seeds)]
+        rx_c_comb = rx_c_dep if is_multi else [_Ranks(d['cry_comb'][s], g0) for s in range(n_seeds)]
+        rx_a_comb = rx_a_dep if is_multi else [_Ranks(d['af2_comb'][s], g0) for s in range(n_seeds)]
         prep[ds] = dict(
             is_multi=is_multi,
             ry=_Ranks(d['y'], g0),
@@ -238,10 +290,10 @@ def run_paired_bootstraps(data: dict[str, dict], B: int = 10000, seed: int = 42)
             rx_af2_dep=rx_a_dep,
             rx_cry_comb=rx_c_comb,
             rx_af2_comb=rx_a_comb,
-            err2_cry_dep=(d['y'] - d['cry_dep']) ** 2,
-            err2_af2_dep=(d['y'] - d['af2_dep']) ** 2,
-            err2_cry_comb=(d['y'] - d['cry_comb']) ** 2,
-            err2_af2_comb=(d['y'] - d['af2_comb']) ** 2,
+            err2_cry_dep=(d['y'][None, :] - d['cry_dep']) ** 2,
+            err2_af2_dep=(d['y'][None, :] - d['af2_dep']) ** 2,
+            err2_cry_comb=(d['y'][None, :] - d['cry_comb']) ** 2,
+            err2_af2_comb=(d['y'][None, :] - d['af2_comb']) ** 2,
         )
 
     gidx, G_global = global_cluster_index({ds: data[ds]['cluster'] for ds in EXT12})
@@ -260,114 +312,102 @@ def run_paired_bootstraps(data: dict[str, dict], B: int = 10000, seed: int = 42)
         for kind in ('protein', 'mutation')
     }
 
+    def _draw_seed_weights(rng: np.random.Generator, C: int) -> np.ndarray:
+        if n_seeds <= 1:
+            return np.ones((1, C), dtype=np.float64)
+        return rng.multinomial(n_seeds, np.full(n_seeds, 1.0 / n_seeds), size=C).T.astype(np.float64)
+
+    def _eval_ds_chunk(ds: str, W: np.ndarray, sw_s: np.ndarray, target: dict, c0: int, c1: int) -> None:
+        p = prep[ds]
+        S = n_seeds
+        if p['is_multi']:
+            all_r = _weighted_spearman_multi(p['ry'], p['rx_cry_dep'] + p['rx_af2_dep'], W)
+            rc = _seed_weighted_mean(all_r[:S], sw_s)
+            ra = _seed_weighted_mean(all_r[S:2 * S], sw_s)
+            target['rho_cry_dep'][c0:c1] = target['rho_cry_comb'][c0:c1] = rc
+            target['rho_af2_dep'][c0:c1] = target['rho_af2_comb'][c0:c1] = ra
+            ec = _weighted_rmse_seeds(p['err2_cry_dep'], W, sw_s)
+            ea = _weighted_rmse_seeds(p['err2_af2_dep'], W, sw_s)
+            target['rmse_cry_dep'][c0:c1] = target['rmse_cry_comb'][c0:c1] = ec
+            target['rmse_af2_dep'][c0:c1] = target['rmse_af2_comb'][c0:c1] = ea
+        else:
+            rks = p['rx_cry_dep'] + p['rx_af2_dep'] + p['rx_cry_comb'] + p['rx_af2_comb']
+            all_r = _weighted_spearman_multi(p['ry'], rks, W)
+            target['rho_cry_dep'][c0:c1] = _seed_weighted_mean(all_r[0:S], sw_s)
+            target['rho_af2_dep'][c0:c1] = _seed_weighted_mean(all_r[S:2 * S], sw_s)
+            target['rho_cry_comb'][c0:c1] = _seed_weighted_mean(all_r[2 * S:3 * S], sw_s)
+            target['rho_af2_comb'][c0:c1] = _seed_weighted_mean(all_r[3 * S:4 * S], sw_s)
+            target['rmse_cry_dep'][c0:c1] = _weighted_rmse_seeds(p['err2_cry_dep'], W, sw_s)
+            target['rmse_af2_dep'][c0:c1] = _weighted_rmse_seeds(p['err2_af2_dep'], W, sw_s)
+            target['rmse_cry_comb'][c0:c1] = _weighted_rmse_seeds(p['err2_cry_comb'], W, sw_s)
+            target['rmse_af2_comb'][c0:c1] = _weighted_rmse_seeds(p['err2_af2_comb'], W, sw_s)
+
     chunk = 128
-    # 1. Joint protein-cluster bootstrap across all 12 datasets
+    # 1. Joint [protein-cluster x seed] bootstrap across all 12 datasets
     rng_p = np.random.default_rng(seed)
     p_unif = np.full(G_global, 1.0 / G_global, dtype=np.float64)
     for c0 in range(0, B, chunk):
         c1 = min(B, c0 + chunk)
         C = c1 - c0
         counts_global = rng_p.multinomial(G_global, p_unif, size=C).T.astype(np.float64)
-
+        sw_s = _draw_seed_weights(rng_p, C)
         for ds in EXT12:
-            W = counts_global[gidx[ds]]  # (n_ds, C)
-            p = prep[ds]
-            r = reps['protein'][ds]
-            if p['is_multi']:
-                rc, ra = _weighted_spearman_multi(p['ry'], [p['rx_cry_dep'], p['rx_af2_dep']], W)
-                r['rho_cry_dep'][c0:c1] = r['rho_cry_comb'][c0:c1] = rc
-                r['rho_af2_dep'][c0:c1] = r['rho_af2_comb'][c0:c1] = ra
-                ec = _weighted_rmse_batch(p['err2_cry_dep'], W)
-                ea = _weighted_rmse_batch(p['err2_af2_dep'], W)
-                r['rmse_cry_dep'][c0:c1] = r['rmse_cry_comb'][c0:c1] = ec
-                r['rmse_af2_dep'][c0:c1] = r['rmse_af2_comb'][c0:c1] = ea
-            else:
-                rc_d, ra_d, rc_c, ra_c = _weighted_spearman_multi(
-                    p['ry'], [p['rx_cry_dep'], p['rx_af2_dep'], p['rx_cry_comb'], p['rx_af2_comb']], W
-                )
-                r['rho_cry_dep'][c0:c1] = rc_d
-                r['rho_af2_dep'][c0:c1] = ra_d
-                r['rho_cry_comb'][c0:c1] = rc_c
-                r['rho_af2_comb'][c0:c1] = ra_c
-                r['rmse_cry_dep'][c0:c1] = _weighted_rmse_batch(p['err2_cry_dep'], W)
-                r['rmse_af2_dep'][c0:c1] = _weighted_rmse_batch(p['err2_af2_dep'], W)
-                r['rmse_cry_comb'][c0:c1] = _weighted_rmse_batch(p['err2_cry_comb'], W)
-                r['rmse_af2_comb'][c0:c1] = _weighted_rmse_batch(p['err2_af2_comb'], W)
-    print('  [boot] protein-cluster bootstrap done', flush=True)
+            _eval_ds_chunk(ds, counts_global[gidx[ds]], sw_s, reps['protein'][ds], c0, c1)
+    print(f'  [boot] joint [protein-cluster x {n_seeds}-seed] bootstrap done (B={B:,})', flush=True)
 
-    # 2. Paired mutation-level bootstrap per dataset
+    # 2. Joint [mutation x seed] bootstrap across all 12 datasets (shared seed draw per replicate)
     rng_m = np.random.default_rng(seed + 1000)
+    sw_mut_all = _draw_seed_weights(rng_m, B)
     for ds in EXT12:
         n = len(data[ds]['y'])
         p_n = np.full(n, 1.0 / n, dtype=np.float64)
-        p = prep[ds]
-        r = reps['mutation'][ds]
         for c0 in range(0, B, chunk):
             c1 = min(B, c0 + chunk)
             C = c1 - c0
             W = rng_m.multinomial(n, p_n, size=C).T.astype(np.float64)
-            if p['is_multi']:
-                rc, ra = _weighted_spearman_multi(p['ry'], [p['rx_cry_dep'], p['rx_af2_dep']], W)
-                r['rho_cry_dep'][c0:c1] = r['rho_cry_comb'][c0:c1] = rc
-                r['rho_af2_dep'][c0:c1] = r['rho_af2_comb'][c0:c1] = ra
-                ec = _weighted_rmse_batch(p['err2_cry_dep'], W)
-                ea = _weighted_rmse_batch(p['err2_af2_dep'], W)
-                r['rmse_cry_dep'][c0:c1] = r['rmse_cry_comb'][c0:c1] = ec
-                r['rmse_af2_dep'][c0:c1] = r['rmse_af2_comb'][c0:c1] = ea
-            else:
-                rc_d, ra_d, rc_c, ra_c = _weighted_spearman_multi(
-                    p['ry'], [p['rx_cry_dep'], p['rx_af2_dep'], p['rx_cry_comb'], p['rx_af2_comb']], W
-                )
-                r['rho_cry_dep'][c0:c1] = rc_d
-                r['rho_af2_dep'][c0:c1] = ra_d
-                r['rho_cry_comb'][c0:c1] = rc_c
-                r['rho_af2_comb'][c0:c1] = ra_c
-                r['rmse_cry_dep'][c0:c1] = _weighted_rmse_batch(p['err2_cry_dep'], W)
-                r['rmse_af2_dep'][c0:c1] = _weighted_rmse_batch(p['err2_af2_dep'], W)
-                r['rmse_cry_comb'][c0:c1] = _weighted_rmse_batch(p['err2_cry_comb'], W)
-                r['rmse_af2_comb'][c0:c1] = _weighted_rmse_batch(p['err2_af2_comb'], W)
-    print('  [boot] mutation-level bootstrap done', flush=True)
+            _eval_ds_chunk(ds, W, sw_mut_all[:, c0:c1], reps['mutation'][ds], c0, c1)
+    print(f'  [boot] joint [mutation x {n_seeds}-seed] bootstrap done (B={B:,})', flush=True)
 
     return reps
 
 
-def run_ssym_analysis(data: dict[str, dict], B: int = 10000, seed: int = 77) -> pd.DataFrame:
-    """Compute Ssym direct, reverse, pooled, and 342-pair antisymmetry metrics with paired CIs."""
-    dc = data['ssym']['df_cry'].copy()
-    da = data['ssym']['df_af2'].copy()
-    clusters = data['ssym']['cluster']
-    dc['cluster'] = clusters
-    da['cluster'] = clusters
+def run_ssym_analysis(data: dict[str, dict], n_seeds: int, B: int = 10000, seed: int = 77) -> pd.DataFrame:
+    """Compute Ssym direct, reverse, pooled, and 342-pair antisymmetry metrics with [WT-family x seed] CIs."""
+    dc0 = data['ssym']['df_cry_seeds'][0]
+    is_dir = (dc0['code'] == dc0['wt_code']).to_numpy()
 
-    is_dir = (dc['code'] == dc['wt_code']).to_numpy()
-    di_c = dc[is_dir].sort_values('index').reset_index(drop=True)
-    rv_c = dc[~is_dir].sort_values('index').reset_index(drop=True)
-    di_a = da[is_dir].sort_values('index').reset_index(drop=True)
-    rv_a = da[~is_dir].sort_values('index').reset_index(drop=True)
+    di_c_s, rv_c_s, di_a_s, rv_a_s = [], [], [], []
+    for s in range(n_seeds):
+        dc = data['ssym']['df_cry_seeds'][s]
+        da = data['ssym']['df_af2_seeds'][s]
+        di_c = dc[is_dir].sort_values('index').reset_index(drop=True)
+        rv_c = dc[~is_dir].sort_values('index').reset_index(drop=True)
+        di_a = da[is_dir].sort_values('index').reset_index(drop=True)
+        rv_a = da[~is_dir].sort_values('index').reset_index(drop=True)
+        assert len(di_c) == 342 and len(rv_c) == 342
+        assert (di_c['wt_code'].to_numpy() == rv_c['wt_code'].to_numpy()).all()
+        assert (di_c['wild_type'].to_numpy() == rv_c['mutation'].to_numpy()).all()
+        assert (di_c['mutation'].to_numpy() == rv_c['wild_type'].to_numpy()).all()
+        assert np.allclose(di_c['ddG'].to_numpy(), -rv_c['ddG'].to_numpy())
+        di_c_s.append(di_c)
+        rv_c_s.append(rv_c)
+        di_a_s.append(di_a)
+        rv_a_s.append(rv_a)
 
-    # Verify exact 1-to-1 direct-reverse pairing (342 pairs across 15 WT protein clusters)
-    assert len(di_c) == 342 and len(rv_c) == 342
-    assert (di_c['wt_code'].to_numpy() == rv_c['wt_code'].to_numpy()).all()
-    assert (di_c['wild_type'].to_numpy() == rv_c['mutation'].to_numpy()).all()
-    assert (di_c['mutation'].to_numpy() == rv_c['wild_type'].to_numpy()).all()
-    assert np.allclose(di_c['ddG'].to_numpy(), -rv_c['ddG'].to_numpy())
-    assert (di_c['id'].to_numpy() == di_a['id'].to_numpy()).all()
-    assert (rv_c['id'].to_numpy() == rv_a['id'].to_numpy()).all()
-
-    # Map 15 WT clusters
-    wt_codes, cl_idx = np.unique(di_c['wt_code'].astype(str).to_numpy(), return_inverse=True)
+    wt_codes, cl_idx = np.unique(di_c_s[0]['wt_code'].astype(str).to_numpy(), return_inverse=True)
     G = len(wt_codes)
     assert G == 15
 
     rng = np.random.default_rng(seed)
-    W_pair = np.empty((342, B), dtype=np.float64)
-    for j in range(B):
-        c_mult = np.bincount(rng.integers(0, G, size=G), minlength=G)
-        W_pair[:, j] = c_mult[cl_idx]
-    W_pool = np.vstack([W_pair, W_pair])  # exact paired resamples across direct + reverse
+    c_mult = rng.multinomial(G, np.full(G, 1.0 / G), size=B).T.astype(np.float64)  # (15, B)
+    W_pair = c_mult[cl_idx]                                                       # (342, B)
+    W_pool = np.vstack([W_pair, W_pair])                                          # (684, B)
+    sw_s = np.ones((1, B), dtype=np.float64) if n_seeds <= 1 else rng.multinomial(
+        n_seeds, np.full(n_seeds, 1.0 / n_seeds), size=B
+    ).T.astype(np.float64)
 
-    y_dir = di_c['ddG'].to_numpy(float)
-    y_rev = rv_c['ddG'].to_numpy(float)
+    y_dir = di_c_s[0]['ddG'].to_numpy(float)
+    y_rev = rv_c_s[0]['ddG'].to_numpy(float)
     y_all = np.concatenate([y_dir, y_rev])
 
     g0_p = np.zeros(342, dtype=np.int64)
@@ -378,99 +418,108 @@ def run_ssym_analysis(data: dict[str, dict], B: int = 10000, seed: int = 77) -> 
 
     rows = []
     for head_label, col in [('WT-view', 'wt_lora_pred'), ('Dual-view', 'combined_pred')]:
-        xc_d = di_c[col].to_numpy(float)
-        xa_d = di_a[col].to_numpy(float)
-        xc_r = rv_c[col].to_numpy(float)
-        xa_r = rv_a[col].to_numpy(float)
-        xc_all = np.concatenate([xc_d, xc_r])
-        xa_all = np.concatenate([xa_d, xa_r])
+        xc_d_s = [d[col].to_numpy(float) for d in di_c_s]
+        xa_d_s = [d[col].to_numpy(float) for d in di_a_s]
+        xc_r_s = [d[col].to_numpy(float) for d in rv_c_s]
+        xa_r_s = [d[col].to_numpy(float) for d in rv_a_s]
+        xc_all_s = [np.concatenate([xc_d_s[s], xc_r_s[s]]) for s in range(n_seeds)]
+        xa_all_s = [np.concatenate([xa_d_s[s], xa_r_s[s]]) for s in range(n_seeds)]
 
-        for subset, yv, ry_rk, xc, xa, W in [
-            ('Direct (WT struct)', y_dir, ry_dir, xc_d, xa_d, W_pair),
-            ('Reverse (Mut struct)', y_rev, ry_rev, xc_r, xa_r, W_pair),
-            ('Pooled (Dir + Rev)', y_all, ry_all, xc_all, xa_all, W_pool),
+        for subset, yv, ry_rk, xc_s, xa_s, W in [
+            ('Direct (WT struct)', y_dir, ry_dir, xc_d_s, xa_d_s, W_pair),
+            ('Reverse (Mut struct)', y_rev, ry_rev, xc_r_s, xa_r_s, W_pair),
+            ('Pooled (Dir + Rev)', y_all, ry_all, xc_all_s, xa_all_s, W_pool),
         ]:
-            rc_pt = float(spearmanr(yv, xc)[0])
-            ra_pt = float(spearmanr(yv, xa)[0])
-            pc_pt = float(pearsonr(yv, xc)[0])
-            pa_pt = float(pearsonr(yv, xa)[0])
-            rmse_c = float(np.sqrt(np.mean((yv - xc) ** 2)))
-            rmse_a = float(np.sqrt(np.mean((yv - xa) ** 2)))
-            pr_rho = float(spearmanr(xc, xa)[0])
+            rc_pts = [float(spearmanr(yv, xc_s[s])[0]) for s in range(n_seeds)]
+            ra_pts = [float(spearmanr(yv, xa_s[s])[0]) for s in range(n_seeds)]
+            pc_pt = float(np.mean([pearsonr(yv, xc_s[s])[0] for s in range(n_seeds)]))
+            pa_pt = float(np.mean([pearsonr(yv, xa_s[s])[0] for s in range(n_seeds)]))
+            rmse_c = float(np.mean([np.sqrt(np.mean((yv - xc_s[s]) ** 2)) for s in range(n_seeds)]))
+            rmse_a = float(np.mean([np.sqrt(np.mean((yv - xa_s[s]) ** 2)) for s in range(n_seeds)]))
+            pr_rho = float(np.mean([spearmanr(xc_s[s], xa_s[s])[0] for s in range(n_seeds)]))
 
             g0 = np.zeros(len(yv), dtype=np.int64)
-            rc_rep = _weighted_spearman_batch(ry_rk, _Ranks(xc, g0), W)
-            ra_rep = _weighted_spearman_batch(ry_rk, _Ranks(xa, g0), W)
+            rks = [_Ranks(xc_s[s], g0) for s in range(n_seeds)] + [_Ranks(xa_s[s], g0) for s in range(n_seeds)]
+            all_r = _weighted_spearman_multi(ry_rk, rks, W)
+            rc_rep = _seed_weighted_mean(all_r[:n_seeds], sw_s)
+            ra_rep = _seed_weighted_mean(all_r[n_seeds:], sw_s)
             d_rep = ra_rep - rc_rep
-            rc_lo, rc_hi = ci(rc_rep)
-            ra_lo, ra_hi = ci(ra_rep)
-            d_lo, d_hi = ci(d_rep)
-            p_prot = boot_pvalue(d_rep)
+
             rows.append(dict(
                 head=head_label,
                 subset=subset,
                 metric='Spearman_rho',
                 n=len(yv),
                 n_clusters=G,
-                crystal=rc_pt, crystal_lo=rc_lo, crystal_hi=rc_hi,
-                af2=ra_pt, af2_lo=ra_lo, af2_hi=ra_hi,
-                delta=ra_pt - rc_pt, delta_lo=d_lo, delta_hi=d_hi,
-                p_prot=p_prot,
+                crystal=float(np.mean(rc_pts)),
+                crystal_seed_sd=float(np.std(rc_pts, ddof=1)) if n_seeds > 1 else np.nan,
+                crystal_lo=ci(rc_rep)[0], crystal_hi=ci(rc_rep)[1],
+                af2=float(np.mean(ra_pts)),
+                af2_seed_sd=float(np.std(ra_pts, ddof=1)) if n_seeds > 1 else np.nan,
+                af2_lo=ci(ra_rep)[0], af2_hi=ci(ra_rep)[1],
+                delta=float(np.mean(ra_pts) - np.mean(rc_pts)),
+                delta_lo=ci(d_rep)[0], delta_hi=ci(d_rep)[1],
+                p_prot=boot_pvalue(d_rep),
                 crystal_r=pc_pt, af2_r=pa_pt,
                 crystal_rmse=rmse_c, af2_rmse=rmse_a,
                 pred_rho=pr_rho,
             ))
 
-        # Antisymmetry Pearson r(dir, rev) and bias delta = mean(dir + rev)/2
-        anti_c_pt = float(pearsonr(xc_d, xc_r)[0])
-        anti_a_pt = float(pearsonr(xa_d, xa_r)[0])
-        anti_c_rep = _weighted_pearson_batch(xc_d, xc_r, W_pair)
-        anti_a_rep = _weighted_pearson_batch(xa_d, xa_r, W_pair)
+        # Antisymmetry Pearson r(dir, rev)
+        anti_c_pts = [float(pearsonr(xc_d_s[s], xc_r_s[s])[0]) for s in range(n_seeds)]
+        anti_a_pts = [float(pearsonr(xa_d_s[s], xa_r_s[s])[0]) for s in range(n_seeds)]
+        anti_c_rep = _seed_weighted_mean([_weighted_pearson_batch(xc_d_s[s], xc_r_s[s], W_pair) for s in range(n_seeds)], sw_s)
+        anti_a_rep = _seed_weighted_mean([_weighted_pearson_batch(xa_d_s[s], xa_r_s[s], W_pair) for s in range(n_seeds)], sw_s)
         anti_d_rep = anti_a_rep - anti_c_rep
         rows.append(dict(
             head=head_label,
             subset='Antisymmetry r(dir, rev)',
             metric='Pearson_r_antisym',
-            n=342,
-            n_clusters=G,
-            crystal=anti_c_pt, crystal_lo=ci(anti_c_rep)[0], crystal_hi=ci(anti_c_rep)[1],
-            af2=anti_a_pt, af2_lo=ci(anti_a_rep)[0], af2_hi=ci(anti_a_rep)[1],
-            delta=anti_a_pt - anti_c_pt, delta_lo=ci(anti_d_rep)[0], delta_hi=ci(anti_d_rep)[1],
+            n=342, n_clusters=G,
+            crystal=float(np.mean(anti_c_pts)),
+            crystal_seed_sd=float(np.std(anti_c_pts, ddof=1)) if n_seeds > 1 else np.nan,
+            crystal_lo=ci(anti_c_rep)[0], crystal_hi=ci(anti_c_rep)[1],
+            af2=float(np.mean(anti_a_pts)),
+            af2_seed_sd=float(np.std(anti_a_pts, ddof=1)) if n_seeds > 1 else np.nan,
+            af2_lo=ci(anti_a_rep)[0], af2_hi=ci(anti_a_rep)[1],
+            delta=float(np.mean(anti_a_pts) - np.mean(anti_c_pts)),
+            delta_lo=ci(anti_d_rep)[0], delta_hi=ci(anti_d_rep)[1],
             p_prot=boot_pvalue(anti_d_rep),
-            crystal_r=np.nan, af2_r=np.nan,
-            crystal_rmse=np.nan, af2_rmse=np.nan,
-            pred_rho=np.nan,
+            crystal_r=np.nan, af2_r=np.nan, crystal_rmse=np.nan, af2_rmse=np.nan, pred_rho=np.nan,
         ))
 
-        bias_c_vec = 0.5 * (xc_d + xc_r)
-        bias_a_vec = 0.5 * (xa_d + xa_r)
-        bias_c_pt = float(np.mean(bias_c_vec))
-        bias_a_pt = float(np.mean(bias_a_vec))
-        sw = W_pair.sum(axis=0)
-        bias_c_rep = (bias_c_vec[:, None] * W_pair).sum(axis=0) / sw
-        bias_a_rep = (bias_a_vec[:, None] * W_pair).sum(axis=0) / sw
+        # Antisymmetry bias <delta> = mean(dir + rev)/2
+        sw_p = W_pair.sum(axis=0)
+        bias_c_vecs = [0.5 * (xc_d_s[s] + xc_r_s[s]) for s in range(n_seeds)]
+        bias_a_vecs = [0.5 * (xa_d_s[s] + xa_r_s[s]) for s in range(n_seeds)]
+        bias_c_pts = [float(np.mean(v)) for v in bias_c_vecs]
+        bias_a_pts = [float(np.mean(v)) for v in bias_a_vecs]
+        bias_c_rep = _seed_weighted_mean([(v @ W_pair) / sw_p for v in bias_c_vecs], sw_s)
+        bias_a_rep = _seed_weighted_mean([(v @ W_pair) / sw_p for v in bias_a_vecs], sw_s)
         bias_d_rep = bias_a_rep - bias_c_rep
         rows.append(dict(
             head=head_label,
             subset='Bias <delta> (kcal/mol)',
             metric='Antisym_bias',
-            n=342,
-            n_clusters=G,
-            crystal=bias_c_pt, crystal_lo=ci(bias_c_rep)[0], crystal_hi=ci(bias_c_rep)[1],
-            af2=bias_a_pt, af2_lo=ci(bias_a_rep)[0], af2_hi=ci(bias_a_rep)[1],
-            delta=bias_a_pt - bias_c_pt, delta_lo=ci(bias_d_rep)[0], delta_hi=ci(bias_d_rep)[1],
+            n=342, n_clusters=G,
+            crystal=float(np.mean(bias_c_pts)),
+            crystal_seed_sd=float(np.std(bias_c_pts, ddof=1)) if n_seeds > 1 else np.nan,
+            crystal_lo=ci(bias_c_rep)[0], crystal_hi=ci(bias_c_rep)[1],
+            af2=float(np.mean(bias_a_pts)),
+            af2_seed_sd=float(np.std(bias_a_pts, ddof=1)) if n_seeds > 1 else np.nan,
+            af2_lo=ci(bias_a_rep)[0], af2_hi=ci(bias_a_rep)[1],
+            delta=float(np.mean(bias_a_pts) - np.mean(bias_c_pts)),
+            delta_lo=ci(bias_d_rep)[0], delta_hi=ci(bias_d_rep)[1],
             p_prot=boot_pvalue(bias_d_rep),
-            crystal_r=np.nan, af2_r=np.nan,
-            crystal_rmse=np.nan, af2_rmse=np.nan,
-            pred_rho=np.nan,
+            crystal_r=np.nan, af2_r=np.nan, crystal_rmse=np.nan, af2_rmse=np.nan, pred_rho=np.nan,
         ))
 
     return pd.DataFrame(rows)
 
 
-def build_summary_tables(data: dict[str, dict], reps: dict, B: int) -> tuple[pd.DataFrame, pd.DataFrame]:
+def build_summary_tables(data: dict[str, dict], reps: dict, n_seeds: int) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Assemble full per-dataset + macro-average summary tables for deployed and Dual-view heads."""
-    orig = pd.read_csv(AF2_DIR / 'esm-msr-small_af2_vs_crystal.csv').set_index('set')
+    orig_march = pd.read_csv(MARCH_AF2_DIR / 'esm-msr-small_af2_vs_crystal.csv').set_index('set')
 
     def _assemble(mode: str) -> pd.DataFrame:
         rows = []
@@ -479,21 +528,32 @@ def build_summary_tables(data: dict[str, dict], reps: dict, B: int) -> tuple[pd.
         for ds in TABLE_ORDER:
             d = data[ds]
             y = d['y']
-            xc = d['cry_dep'] if mode == 'deployed' else d['cry_comb']
-            xa = d['af2_dep'] if mode == 'deployed' else d['af2_comb']
+            xc_s = d['cry_dep'] if mode == 'deployed' else d['cry_comb']  # (S, n)
+            xa_s = d['af2_dep'] if mode == 'deployed' else d['af2_comb']
             head_name = d['dep_head'] if mode == 'deployed' else 'Dual-view'
             suf = 'dep' if mode == 'deployed' else 'comb'
 
-            rho_c = float(spearmanr(y, xc)[0])
-            rho_a = float(spearmanr(y, xa)[0])
+            rho_c_s = [float(spearmanr(y, xc_s[s])[0]) for s in range(n_seeds)]
+            rho_a_s = [float(spearmanr(y, xa_s[s])[0]) for s in range(n_seeds)]
+            d_rho_s = [rho_a_s[s] - rho_c_s[s] for s in range(n_seeds)]
+            r_c_s = [float(pearsonr(y, xc_s[s])[0]) for s in range(n_seeds)]
+            r_a_s = [float(pearsonr(y, xa_s[s])[0]) for s in range(n_seeds)]
+            rmse_c_s = [float(np.sqrt(np.mean((y - xc_s[s]) ** 2))) for s in range(n_seeds)]
+            rmse_a_s = [float(np.sqrt(np.mean((y - xa_s[s]) ** 2))) for s in range(n_seeds)]
+            pred_rho_s = [float(spearmanr(xc_s[s], xa_s[s])[0]) for s in range(n_seeds)]
+            pred_r_s = [float(pearsonr(xc_s[s], xa_s[s])[0]) for s in range(n_seeds)]
+            pred_mad_s = [float(np.mean(np.abs(xa_s[s] - xc_s[s]))) for s in range(n_seeds)]
+
+            rho_c = float(np.mean(rho_c_s))
+            rho_a = float(np.mean(rho_a_s))
             d_rho = rho_a - rho_c
-            r_c = float(pearsonr(y, xc)[0])
-            r_a = float(pearsonr(y, xa)[0])
-            rmse_c = float(np.sqrt(np.mean((y - xc) ** 2)))
-            rmse_a = float(np.sqrt(np.mean((y - xa) ** 2)))
-            pred_rho = float(spearmanr(xc, xa)[0])
-            pred_r = float(pearsonr(xc, xa)[0])
-            pred_mad = float(np.mean(np.abs(xa - xc)))
+            r_c = float(np.mean(r_c_s))
+            r_a = float(np.mean(r_a_s))
+            rmse_c = float(np.mean(rmse_c_s))
+            rmse_a = float(np.mean(rmse_a_s))
+            pred_rho = float(np.mean(pred_rho_s))
+            pred_r = float(np.mean(pred_r_s))
+            pred_mad = float(np.mean(pred_mad_s))
 
             rp = reps['protein'][ds]
             rm = reps['mutation'][ds]
@@ -516,17 +576,21 @@ def build_summary_tables(data: dict[str, dict], reps: dict, B: int) -> tuple[pd.
                 n=len(y),
                 n_clusters=int(len(np.unique(d['cluster']))),
                 n_groups_cc=int(len(np.unique(d['group_cc']))),
+                n_seeds=n_seeds,
                 crystal_rho=rho_c,
+                crystal_rho_sd=float(np.std(rho_c_s, ddof=1)) if n_seeds > 1 else np.nan,
                 crystal_prot_lo=ci(rp[f'rho_cry_{suf}'])[0],
                 crystal_prot_hi=ci(rp[f'rho_cry_{suf}'])[1],
                 crystal_mut_lo=ci(rm[f'rho_cry_{suf}'])[0],
                 crystal_mut_hi=ci(rm[f'rho_cry_{suf}'])[1],
                 af2_rho=rho_a,
+                af2_rho_sd=float(np.std(rho_a_s, ddof=1)) if n_seeds > 1 else np.nan,
                 af2_prot_lo=ci(rp[f'rho_af2_{suf}'])[0],
                 af2_prot_hi=ci(rp[f'rho_af2_{suf}'])[1],
                 af2_mut_lo=ci(rm[f'rho_af2_{suf}'])[0],
                 af2_mut_hi=ci(rm[f'rho_af2_{suf}'])[1],
                 delta_rho=d_rho,
+                delta_rho_sd=float(np.std(d_rho_s, ddof=1)) if n_seeds > 1 else np.nan,
                 delta_prot_lo=ci(dp_rep)[0],
                 delta_prot_hi=ci(dp_rep)[1],
                 delta_mut_lo=ci(dm_rep)[0],
@@ -554,8 +618,8 @@ def build_summary_tables(data: dict[str, dict], reps: dict, B: int) -> tuple[pd.
                 pred_rho=pred_rho,
                 pred_r=pred_r,
                 pred_mad=pred_mad,
-                oct8_cluster_delta=float(orig.loc[ds, 'delta']),
-                oct8_cluster_p=float(orig.loc[ds, 'p_two_sided']),
+                march_oct8_delta=float(orig_march.loc[ds, 'delta']),
+                march_oct8_p=float(orig_march.loc[ds, 'p_two_sided']),
                 notes_md=DATASET_NOTES_MD[ds],
                 notes_tex=f"{DATASET_NOTES[ds][0]}; {DATASET_NOTES[ds][1]}",
             ))
@@ -566,7 +630,6 @@ def build_summary_tables(data: dict[str, dict], reps: dict, B: int) -> tuple[pd.
             row['p_prot_holm'] = float(ap)
             row['p_mut_holm'] = float(am)
 
-        # Macro-average summary rows (computed jointly over aligned protein-cluster & mutation draws)
         by_ds = {r['dataset']: r for r in rows}
         suf = 'dep' if mode == 'deployed' else 'comb'
         cohorts = [
@@ -576,7 +639,7 @@ def build_summary_tables(data: dict[str, dict], reps: dict, B: int) -> tuple[pd.
             ('mean_all_12', 'Mean (all 12 sets)', EXT12, False, 'Deployed' if mode == 'deployed' else 'Dual-view', 'All 12 external benchmarks'),
         ]
         for key, lbl, dss, is_m, hd, note in cohorts:
-            ddg_dss = [d for d in dss if d != 's571']  # exclude ΔTm (°C) from kcal/mol RMSE average
+            ddg_dss = [d for d in dss if d != 's571']
             c_rho_pt = float(np.mean([by_ds[d]['crystal_rho'] for d in dss]))
             a_rho_pt = float(np.mean([by_ds[d]['af2_rho'] for d in dss]))
             c_r_pt = float(np.mean([by_ds[d]['crystal_r'] for d in dss]))
@@ -586,6 +649,17 @@ def build_summary_tables(data: dict[str, dict], reps: dict, B: int) -> tuple[pd.
             pred_rho_pt = float(np.mean([by_ds[d]['pred_rho'] for d in dss]))
             pred_r_pt = float(np.mean([by_ds[d]['pred_r'] for d in dss]))
             pred_mad_pt = float(np.mean([by_ds[d]['pred_mad'] for d in dss]))
+
+            # Per-seed macro-mean SD
+            c_seed_means = [
+                float(np.mean([spearmanr(data[d]['y'], (data[d]['cry_dep'] if mode == 'deployed' else data[d]['cry_comb'])[s])[0] for d in dss]))
+                for s in range(n_seeds)
+            ]
+            a_seed_means = [
+                float(np.mean([spearmanr(data[d]['y'], (data[d]['af2_dep'] if mode == 'deployed' else data[d]['af2_comb'])[s])[0] for d in dss]))
+                for s in range(n_seeds)
+            ]
+            d_seed_means = [a_seed_means[s] - c_seed_means[s] for s in range(n_seeds)]
 
             c_p_rep = np.nanmean([reps['protein'][d][f'rho_cry_{suf}'] for d in dss], axis=0)
             a_p_rep = np.nanmean([reps['protein'][d][f'rho_af2_{suf}'] for d in dss], axis=0)
@@ -614,17 +688,21 @@ def build_summary_tables(data: dict[str, dict], reps: dict, B: int) -> tuple[pd.
                 n=n_tot,
                 n_clusters=n_cl_u,
                 n_groups_cc=n_cc_u,
+                n_seeds=n_seeds,
                 crystal_rho=c_rho_pt,
+                crystal_rho_sd=float(np.std(c_seed_means, ddof=1)) if n_seeds > 1 else np.nan,
                 crystal_prot_lo=ci(c_p_rep)[0],
                 crystal_prot_hi=ci(c_p_rep)[1],
                 crystal_mut_lo=ci(c_m_rep)[0],
                 crystal_mut_hi=ci(c_m_rep)[1],
                 af2_rho=a_rho_pt,
+                af2_rho_sd=float(np.std(a_seed_means, ddof=1)) if n_seeds > 1 else np.nan,
                 af2_prot_lo=ci(a_p_rep)[0],
                 af2_prot_hi=ci(a_p_rep)[1],
                 af2_mut_lo=ci(a_m_rep)[0],
                 af2_mut_hi=ci(a_m_rep)[1],
                 delta_rho=a_rho_pt - c_rho_pt,
+                delta_rho_sd=float(np.std(d_seed_means, ddof=1)) if n_seeds > 1 else np.nan,
                 delta_prot_lo=ci(dp_rep)[0],
                 delta_prot_hi=ci(dp_rep)[1],
                 delta_mut_lo=ci(dm_rep)[0],
@@ -654,8 +732,8 @@ def build_summary_tables(data: dict[str, dict], reps: dict, B: int) -> tuple[pd.
                 pred_rho=pred_rho_pt,
                 pred_r=pred_r_pt,
                 pred_mad=pred_mad_pt,
-                oct8_cluster_delta=float(np.mean([orig.loc[d, 'delta'] for d in dss])),
-                oct8_cluster_p=np.nan,
+                march_oct8_delta=float(np.mean([orig_march.loc[d, 'delta'] for d in dss])),
+                march_oct8_p=np.nan,
                 notes_md=note + (' (RMSE excl. S571)' if 's571' in dss else ''),
                 notes_tex=note + (' (RMSE excl.\\ S571)' if 's571' in dss else ''),
             ))
@@ -667,8 +745,7 @@ def build_summary_tables(data: dict[str, dict], reps: dict, B: int) -> tuple[pd.
 def _fmt_signed(v: float, nd: int = 3) -> str:
     if not np.isfinite(v):
         return '—'
-    s = f'{v:+.{nd}f}'
-    return s.replace('-', '−')
+    return f'{v:+.{nd}f}'.replace('-', '−')
 
 
 def _fmt_p_clean(p: float, B: int) -> str:
@@ -698,11 +775,15 @@ def write_comparative_tables(
     df_ssym: pd.DataFrame,
     out_dir: Path,
     B: int,
+    model_label: str,
+    n_seeds: int,
 ) -> None:
     """Write machine-readable CSV, GitHub Markdown, and copy-pastable SI booktabs LaTeX tables."""
     atomic_to_csv(df_dep, out_dir / 'af2_vs_crystal_summary.csv', index=False, float_format='%.5f')
     atomic_to_csv(df_dual, out_dir / 'af2_vs_crystal_dualview_summary.csv', index=False, float_format='%.5f')
     atomic_to_csv(df_ssym, out_dir / 'ssym_direct_reverse_antisymmetry.csv', index=False, float_format='%.5f')
+
+    seed_desc = 'seeds 1–3 averaged; joint [cluster × seed] and [mutation × seed] bootstraps' if n_seeds > 1 else '1 seed; paired cluster and mutation bootstraps'
 
     # 1. Markdown comparative table (deployed readout)
     md_rows = []
@@ -712,12 +793,14 @@ def write_comparative_tables(
         p_pr = _fmt_p_clean(r.p_prot, B)
         p_mu = _fmt_p_clean(r.p_mut, B)
         rmse_unit = '°C' if r.dataset == 's571' else ''
+        cry_str = f'{r.crystal_rho:.3f}±{r.crystal_rho_sd:.3f}' if (n_seeds > 1 and np.isfinite(r.crystal_rho_sd)) else f'{r.crystal_rho:.3f}'
+        af2_str = f'{r.af2_rho:.3f}±{r.af2_rho_sd:.3f}' if (n_seeds > 1 and np.isfinite(r.af2_rho_sd)) else f'{r.af2_rho:.3f}'
         md_rows.append({
             'Dataset': f'**{r.label}**' if r.is_summary else r.label,
             'n (clust.)': f'{r.n:,} ({r.n_clusters})',
             'Head': r.head,
-            'Crystal ρ': f'{r.crystal_rho:.3f}',
-            'AF2 ρ': f'{r.af2_rho:.3f}',
+            'Crystal ρ': cry_str,
+            'AF2 ρ': af2_str,
             'Δρ (AF2 − Cryst.) [95% prot. CI]': f'{_fmt_signed(r.delta_rho)} {ci_p}',
             'p_prot (Holm)': f'{p_pr} ({p_h})' if not r.is_summary else p_pr,
             'p_mut': p_mu,
@@ -727,31 +810,35 @@ def write_comparative_tables(
             'Notes': r.notes_md,
         })
     md_text = (
-        '# AlphaFold2 vs. Crystal Structures on External Thermostability Benchmarks (ESM-MSR-small)\n\n'
+        f'# AlphaFold2 vs. Crystal Structures on External Thermostability Benchmarks ({model_label})\n\n'
         f'Matched evaluation of ColabFold AF2 structures (762 unique WT sequences, 5 models, 3 recycles, Amber relax) '
         f'against experimental crystal structures across all 12 external thermostability sets (25,632 rows; '
-        f'canonical deployed head: WT-view on single-mutant sets, Dual-view on PTMUL / PTMUL-D; paired joint '
-        f'protein-cluster and mutation-level bootstraps, $B = {B:,}$, two-sided $p$-values).\n\n'
+        f'canonical deployed head: WT-view on single-mutant sets, Dual-view on PTMUL / PTMUL-D; {seed_desc}, $B = {B:,}$, two-sided $p$-values).\n\n'
         + format_stat_table_md(pd.DataFrame(md_rows))
     )
     atomic_write_text(out_dir / 'af2_vs_crystal_summary.md', md_text)
 
     # 2. LaTeX booktabs SI table (matching `table_S4_thermostability_all.tex` conventions)
+    seed_tex = (
+        r'3-seed mean $\pm$ SD ($ddof=1$) across the deployed \texttt{FINAL\_p0} triplicate checkpoints, with joint $[\text{protein-cluster} \times \text{seed}]$ and $[\text{mutation} \times \text{seed}]$ paired bootstraps'
+        if n_seeds > 1 else
+        r'single-seed March reference checkpoint, with paired protein-cluster and mutation bootstraps'
+    )
     tex_lines = [
         r'\begin{table}[htbp]',
         r'\centering',
         r'\scriptsize',
-        r'\setlength{\tabcolsep}{3.5pt}',
-        r'\caption{\textbf{AlphaFold2 vs.\ Crystal Structures Across All 12 External Thermostability Benchmarks (ESM-MSR-small)}. '
+        r'\setlength{\tabcolsep}{3.2pt}',
+        r'\caption{\textbf{AlphaFold2 vs.\ Crystal Structures Across All 12 External Thermostability Benchmarks (' + model_label.replace('_', r'\_') + r')}. '
         r'Comparison of ColabFold AlphaFold2 monomer-pTM structures (762 unique wild-type sequences; 5 models, 3 recycles, Amber GPU relaxation) '
-        r'against experimental crystal structures on the 12 external thermostability datasets in alphabetical order '
+        r'against matched experimental crystal structures on all 12 external thermostability benchmarks in alphabetical order '
         r'(subset/superset pairs annotated: K2369 $\subset$ K3822, PTMUL-D $\subset$ PTMUL, S461 $\subset$ S669, S2648 $\subset$ S8754, and Ssym-dir $\subset$ S8754). '
-        r'Predictions use the canonical deployed head per dataset composition (WT-view on single-mutant datasets; Dual-view on multi-mutant PTMUL and PTMUL-D). '
+        r'Predictions use the canonical deployed head per dataset composition (WT-view on single-mutant sets; Dual-view on multi-mutant PTMUL and PTMUL-D) and ' + seed_tex + r' ($B=' + f'{B:,}' + r'$). '
         r'Columns report variant count $n$ (unique protein clusters), pooled Spearman $\rho$ for crystal and AF2 structures, '
-        r'paired difference $\Delta\rho = \rho_{\mathrm{AF2}} - \rho_{\mathrm{crystal}}$ with 95\% protein-cluster bootstrap CI ($B=' + f'{B:,}' + r'$), '
+        r'paired difference $\Delta\rho = \rho_{\mathrm{AF2}} - \rho_{\mathrm{crystal}}$ with 95\% protein-cluster bootstrap CI, '
         r'two-sided paired bootstrap $p$-values under protein-cluster ($p_{\mathrm{prot}}$, with Holm-adjusted $p_{\mathrm{Holm}}$ across the 12 sets) '
         r'and mutation ($p_{\mathrm{mut}}$) resampling, Pearson $r$, raw RMSE (kcal/mol; $^\circ$C for S571, excluded from RMSE macro-means), '
-        r'and prediction-vs-prediction concordance $\rho(\hat{y}_{\mathrm{AF2}}, \hat{y}_{\mathrm{cryst}})$.}\label{tab:si_af2_vs_crystal}',
+        r'and prediction concordance $\rho(\hat{y}_{\mathrm{AF2}}, \hat{y}_{\mathrm{cryst}})$.}\label{tab:si_af2_vs_crystal}',
         r'\begin{tabular}{lrcccccccccc}',
         r'\toprule',
         r'Dataset & $n$ (cl.) & Head & Cryst.\ $\rho$ & AF2 $\rho$ & $\Delta\rho$ [95\% prot.\ CI] & $p_{\mathrm{prot}}$ & $p_{\mathrm{Holm}}$ & $p_{\mathrm{mut}}$ & $r$ (Cr/AF2) & RMSE (Cr/AF2) & $\rho_{\mathrm{pred}}$ \\',
@@ -770,9 +857,11 @@ def write_comparative_tables(
         if not r.is_summary and np.isfinite(r.p_prot) and r.p_prot < 0.05:
             ci_tex = rf'\textbf{{{ci_tex}}}'
         rmse_tag = r'$^\circ$C' if r.dataset == 's571' else ''
+        cry_tex = f'{r.crystal_rho:.3f}$\\pm${r.crystal_rho_sd:.3f}' if (n_seeds > 1 and np.isfinite(r.crystal_rho_sd)) else f'{r.crystal_rho:.3f}'
+        af2_tex = f'{r.af2_rho:.3f}$\\pm${r.af2_rho_sd:.3f}' if (n_seeds > 1 and np.isfinite(r.af2_rho_sd)) else f'{r.af2_rho:.3f}'
         tex_lines.append(
             f'{ds_lbl} & {r.n:,} ({r.n_clusters}) & {r.head} & '
-            f'{r.crystal_rho:.3f} & {r.af2_rho:.3f} & {ci_tex} & '
+            f'{cry_tex} & {af2_tex} & {ci_tex} & '
             f'{_fmt_p_tex(r.p_prot, B)} & {_fmt_p_tex(r.p_prot_holm, B)} & {_fmt_p_tex(r.p_mut, B)} & '
             f'{r.crystal_r:.3f}/{r.af2_r:.3f} & {r.crystal_rmse:.2f}/{r.af2_rmse:.2f}{rmse_tag} & {r.pred_rho:.3f} \\\\'
         )
@@ -784,7 +873,7 @@ def write_comparative_tables(
     ]
     atomic_write_text(out_dir / 'af2_vs_crystal_summary.tex', '\n'.join(tex_lines))
 
-    # 3. Head comparison table (Canonical Deployed vs Oct 8 Cluster Dual-view Combined)
+    # 3. Head comparison table (Canonical Deployed vs Dual-view Combined everywhere + March Oct 8 ref)
     comp_rows = []
     d_by = df_dep.set_index('dataset')
     c_by = df_dual.set_index('dataset')
@@ -799,10 +888,10 @@ def write_comparative_tables(
             'Dual-view Cryst / AF2 ρ': f'{rc["crystal_rho"]:.3f} / {rc["af2_rho"]:.3f}',
             'Dual-view Δρ [95% prot. CI]': f'{_fmt_signed(rc["delta_rho"])} [{_fmt_signed(rc["delta_prot_lo"])}, {_fmt_signed(rc["delta_prot_hi"])}]',
             'Dual-view p_prot': _fmt_p_clean(rc['p_prot'], B),
-            'Oct 8 CSV Δρ (p)': f'{_fmt_signed(rc["oct8_cluster_delta"])} ({rc["oct8_cluster_p"]:.3f})' if np.isfinite(rc['oct8_cluster_p']) else _fmt_signed(rc['oct8_cluster_delta']),
+            'March Small Δρ (Oct 8)': _fmt_signed(rc['march_oct8_delta']),
         })
     comp_md = (
-        '# Head Sensitivity: Canonical Deployed (WT-view Singles / Dual-view Multi) vs. Oct 8 Dual-view Combined\n\n'
+        f'# Head Sensitivity ({model_label}): Canonical Deployed vs. Dual-view Everywhere (and Oct 8 March Ref.)\n\n'
         + format_stat_table_md(pd.DataFrame(comp_rows))
     )
     atomic_write_text(out_dir / 'af2_vs_crystal_head_comparison.md', comp_md)
@@ -822,16 +911,15 @@ def write_comparative_tables(
         })
     atomic_write_text(
         out_dir / 'ssym_direct_reverse_antisymmetry.md',
-        '# Ssym Direct vs. Reverse and Antisymmetry Breakdown (Crystal vs. AlphaFold2)\n\n'
+        f'# Ssym Direct vs. Reverse and Antisymmetry Breakdown ({model_label})\n\n'
         + format_stat_table_md(pd.DataFrame(ssym_md_rows)),
     )
 
 
-def plot_main_figure(df_dep: pd.DataFrame, out_dir: Path, B: int) -> None:
+def plot_main_figure(df_dep: pd.DataFrame, out_dir: Path, B: int, model_label: str, n_seeds: int) -> None:
     """Two-panel publication figure: (a) paired Spearman rho; (b) paired delta-rho with protein & mutation CIs."""
     style.setup()
 
-    # Order: 10 single-mutant sets sorted descending by Crystal rho, then 2 multi-mutant sets, then 2 macro-means
     singles_df = df_dep[(~df_dep['is_summary']) & (~df_dep['is_multi'])].sort_values('crystal_rho', ascending=False)
     multi_df = df_dep[(~df_dep['is_summary']) & (df_dep['is_multi'])].sort_values('crystal_rho', ascending=False)
     sum_df = df_dep[df_dep['dataset'].isin(['mean_10_singles', 'mean_2_multi'])].set_index('dataset').loc[
@@ -842,13 +930,10 @@ def plot_main_figure(df_dep: pd.DataFrame, out_dir: Path, B: int) -> None:
     n_s = len(singles_df)
     n_m = len(multi_df)
 
-    # X positions with clean visual gaps separating singles | multi | means
     xs = []
     x = 0.0
-    for i, r in enumerate(ordered.itertuples()):
-        if i == n_s:
-            x += 0.55
-        elif i == n_s + n_m:
+    for i, _r in enumerate(ordered.itertuples()):
+        if i == n_s or i == n_s + n_m:
             x += 0.55
         xs.append(x)
         x += 1.0
@@ -872,12 +957,10 @@ def plot_main_figure(df_dep: pd.DataFrame, out_dir: Path, B: int) -> None:
         gridspec_kw={'height_ratios': [1.32, 1.0], 'hspace': 0.14},
     )
 
-    # Alternating vertical grey bands & section dividers on both panels
     for ax in (ax1, ax2):
         for i, xi in enumerate(xs):
             if i % 2 == 0:
                 ax.axvspan(xi - 0.5, xi + 0.5, color=style.BAND, zorder=0, lw=0)
-        # Subtle warm tint behind summary means
         ax.axvspan(div2, xs[-1] + 0.55, color='#eef3f8', alpha=0.55, zorder=0, lw=0)
         ax.axvline(div1, color='#999999', lw=0.95, ls='--', zorder=1)
         ax.axvline(div2, color='#666666', lw=1.05, ls='--', zorder=1)
@@ -888,7 +971,6 @@ def plot_main_figure(df_dep: pd.DataFrame, out_dir: Path, B: int) -> None:
     dx = 0.16
     for xi, r in zip(xs, ordered.itertuples()):
         is_hollow = not bool(r.is_multi)
-        # Crystal (left)
         xc_pos = xi - dx
         ax1.plot([xc_pos, xc_pos], [r.crystal_prot_lo, r.crystal_prot_hi],
                  color=COLOR_CRYSTAL, lw=3.0, alpha=0.35, solid_capstyle='butt', zorder=2)
@@ -897,13 +979,12 @@ def plot_main_figure(df_dep: pd.DataFrame, out_dir: Path, B: int) -> None:
             yerr=[[max(0.0, r.crystal_rho - r.crystal_mut_lo)], [max(0.0, r.crystal_mut_hi - r.crystal_rho)]],
             fmt='none', ecolor=COLOR_CRYSTAL, elinewidth=1.0, capsize=2.0, capthick=0.9, alpha=0.9, zorder=3,
         )
-        kw_c = dict(
-            marker='D', ms=7.2 if not is_hollow else 7.6, color=COLOR_CRYSTAL, mec=COLOR_CRYSTAL,
-            mfc='white' if is_hollow else COLOR_CRYSTAL, mew=2.0 if is_hollow else 1.1, ls='none', zorder=5,
+        ax1.plot(
+            xc_pos, r.crystal_rho, marker='D', ms=7.2 if not is_hollow else 7.6,
+            color=COLOR_CRYSTAL, mec=COLOR_CRYSTAL, mfc='white' if is_hollow else COLOR_CRYSTAL,
+            mew=2.0 if is_hollow else 1.1, ls='none', zorder=5,
         )
-        ax1.plot(xc_pos, r.crystal_rho, **kw_c)
 
-        # AF2 (right)
         xa_pos = xi + dx
         ax1.plot([xa_pos, xa_pos], [r.af2_prot_lo, r.af2_prot_hi],
                  color=COLOR_AF2, lw=3.0, alpha=0.35, solid_capstyle='butt', zorder=2)
@@ -912,39 +993,38 @@ def plot_main_figure(df_dep: pd.DataFrame, out_dir: Path, B: int) -> None:
             yerr=[[max(0.0, r.af2_rho - r.af2_mut_lo)], [max(0.0, r.af2_mut_hi - r.af2_rho)]],
             fmt='none', ecolor=COLOR_AF2, elinewidth=1.0, capsize=2.0, capthick=0.9, alpha=0.9, zorder=3,
         )
-        kw_a = dict(
-            marker='o', ms=7.0 if not is_hollow else 7.5, color=COLOR_AF2, mec=COLOR_AF2,
-            mfc='white' if is_hollow else COLOR_AF2, mew=2.0 if is_hollow else 1.1, ls='none', zorder=5,
+        ax1.plot(
+            xa_pos, r.af2_rho, marker='o', ms=7.0 if not is_hollow else 7.5,
+            color=COLOR_AF2, mec=COLOR_AF2, mfc='white' if is_hollow else COLOR_AF2,
+            mew=2.0 if is_hollow else 1.1, ls='none', zorder=5,
         )
-        ax1.plot(xa_pos, r.af2_rho, **kw_a)
 
     ax1.set_ylabel(r'Spearman $\rho$ (pooled)')
-    ax1.set_ylim(0.24, 0.90)
+    ymin_a = min(0.24, float(np.floor((ordered[['crystal_prot_lo', 'af2_prot_lo']].min().min() - 0.03) * 20) / 20))
+    ax1.set_ylim(ymin_a, 0.90)
     ax1.text(-0.048, 1.04, 'a', transform=ax1.transAxes, fontsize=12.5, fontweight='bold', va='bottom', ha='left')
 
-    # Group span headers above Panel a (matching `style.bar_panel` headers)
     tr1 = ax1.get_xaxis_transform()
-    spans = [
+    for x0, x1, title in [
         (xs[0] - 0.42, xs[n_s - 1] + 0.42, 'Single-mutant benchmarks (WT-view, hollow)'),
         (xs[n_s] - 0.42, xs[n_s + n_m - 1] + 0.42, 'Multi-mutant\n(Dual-view, filled)'),
         (xs[n_s + n_m] - 0.42, xs[-1] + 0.42, 'Macro-means'),
-    ]
-    for x0, x1, title in spans:
+    ]:
         ax1.plot([x0, x1], [1.015, 1.015], transform=tr1, clip_on=False, color='#444444', lw=1.1)
         ax1.text((x0 + x1) / 2, 1.028, title, transform=tr1, ha='center', va='bottom', fontsize=8.8, fontweight='bold', color='#333333')
 
     # ---------------- Panel b: Paired Delta-rho (AF2 - Crystal) ----------------
     ax2.axhline(0.0, color='#333333', lw=1.0, ls='--', zorder=1.5)
+    min_lo_b = float(ordered[['delta_prot_lo', 'delta_mut_lo']].min().min())
+    max_hi_b = float(ordered[['delta_prot_hi', 'delta_mut_hi']].max().max())
     for xi, r in zip(xs, ordered.itertuples()):
         is_hollow = not bool(r.is_multi)
         sig_prot = (not r.is_summary) and (r.p_prot < 0.05)
         sig_holm = (not r.is_summary) and np.isfinite(r.p_prot_holm) and (r.p_prot_holm < 0.05)
         col = COLOR_DELTA_NEG if (sig_prot and r.delta_rho < 0) else (COLOR_DELTA_POS if (sig_prot and r.delta_rho > 0) else COLOR_DELTA_NEUT)
 
-        # Thick protein-cluster paired 95% CI bar
         ax2.plot([xi, xi], [r.delta_prot_lo, r.delta_prot_hi],
                  color=col, lw=3.8, alpha=0.35, solid_capstyle='butt', zorder=2.5)
-        # Thin mutation-level paired 95% CI whisker
         ax2.errorbar(
             xi, r.delta_rho,
             yerr=[[max(0.0, r.delta_rho - r.delta_mut_lo)], [max(0.0, r.delta_mut_hi - r.delta_rho)]],
@@ -962,17 +1042,16 @@ def plot_main_figure(df_dep: pd.DataFrame, out_dir: Path, B: int) -> None:
         if sig_prot:
             ax2.plot(xi, r.delta_rho, marker='o', ms=11.5, mfc='none', mec=style.RING, mew=1.1, ls='none', zorder=6)
 
-        # Crisp value annotation placed cleanly clear of protein CI bounds
         txt = _fmt_signed(r.delta_rho, 3)
         if sig_holm:
             txt += '**'
         elif sig_prot:
             txt += '*'
         if r.delta_rho >= 0:
-            y_pos = max(r.delta_prot_hi, r.delta_mut_hi, r.delta_rho) + 0.0065
+            y_pos = max(r.delta_prot_hi, r.delta_mut_hi, r.delta_rho) + 0.007
             va = 'bottom'
         else:
-            y_pos = min(r.delta_prot_lo, r.delta_mut_lo, r.delta_rho) - 0.0065
+            y_pos = min(r.delta_prot_lo, r.delta_mut_lo, r.delta_rho) - 0.007
             va = 'top'
         ax2.text(
             xi, y_pos, txt, ha='center', va=va, fontsize=7.6,
@@ -982,7 +1061,7 @@ def plot_main_figure(df_dep: pd.DataFrame, out_dir: Path, B: int) -> None:
         )
 
     ax2.set_ylabel(r'Paired $\Delta\rho$ (AF2 $-$ Crystal)')
-    ax2.set_ylim(-0.108, 0.088)
+    ax2.set_ylim(min(-0.108, min_lo_b - 0.032), max(0.088, max_hi_b + 0.028))
     ax2.set_xticks(xs)
     ax2.set_xticklabels(xlabels, fontsize=8.8)
     for tick, r in zip(ax2.get_xticklabels(), ordered.itertuples()):
@@ -990,23 +1069,25 @@ def plot_main_figure(df_dep: pd.DataFrame, out_dir: Path, B: int) -> None:
             tick.set_fontweight('bold')
     ax2.text(-0.048, 1.03, 'b', transform=ax2.transAxes, fontsize=12.5, fontweight='bold', va='bottom', ha='left')
 
-    # Shared publication legend at top (matching `thermostability_sets.png`)
+    boot_tag = '95% [protein × seed] CI' if n_seeds > 1 else '95% protein-cluster CI'
+    mut_tag = '95% [mutation × seed] CI' if n_seeds > 1 else '95% mutation-level CI'
     handles = [
-        Line2D([0], [0], marker='D', ms=7.2, color=COLOR_CRYSTAL, mec=COLOR_CRYSTAL, mfc=COLOR_CRYSTAL, ls='none', label='Crystal structure (ESM-MSR-small)'),
+        Line2D([0], [0], marker='D', ms=7.2, color=COLOR_CRYSTAL, mec=COLOR_CRYSTAL, mfc=COLOR_CRYSTAL, ls='none', label=f'Crystal structure ({model_label})'),
         Line2D([0], [0], marker='o', ms=7.0, color=COLOR_AF2, mec=COLOR_AF2, mfc=COLOR_AF2, ls='none', label='AlphaFold2 structure (ColabFold)'),
-        Line2D([0], [0], color='#555555', lw=3.6, alpha=0.38, label='thick bar: 95% protein-cluster CI'),
-        Line2D([0], [0], color='#555555', lw=1.1, label='thin whisker: 95% mutation-level CI'),
+        Line2D([0], [0], color='#555555', lw=3.6, alpha=0.38, label=f'thick bar: {boot_tag}'),
+        Line2D([0], [0], color='#555555', lw=1.1, label=f'thin whisker: {mut_tag}'),
         Line2D([0], [0], marker='o', ms=8.5, mfc='none', mec=style.RING, mew=1.1, ls='none', label=r'$p_{\mathrm{prot}} < 0.05$ (* unadj., ** Holm)'),
         *style.version_handles(size=6.5),
     ]
     fig.legend(
-        handles=handles, loc='upper center', bbox_to_anchor=(0.51, 0.965), ncol=4, fontsize=8.2,
-        frameon=True, facecolor='white', edgecolor='#cccccc', columnspacing=1.2, handletextpad=0.4,
+        handles=handles, loc='upper center', bbox_to_anchor=(0.51, 0.965), ncol=4, fontsize=8.0,
+        frameon=True, facecolor='white', edgecolor='#cccccc', columnspacing=1.1, handletextpad=0.4,
     )
     fig.suptitle(
-        f'AlphaFold2 vs. crystal structures on external thermostability benchmarks (ESM-MSR-small; B = {B:,} paired bootstraps)',
-        x=0.015, ha='left', y=0.995, fontsize=10.8, fontweight='bold',
+        f'AlphaFold2 vs. crystal structures on external thermostability benchmarks ({model_label}; B = {B:,} paired bootstraps)',
+        x=0.015, ha='left', y=0.995, fontsize=10.6, fontweight='bold',
     )
+
     r_s10 = df_dep[df_dep['dataset'] == 'mean_10_singles'].iloc[0]
     r_m2 = df_dep[df_dep['dataset'] == 'mean_2_multi'].iloc[0]
     min_holm = float(df_dep.loc[~df_dep['is_summary'], 'p_prot_holm'].min())
@@ -1016,18 +1097,19 @@ def plot_main_figure(df_dep: pd.DataFrame, out_dir: Path, B: int) -> None:
         if n_holm_sig == 0
         else f'{n_holm_sig}/12 datasets survive Holm adjustment (min p_Holm = {_fmt_p_clean(min_holm, B)})'
     )
+    seed_note = 'Seeds 1–3 averaged; bootstrap resamples canonical protein clusters and replicate seeds jointly across overlapping datasets' if n_seeds > 1 else 'Protein-cluster bootstrap resamples canonical protein clusters jointly across overlapping datasets'
     note = (
-        '762 unique WT sequences folded with ColabFold AF2 (5 models, 3 recycles, Amber relax) vs. experimental crystal structures across 12 external benchmarks (25,632 variants; 0 indexing mismatches).\n'
-        'Canonical deployed head per dataset: WT-view (hollow) on single-mutant sets, Dual-view (filled) on PTMUL / PTMUL-D. Protein-cluster bootstrap resamples canonical protein clusters jointly across\n'
-        f'overlapping datasets (S461 ⊂ S669, K2369 ⊂ K3822, S2648 ⊂ S8754, PTMUL-D ⊂ PTMUL; 15 WT families in Ssym). Macro-means: 10 singles Δρ = {_fmt_signed(r_s10.delta_rho)} [{_fmt_signed(r_s10.delta_prot_lo)}, {_fmt_signed(r_s10.delta_prot_hi)}], '
+        '762 unique WT sequences folded with ColabFold AF2 (5 models, 3 recycles, Amber relax) vs. matched experimental crystal structures across 12 external benchmarks (25,632 variants; 0 indexing mismatches).\n'
+        f'Canonical deployed head per dataset: WT-view (hollow) on single-mutant sets, Dual-view (filled) on PTMUL / PTMUL-D. {seed_note}\n'
+        f'(S461 ⊂ S669, K2369 ⊂ K3822, S2648 ⊂ S8754, PTMUL-D ⊂ PTMUL; 15 WT families in Ssym). Macro-means: 10 singles Δρ = {_fmt_signed(r_s10.delta_rho)} [{_fmt_signed(r_s10.delta_prot_lo)}, {_fmt_signed(r_s10.delta_prot_hi)}], '
         f'2 multi Δρ = {_fmt_signed(r_m2.delta_rho)} [{_fmt_signed(r_m2.delta_prot_lo)}, {_fmt_signed(r_m2.delta_prot_hi)}]; {holm_str}.'
     )
-    fig.text(0.015, 0.008, note, fontsize=7.6, va='bottom', ha='left', color=style.INK_NOTE)
+    fig.text(0.015, 0.008, note, fontsize=7.5, va='bottom', ha='left', color=style.INK_NOTE)
     fig.subplots_adjust(left=0.068, right=0.985, top=0.835, bottom=0.115)
     style.save(fig, out_dir / 'af2_vs_crystal_thermostability')
 
 
-def plot_diagnostics_figure(df_dep: pd.DataFrame, df_ssym: pd.DataFrame, out_dir: Path, B: int) -> None:
+def plot_diagnostics_figure(df_dep: pd.DataFrame, df_ssym: pd.DataFrame, out_dir: Path, B: int, model_label: str, n_seeds: int) -> None:
     """Three-panel diagnostic figure: (a) raw RMSE; (b) AF2-Crystal prediction concordance; (c) Ssym dir/rev & antisymmetry."""
     style.setup()
 
@@ -1059,7 +1141,6 @@ def plot_diagnostics_figure(df_dep: pd.DataFrame, df_ssym: pd.DataFrame, out_dir
     dx = 0.16
     for xi, r in zip(xs_a, ddg_ordered.itertuples()):
         is_hollow = not bool(r.is_multi)
-        # Crystal RMSE
         xc = xi - dx
         ax_a.plot([xc, xc], [r.crystal_rmse_prot_lo, r.crystal_rmse_prot_hi],
                   color=COLOR_CRYSTAL, lw=3.0, alpha=0.35, solid_capstyle='butt', zorder=2)
@@ -1071,7 +1152,6 @@ def plot_diagnostics_figure(df_dep: pd.DataFrame, df_ssym: pd.DataFrame, out_dir
         ax_a.plot(xc, r.crystal_rmse, marker='D', ms=7.2, color=COLOR_CRYSTAL, mec=COLOR_CRYSTAL,
                   mfc='white' if is_hollow else COLOR_CRYSTAL, mew=2.0 if is_hollow else 1.1, ls='none', zorder=5)
 
-        # AF2 RMSE
         xa = xi + dx
         ax_a.plot([xa, xa], [r.af2_rmse_prot_lo, r.af2_rmse_prot_hi],
                   color=COLOR_AF2, lw=3.0, alpha=0.35, solid_capstyle='butt', zorder=2)
@@ -1083,22 +1163,21 @@ def plot_diagnostics_figure(df_dep: pd.DataFrame, df_ssym: pd.DataFrame, out_dir
         ax_a.plot(xa, r.af2_rmse, marker='o', ms=7.0, color=COLOR_AF2, mec=COLOR_AF2,
                   mfc='white' if is_hollow else COLOR_AF2, mew=2.0 if is_hollow else 1.1, ls='none', zorder=5)
 
-        # Compact ΔRMSE annotation above pair
         y_top = max(r.crystal_rmse_prot_hi, r.af2_rmse_prot_hi) + 0.055
         ax_a.text(xi, y_top, _fmt_signed(r.delta_rmse, 2), ha='center', va='bottom', fontsize=7.5, color='#333333')
 
     ax_a.set_xticks(xs_a)
     ax_a.set_xticklabels([r.label for r in ddg_ordered.itertuples()], fontsize=8.8)
     ax_a.set_xlim(xs_a[0] - 0.6, xs_a[-1] + 0.6)
-    ax_a.set_ylim(0.70, 2.72)
+    ax_a.set_ylim(0.65, 2.72)
     ax_a.set_ylabel('Raw RMSE (kcal/mol; lower is better)')
     ax_a.set_title('Raw RMSE: Crystal vs. AlphaFold2 across the 11 ΔΔG benchmarks (annotated with ΔRMSE = AF2 − Crystal)', loc='left', fontsize=9.8)
     ax_a.text(-0.045, 1.04, 'a', transform=ax_a.transAxes, fontsize=12.5, fontweight='bold', va='bottom', ha='left')
     hs_a = [
         Line2D([0], [0], marker='D', ms=6.8, color=COLOR_CRYSTAL, mec=COLOR_CRYSTAL, mfc=COLOR_CRYSTAL, ls='none', label='Crystal'),
         Line2D([0], [0], marker='o', ms=6.8, color=COLOR_AF2, mec=COLOR_AF2, mfc=COLOR_AF2, ls='none', label='AlphaFold2'),
-        Line2D([0], [0], color='#555555', lw=3.4, alpha=0.38, label='95% protein CI'),
-        Line2D([0], [0], color='#555555', lw=1.0, label='95% mutation CI'),
+        Line2D([0], [0], color='#555555', lw=3.4, alpha=0.38, label='95% [protein × seed] CI' if n_seeds > 1 else '95% protein CI'),
+        Line2D([0], [0], color='#555555', lw=1.0, label='95% [mutation × seed] CI' if n_seeds > 1 else '95% mutation CI'),
     ]
     ax_a.legend(handles=hs_a, loc='upper left', ncol=4, fontsize=8.0, frameon=True, facecolor='white', edgecolor='#cccccc')
 
@@ -1123,7 +1202,8 @@ def plot_diagnostics_figure(df_dep: pd.DataFrame, df_ssym: pd.DataFrame, out_dir
     ax_b.set_xticks(xs_b)
     ax_b.set_xticklabels([r.label for r in all_ordered.itertuples()], rotation=35, ha='right', fontsize=8.2)
     ax_b.set_xlim(xs_b[0] - 0.65, xs_b[-1] + 0.65)
-    ax_b.set_ylim(0.90, 1.008)
+    min_pr = float(all_ordered['pred_rho'].min())
+    ax_b.set_ylim(min(0.90, float(np.floor((min_pr - 0.02) * 20) / 20)), 1.008)
     ax_b.set_ylabel(r'Prediction concordance $\rho(\hat{y}_{\mathrm{AF2}}, \hat{y}_{\mathrm{crystal}})$')
     ax_b.set_title('Per-variant prediction agreement (AF2 vs. Crystal)', loc='left', fontsize=9.8)
     ax_b.text(-0.095, 1.04, 'b', transform=ax_b.transAxes, fontsize=12.5, fontweight='bold', va='bottom', ha='left')
@@ -1136,7 +1216,6 @@ def plot_diagnostics_figure(df_dep: pd.DataFrame, df_ssym: pd.DataFrame, out_dir
     )
 
     # ---------------- Panel c: Ssym direct vs reverse & antisymmetry ----------------
-    # Show WT-view (deployed on Ssym) Crystal vs AF2 across Direct, Reverse, Pooled, and |Antisymmetry r|
     ss_wt = df_ssym[df_ssym['head'] == 'WT-view'].set_index('subset')
     ss_dv = df_ssym[df_ssym['head'] == 'Dual-view'].set_index('subset')
     cats = [
@@ -1149,7 +1228,6 @@ def plot_diagnostics_figure(df_dep: pd.DataFrame, df_ssym: pd.DataFrame, out_dir
     w = 0.32
     ax_c.grid(axis='y', color=style.GRID, lw=0.6, zorder=0)
     for i, (key, _lbl) in enumerate(cats):
-        # Use WT-view for Direct/Reverse/Pooled and |r| for Antisymmetry (with Dual-view diamond markers overlaid!)
         r_wt = ss_wt.loc[key]
         r_dv = ss_dv.loc[key]
         flip = -1.0 if key == 'Antisymmetry r(dir, rev)' else 1.0
@@ -1167,27 +1245,25 @@ def plot_diagnostics_figure(df_dep: pd.DataFrame, df_ssym: pd.DataFrame, out_dir
         ax_c.errorbar(i + w / 2, va, yerr=[[max(0.0, va - va_lo)], [max(0.0, va_hi - va)]],
                       fmt='none', ecolor=style.RING, elinewidth=1.2, capsize=2.5, zorder=5)
 
-        # Dual-view markers overlaid for reference
         dv_c = flip * r_dv['crystal']
         dv_a = flip * r_dv['af2']
         ax_c.plot(i - w / 2, dv_c, marker='D', ms=5.0, mfc='white', mec='black', mew=1.2, ls='none', zorder=6,
                   label='Dual-view head' if i == 0 else None)
         ax_c.plot(i + w / 2, dv_a, marker='D', ms=5.0, mfc='white', mec=COLOR_AF2, mew=1.2, ls='none', zorder=6)
 
-        # Value labels clear of both CI whiskers and Dual-view markers
         ax_c.text(i - w / 2, max(vc_hi, dv_c) + 0.018, f'{vc:.2f}', ha='center', va='bottom', fontsize=7.3, color='#111111')
         ax_c.text(i + w / 2, max(va_hi, dv_a) + 0.018, f'{va:.2f}', ha='center', va='bottom', fontsize=7.3, color=COLOR_AF2, fontweight='bold')
 
     ax_c.set_xticks(xc_idx)
     ax_c.set_xticklabels([lbl for _, lbl in cats], fontsize=8.4)
-    ax_c.set_ylim(0.35, 1.04)
+    ax_c.set_ylim(0.35, 1.05)
     ax_c.set_ylabel(r'Spearman $\rho$ / $|r_{\mathrm{antisym}}|$')
     ax_c.set_title('Ssym breakdown: why AF2 drops most on reverse mutations', loc='left', fontsize=9.8)
     ax_c.text(-0.12, 1.04, 'c', transform=ax_c.transAxes, fontsize=12.5, fontweight='bold', va='bottom', ha='left')
     ax_c.legend(loc='lower right', fontsize=7.6, frameon=True, facecolor='white', edgecolor='#cccccc')
 
     fig.suptitle(
-        f'AF2 vs. crystal structural robustness diagnostics: RMSE, prediction concordance, and Ssym decomposition (B = {B:,})',
+        f'AF2 vs. crystal structural robustness diagnostics ({model_label}; B = {B:,})',
         x=0.015, ha='left', y=0.985, fontsize=10.6, fontweight='bold',
     )
     r571 = df_dep[df_dep['dataset'] == 's571'].iloc[0]
@@ -1199,8 +1275,8 @@ def plot_diagnostics_figure(df_dep: pd.DataFrame, df_ssym: pd.DataFrame, out_dir
     d_dir_dv = float(ss_dv.loc['Direct (WT struct)', 'delta'])
     diag_note = (
         f'Panel a excludes S571 (ΔTm in °C; Crystal RMSE = {r571.crystal_rmse:.2f} °C vs. AF2 = {r571.af2_rmse:.2f} °C). '
-        f'Panel b shows Spearman concordance between Crystal and AF2 predictions on identical variants (range {pr_lo:.3f}–{pr_hi:.3f}).\n'
-        f'Panel c decomposes Ssym (684 variants across 15 WT protein families; whiskers = 95% WT-family bootstrap CI): AF2 loses more accuracy on reverse mutations '
+        f'Panel b shows mean per-seed Spearman concordance between Crystal and AF2 predictions on identical variants (range {pr_lo:.3f}–{pr_hi:.3f}).\n'
+        f'Panel c decomposes Ssym (684 variants across 15 WT protein families; whiskers = 95% [WT-family × seed] bootstrap CI): AF2 loses more accuracy on reverse mutations '
         f'(solved mutant crystal backbones replaced by AF2\n'
         f'single-mutant predictions, Δρ = {_fmt_signed(d_rev_wt)} WT-view / {_fmt_signed(d_rev_dv)} Dual-view) '
         f'than direct mutations (Δρ = {_fmt_signed(d_dir_wt)} / {_fmt_signed(d_dir_dv)}); white diamonds mark the Dual-view head.'
@@ -1212,53 +1288,57 @@ def plot_diagnostics_figure(df_dep: pd.DataFrame, df_ssym: pd.DataFrame, out_dir
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument('--model', choices=('final_p0', 'march_small'), default='final_p0',
+                    help='Model cohort to evaluate (default: final_p0 triplicate)')
     ap.add_argument('--B', type=int, default=10000, help='Bootstrap replicates (default 10000)')
     ap.add_argument('--seed', type=int, default=42, help='RNG seed')
     ap.add_argument('--plot-only', action='store_true', help='Regenerate figures from existing summary CSVs')
     args = ap.parse_args()
 
     out_dir = results_dir('thermostability') / 'af2_vs_crystal'
+    if args.model == 'march_small':
+        out_dir = out_dir / 'march_small_reference'
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    model_label = 'ESM-MSR (FINAL_p0, 3 seeds)' if args.model == 'final_p0' else 'ESM-MSR-small (March ref., 1 seed)'
+    n_seeds = 3 if args.model == 'final_p0' else 1
 
     if args.plot_only:
         df_dep = pd.read_csv(out_dir / 'af2_vs_crystal_summary.csv')
         df_ssym = pd.read_csv(out_dir / 'ssym_direct_reverse_antisymmetry.csv')
-        plot_main_figure(df_dep, out_dir, B=args.B)
-        plot_diagnostics_figure(df_dep, df_ssym, out_dir, B=args.B)
+        plot_main_figure(df_dep, out_dir, B=args.B, model_label=model_label, n_seeds=n_seeds)
+        plot_diagnostics_figure(df_dep, df_ssym, out_dir, B=args.B, model_label=model_label, n_seeds=n_seeds)
         print(f'[af2_vs_crystal] Regenerated figures in {out_dir}', flush=True)
         return
 
-    print(f'[af2_vs_crystal] Loading 12 external datasets from {AF2_DIR} and {CRYSTAL_DIR}...', flush=True)
-    data = _load_paired_datasets()
+    print(f'[af2_vs_crystal] Loading 12 external datasets for {model_label}...', flush=True)
+    data, seeds, model_label = _load_paired_datasets(args.model)
 
-    print(f'[af2_vs_crystal] Running joint protein-cluster and mutation-level paired bootstraps (B={args.B:,})...', flush=True)
-    reps = run_paired_bootstraps(data, B=args.B, seed=args.seed)
+    print(f'[af2_vs_crystal] Running joint [protein-cluster x {len(seeds)}-seed] and [mutation x {len(seeds)}-seed] bootstraps (B={args.B:,})...', flush=True)
+    reps = run_paired_bootstraps(data, n_seeds=len(seeds), B=args.B, seed=args.seed)
 
     print('[af2_vs_crystal] Building summary tables & Ssym direct/reverse decomposition...', flush=True)
-    df_dep, df_dual = build_summary_tables(data, reps, B=args.B)
-    df_ssym = run_ssym_analysis(data, B=args.B, seed=args.seed + 35)
+    df_dep, df_dual = build_summary_tables(data, reps, n_seeds=len(seeds))
+    df_ssym = run_ssym_analysis(data, n_seeds=len(seeds), B=args.B, seed=args.seed + 35)
 
-    # Verify exact reproduction of Oct 8 Dual-view Combined point estimates
-    orig = pd.read_csv(AF2_DIR / 'esm-msr-small_af2_vs_crystal.csv').set_index('set')
-    dual_ds = df_dual[~df_dual['is_summary']].set_index('dataset')
-    max_diff = max(
-        abs(float(dual_ds.loc[ds, 'delta_rho']) - float(orig.loc[ds, 'delta']))
-        for ds in EXT12
-    )
-    print(f'[af2_vs_crystal] Verification vs Oct 8 cluster CSV (Dual-view delta_rho): max abs diff = {max_diff:.2e}', flush=True)
-    assert max_diff < 1e-12, f'Mismatch vs Oct 8 CSV: {max_diff}'
+    if args.model == 'march_small':
+        orig = pd.read_csv(MARCH_AF2_DIR / 'esm-msr-small_af2_vs_crystal.csv').set_index('set')
+        dual_ds = df_dual[~df_dual['is_summary']].set_index('dataset')
+        max_diff = max(abs(float(dual_ds.loc[ds, 'delta_rho']) - float(orig.loc[ds, 'delta'])) for ds in EXT12)
+        print(f'[af2_vs_crystal] Verification vs Oct 8 cluster CSV (Dual-view delta_rho): max abs diff = {max_diff:.2e}', flush=True)
+        assert max_diff < 1e-12, f'Mismatch vs Oct 8 CSV: {max_diff}'
 
-    write_comparative_tables(df_dep, df_dual, df_ssym, out_dir, B=args.B)
-    plot_main_figure(df_dep, out_dir, B=args.B)
-    plot_diagnostics_figure(df_dep, df_ssym, out_dir, B=args.B)
+    write_comparative_tables(df_dep, df_dual, df_ssym, out_dir, B=args.B, model_label=model_label, n_seeds=len(seeds))
+    plot_main_figure(df_dep, out_dir, B=args.B, model_label=model_label, n_seeds=len(seeds))
+    plot_diagnostics_figure(df_dep, df_ssym, out_dir, B=args.B, model_label=model_label, n_seeds=len(seeds))
 
     print(f'[af2_vs_crystal] Done! Outputs written to {out_dir}', flush=True)
-    print('\n=== Summary (Canonical Deployed Head) ===')
-    cols = ['label', 'n', 'n_clusters', 'head', 'crystal_rho', 'af2_rho', 'delta_rho', 'delta_prot_lo', 'delta_prot_hi', 'p_prot', 'p_prot_holm', 'p_mut', 'crystal_rmse', 'af2_rmse', 'pred_rho']
+    print(f'\n=== Summary ({model_label}, Canonical Deployed Head) ===')
+    cols = ['label', 'n', 'n_clusters', 'head', 'crystal_rho', 'crystal_rho_sd', 'af2_rho', 'af2_rho_sd', 'delta_rho', 'delta_prot_lo', 'delta_prot_hi', 'p_prot', 'p_prot_holm', 'p_mut', 'crystal_rmse', 'af2_rmse', 'pred_rho']
     print(df_dep[cols].to_string(index=False, float_format=lambda x: f'{x:.4f}'))
-    print('\n=== Summary (Dual-view / Oct 8 Head, Macro-means) ===')
+    print(f'\n=== Summary ({model_label}, Dual-view Head, Macro-means) ===')
     print(df_dual[df_dual['is_summary']][cols].to_string(index=False, float_format=lambda x: f'{x:.4f}'))
-    print('\n=== Ssym Direct vs Reverse & Antisymmetry ===')
+    print(f'\n=== Ssym Direct vs Reverse & Antisymmetry ({model_label}) ===')
     print(df_ssym[['head', 'subset', 'crystal', 'af2', 'delta', 'delta_lo', 'delta_hi', 'p_prot']].to_string(index=False, float_format=lambda x: f'{x:.4f}'))
 
 
