@@ -1287,57 +1287,36 @@ def plot_diagnostics_figure(df_dep: pd.DataFrame, df_ssym: pd.DataFrame, out_dir
 
 
 def plot_combined_figure(df_dep: pd.DataFrame, out_dir: Path, B: int, model_label: str, n_seeds: int) -> None:
-    """Two-panel combined publication figure: (a) Spearman rho (with significance asterisks); (b) raw RMSE."""
+    """Two-panel combined publication figure on the 8 main-text thermostability sets:
+    (a) Spearman rho (significance indicated with asterisks in panel a only); (b) raw RMSE (kcal/mol).
+    Matches the exact 8-dataset cohort & order of Figure 3a / `_thermostability_rmse.png`
+    (Ssym, S461, K2369, S783, S2648, Q3421, S8754, PTMUL).
+    """
     style.setup()
 
-    singles_df = df_dep[(~df_dep['is_summary']) & (~df_dep['is_multi'])].sort_values('crystal_rho', ascending=False)
-    multi_df = df_dep[(~df_dep['is_summary']) & (df_dep['is_multi'])].sort_values('crystal_rho', ascending=False)
-    sum_df = df_dep[df_dep['dataset'].isin(['mean_10_singles', 'mean_2_multi'])].set_index('dataset').loc[
-        ['mean_10_singles', 'mean_2_multi']
-    ].reset_index()
+    main_df = df_dep[(~df_dep['is_summary']) & (df_dep['dataset'].isin(MAIN_TEXT_8))].copy()
+    singles_df = main_df[~main_df['is_multi']].sort_values('crystal_rho', ascending=False)
+    multi_df = main_df[main_df['is_multi']].sort_values('crystal_rho', ascending=False)
+    ordered = pd.concat([singles_df, multi_df], ignore_index=True)
 
-    ordered = pd.concat([singles_df, multi_df, sum_df], ignore_index=True)
     n_s = len(singles_df)
-    n_m = len(multi_df)
+    xs = np.arange(len(ordered), dtype=float)
+    xlabels = [r.label for r in ordered.itertuples()]
 
-    xs = []
-    x = 0.0
-    for i, _r in enumerate(ordered.itertuples()):
-        if i == n_s or i == n_s + n_m:
-            x += 0.55
-        xs.append(x)
-        x += 1.0
-    xs = np.array(xs, dtype=float)
-    div1 = 0.5 * (xs[n_s - 1] + xs[n_s])
-    div2 = 0.5 * (xs[n_s + n_m - 1] + xs[n_s + n_m])
-
-    xlabels = []
-    for r in ordered.itertuples():
-        if r.dataset == 'mean_10_singles':
-            xlabels.append('Mean\n(singles)')
-        elif r.dataset == 'mean_2_multi':
-            xlabels.append('Mean\n(2 multi)')
-        elif r.dataset == 's571':
-            xlabels.append('S571\n(ΔTm)')
-        else:
-            xlabels.append(r.label)
+    # Holm-adjusted p-values across the 8 displayed sets
+    p_holm_8 = holm(ordered['p_prot'].to_numpy(dtype=float))
+    min_holm_8 = float(np.nanmin(p_holm_8))
 
     fig, (ax1, ax2) = plt.subplots(
-        2, 1, figsize=(13.6, 7.6), sharex=True,
+        2, 1, figsize=(10.4, 7.0), sharex=True,
         gridspec_kw={'height_ratios': [1.05, 1.0], 'hspace': 0.14},
     )
 
     for ax in (ax1, ax2):
-        for i, xi in enumerate(xs):
-            if i % 2 == 0:
-                ax.axvspan(xi - 0.5, xi + 0.5, color=style.BAND, zorder=0, lw=0)
-        ax.axvspan(div2, xs[-1] + 0.55, color='#eef3f8', alpha=0.55, zorder=0, lw=0)
-        ax.axvline(div1, color='#999999', lw=0.95, ls='--', zorder=1)
-        ax.axvline(div2, color='#666666', lw=1.05, ls='--', zorder=1)
+        style.band_axis(ax, len(ordered))
         ax.grid(axis='y', color=style.GRID, lw=0.6, zorder=0)
-        ax.set_xlim(xs[0] - 0.6, xs[-1] + 0.6)
 
-    dx = 0.16
+    dx = 0.15
 
     # ---------------- Panel a: Spearman rho (with significance brackets + asterisks ONLY here) ----------------
     for xi, r in zip(xs, ordered.itertuples()):
@@ -1348,10 +1327,10 @@ def plot_combined_figure(df_dep: pd.DataFrame, out_dir: Path, B: int, model_labe
         ax1.errorbar(
             xc, r.crystal_rho,
             yerr=[[max(0.0, r.crystal_rho - r.crystal_mut_lo)], [max(0.0, r.crystal_mut_hi - r.crystal_rho)]],
-            fmt='none', ecolor=COLOR_CRYSTAL, elinewidth=1.0, capsize=2.0, capthick=0.9, alpha=0.9, zorder=3,
+            fmt='none', ecolor=COLOR_CRYSTAL, elinewidth=1.0, capsize=2.2, capthick=0.9, alpha=0.9, zorder=3,
         )
         ax1.plot(
-            xc, r.crystal_rho, marker='D', ms=7.2 if not is_hollow else 7.6,
+            xc, r.crystal_rho, marker='D', ms=7.4 if not is_hollow else 7.8,
             color=COLOR_CRYSTAL, mec=COLOR_CRYSTAL, mfc='white' if is_hollow else COLOR_CRYSTAL,
             mew=2.0 if is_hollow else 1.1, ls='none', zorder=5,
         )
@@ -1362,10 +1341,10 @@ def plot_combined_figure(df_dep: pd.DataFrame, out_dir: Path, B: int, model_labe
         ax1.errorbar(
             xa, r.af2_rho,
             yerr=[[max(0.0, r.af2_rho - r.af2_mut_lo)], [max(0.0, r.af2_mut_hi - r.af2_rho)]],
-            fmt='none', ecolor=COLOR_AF2, elinewidth=1.0, capsize=2.0, capthick=0.9, alpha=0.9, zorder=3,
+            fmt='none', ecolor=COLOR_AF2, elinewidth=1.0, capsize=2.2, capthick=0.9, alpha=0.9, zorder=3,
         )
         ax1.plot(
-            xa, r.af2_rho, marker='o', ms=7.0 if not is_hollow else 7.5,
+            xa, r.af2_rho, marker='o', ms=7.2 if not is_hollow else 7.7,
             color=COLOR_AF2, mec=COLOR_AF2, mfc='white' if is_hollow else COLOR_AF2,
             mew=2.0 if is_hollow else 1.1, ls='none', zorder=5,
         )
@@ -1373,34 +1352,26 @@ def plot_combined_figure(df_dep: pd.DataFrame, out_dir: Path, B: int, model_labe
         # Paired protein-cluster bootstrap significance indicator (Panel a ONLY)
         if np.isfinite(r.p_prot) and r.p_prot < 0.05:
             stars = '***' if r.p_prot < 0.001 else ('**' if r.p_prot < 0.01 else '*')
-            yb = max(r.crystal_prot_hi, r.af2_prot_hi, r.crystal_mut_hi, r.af2_mut_hi) + 0.016
-            bh = 0.014
+            yb = max(r.crystal_prot_hi, r.af2_prot_hi, r.crystal_mut_hi, r.af2_mut_hi) + 0.015
+            bh = 0.012
             ax1.plot([xc, xc, xa, xa], [yb, yb + bh, yb + bh, yb], color='#333333', lw=0.95, zorder=6)
             ax1.text(xi, yb + bh + 0.002, stars, ha='center', va='bottom', fontsize=10.5, fontweight='bold', color='#111111', zorder=7)
 
-    ymin_a = min(0.22, float(np.floor((ordered[['crystal_prot_lo', 'af2_prot_lo']].min().min() - 0.03) * 20) / 20))
-    ax1.set_ylim(ymin_a, 0.94)
+    ymin_a = min(0.42, float(np.floor((ordered[['crystal_prot_lo', 'af2_prot_lo']].min().min() - 0.03) * 20) / 20))
+    ax1.set_ylim(ymin_a, 0.93)
     ax1.set_ylabel(r'Spearman $\rho$ (pooled)')
-    ax1.text(-0.048, 1.04, 'a', transform=ax1.transAxes, fontsize=12.5, fontweight='bold', va='bottom', ha='left')
+    ax1.text(-0.082, 1.04, 'a', transform=ax1.transAxes, fontsize=12.5, fontweight='bold', va='bottom', ha='left')
 
     tr1 = ax1.get_xaxis_transform()
     for x0, x1, title in [
         (xs[0] - 0.42, xs[n_s - 1] + 0.42, 'Single-mutant benchmarks (WT-view, hollow)'),
-        (xs[n_s] - 0.42, xs[n_s + n_m - 1] + 0.42, 'Multi-mutant\n(Dual-view, filled)'),
-        (xs[n_s + n_m] - 0.42, xs[-1] + 0.42, 'Macro-means'),
+        (xs[n_s] - 0.42, xs[-1] + 0.42, 'Multi-mutant\n(Dual-view)'),
     ]:
         ax1.plot([x0, x1], [1.015, 1.015], transform=tr1, clip_on=False, color='#444444', lw=1.1)
         ax1.text((x0 + x1) / 2, 1.028, title, transform=tr1, ha='center', va='bottom', fontsize=8.8, fontweight='bold', color='#333333')
 
     # ---------------- Panel b: Raw RMSE (kcal/mol; NO significance asterisks) ----------------
     for xi, r in zip(xs, ordered.itertuples()):
-        if r.dataset == 's571':
-            ax2.text(
-                xi, 1.55, f'ΔTm (°C)\nCryst: {r.crystal_rmse:.2f}\nAF2: {r.af2_rmse:.2f}',
-                ha='center', va='center', fontsize=7.2, color='#555555',
-                bbox=dict(fc='white', ec='#cccccc', lw=0.7, alpha=0.92, pad=2.5), zorder=4,
-            )
-            continue
         is_hollow = not bool(r.is_multi)
         xc = xi - dx
         ax2.plot([xc, xc], [r.crystal_rmse_prot_lo, r.crystal_rmse_prot_hi],
@@ -1408,10 +1379,10 @@ def plot_combined_figure(df_dep: pd.DataFrame, out_dir: Path, B: int, model_labe
         ax2.errorbar(
             xc, r.crystal_rmse,
             yerr=[[max(0.0, r.crystal_rmse - r.crystal_rmse_mut_lo)], [max(0.0, r.crystal_rmse_mut_hi - r.crystal_rmse)]],
-            fmt='none', ecolor=COLOR_CRYSTAL, elinewidth=1.0, capsize=2.0, capthick=0.9, alpha=0.9, zorder=3,
+            fmt='none', ecolor=COLOR_CRYSTAL, elinewidth=1.0, capsize=2.2, capthick=0.9, alpha=0.9, zorder=3,
         )
         ax2.plot(
-            xc, r.crystal_rmse, marker='D', ms=7.2 if not is_hollow else 7.6,
+            xc, r.crystal_rmse, marker='D', ms=7.4 if not is_hollow else 7.8,
             color=COLOR_CRYSTAL, mec=COLOR_CRYSTAL, mfc='white' if is_hollow else COLOR_CRYSTAL,
             mew=2.0 if is_hollow else 1.1, ls='none', zorder=5,
         )
@@ -1422,60 +1393,53 @@ def plot_combined_figure(df_dep: pd.DataFrame, out_dir: Path, B: int, model_labe
         ax2.errorbar(
             xa, r.af2_rmse,
             yerr=[[max(0.0, r.af2_rmse - r.af2_rmse_mut_lo)], [max(0.0, r.af2_rmse_mut_hi - r.af2_rmse)]],
-            fmt='none', ecolor=COLOR_AF2, elinewidth=1.0, capsize=2.0, capthick=0.9, alpha=0.9, zorder=3,
+            fmt='none', ecolor=COLOR_AF2, elinewidth=1.0, capsize=2.2, capthick=0.9, alpha=0.9, zorder=3,
         )
         ax2.plot(
-            xa, r.af2_rmse, marker='o', ms=7.0 if not is_hollow else 7.5,
+            xa, r.af2_rmse, marker='o', ms=7.2 if not is_hollow else 7.7,
             color=COLOR_AF2, mec=COLOR_AF2, mfc='white' if is_hollow else COLOR_AF2,
             mew=2.0 if is_hollow else 1.1, ls='none', zorder=5,
         )
 
-    ax2.set_ylim(0.65, 2.55)
-    ax2.set_ylabel('Raw RMSE (kcal/mol; lower is better)')
+    ax2.set_ylim(0.65, 2.50)
+    ax2.set_ylabel('Raw RMSE (kcal/mol; lower is better)', fontsize=9.8)
     ax2.set_xticks(xs)
-    ax2.set_xticklabels(xlabels, fontsize=8.8)
-    for tick, r in zip(ax2.get_xticklabels(), ordered.itertuples()):
-        if r.is_summary:
-            tick.set_fontweight('bold')
-    ax2.text(-0.048, 1.03, 'b', transform=ax2.transAxes, fontsize=12.5, fontweight='bold', va='bottom', ha='left')
+    ax2.set_xticklabels(xlabels, fontsize=9.2)
+    ax2.text(-0.082, 1.03, 'b', transform=ax2.transAxes, fontsize=12.5, fontweight='bold', va='bottom', ha='left')
 
     boot_tag = '95% [protein × seed] CI' if n_seeds > 1 else '95% protein-cluster CI'
     mut_tag = '95% [mutation × seed] CI' if n_seeds > 1 else '95% mutation-level CI'
     handles = [
-        Line2D([0], [0], marker='D', ms=7.2, color=COLOR_CRYSTAL, mec=COLOR_CRYSTAL, mfc=COLOR_CRYSTAL, ls='none', label=f'Crystal structure ({model_label})'),
-        Line2D([0], [0], marker='o', ms=7.0, color=COLOR_AF2, mec=COLOR_AF2, mfc=COLOR_AF2, ls='none', label='AlphaFold2 structure (ColabFold)'),
+        Line2D([0], [0], marker='D', ms=7.2, color=COLOR_CRYSTAL, mec=COLOR_CRYSTAL, mfc=COLOR_CRYSTAL, ls='none', label=f'Crystal ({model_label})'),
+        Line2D([0], [0], marker='o', ms=7.0, color=COLOR_AF2, mec=COLOR_AF2, mfc=COLOR_AF2, ls='none', label='AlphaFold2 (ColabFold)'),
         Line2D([0], [0], color='#555555', lw=3.6, alpha=0.38, label=f'thick bar: {boot_tag}'),
         Line2D([0], [0], color='#555555', lw=1.1, label=f'thin whisker: {mut_tag}'),
         Line2D([0], [0], marker='', ls='none', label=r'Panel a: $* \; p_{\mathrm{prot}} < 0.05$ (unadj.)'),
         *style.version_handles(size=6.5),
     ]
     fig.legend(
-        handles=handles, loc='upper center', bbox_to_anchor=(0.51, 0.965), ncol=4, fontsize=8.0,
-        frameon=True, facecolor='white', edgecolor='#cccccc', columnspacing=1.1, handletextpad=0.4,
+        handles=handles, loc='upper center', bbox_to_anchor=(0.52, 0.962), ncol=4, fontsize=7.9,
+        frameon=True, facecolor='white', edgecolor='#cccccc', columnspacing=1.0, handletextpad=0.35,
     )
     fig.suptitle(
-        f'AlphaFold2 vs. crystal structures on external thermostability benchmarks ({model_label}; B = {B:,} paired bootstraps)',
-        x=0.015, ha='left', y=0.995, fontsize=10.6, fontweight='bold',
+        f'AlphaFold2 vs. crystal structures on external thermostability sets ({model_label}; B = {B:,})',
+        x=0.015, ha='left', y=0.995, fontsize=10.5, fontweight='bold',
     )
 
-    r_s10 = df_dep[df_dep['dataset'] == 'mean_10_singles'].iloc[0]
-    r_m2 = df_dep[df_dep['dataset'] == 'mean_2_multi'].iloc[0]
-    min_holm = float(df_dep.loc[~df_dep['is_summary'], 'p_prot_holm'].min())
     sig_items = [
-        f'{("Mean 2 multi" if r.dataset == "mean_2_multi" else ("Mean singles" if r.dataset == "mean_10_singles" else r.label))} p = {r.p_prot:.3f}'
+        f'{r.label} p = {r.p_prot:.3f}'
         for r in ordered.itertuples()
         if np.isfinite(r.p_prot) and r.p_prot < 0.05
     ]
     sig_detail = ', '.join(sig_items) if sig_items else 'none'
     seed_clause = 'Seeds 1–3 averaged; paired bootstrap resamples canonical protein clusters and seeds jointly.' if n_seeds > 1 else 'Paired bootstrap resamples canonical protein clusters jointly.'
     note = (
-        '762 unique WT sequences folded with ColabFold AF2 (5 models, 3 recycles, Amber relax) vs. matched experimental crystal structures across 12 external benchmarks (25,632 variants; 0 indexing mismatches).\n'
-        f'Canonical deployed head: WT-view (hollow) on single-mutant sets, Dual-view (filled) on PTMUL / PTMUL-D. {seed_clause}\n'
-        f'Panel a significance: * p_prot < 0.05 unadjusted ({sig_detail}; none survive Holm adjustment across 12 sets, min p_Holm = {_fmt_p_clean(min_holm, B)}). '
-        f'Panel b RMSE mean (singles) excludes S571 (ΔTm in °C): singles {r_s10.crystal_rmse:.2f} vs. {r_s10.af2_rmse:.2f}, 2 multi {r_m2.crystal_rmse:.2f} vs. {r_m2.af2_rmse:.2f} kcal/mol.'
+        'ColabFold AF2 structures (5 models, 3 recycles, Amber relax) vs. matched experimental crystal structures across the 8 main-text external thermostability sets (ordered by Crystal ESM-MSR ρ).\n'
+        f'Canonical deployed head: WT-view (hollow) on the 7 single-mutant sets, Dual-view (filled) on PTMUL. {seed_clause}\n'
+        f'Panel a significance: * p_prot < 0.05 unadjusted ({sig_detail}; none survive Holm adjustment across the 8 sets, min p_Holm = {_fmt_p_clean(min_holm_8, B)}).'
     )
     fig.text(0.015, 0.008, note, fontsize=7.4, va='bottom', ha='left', color=style.INK_NOTE)
-    fig.subplots_adjust(left=0.068, right=0.985, top=0.835, bottom=0.115)
+    fig.subplots_adjust(left=0.085, right=0.985, top=0.825, bottom=0.115)
     style.save(fig, out_dir / 'af2_vs_crystal_combined')
 
 
