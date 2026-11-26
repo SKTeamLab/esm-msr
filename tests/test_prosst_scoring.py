@@ -12,7 +12,7 @@ import torch
 BASELINES_DIR = Path(__file__).resolve().parents[1] / 'inference_scripts' / 'baselines'
 sys.path.insert(0, str(BASELINES_DIR))
 
-from prosst_scoring import parse_mutation, score_protein_variants, structure_tokens  # noqa: E402
+from prosst_scoring import _effective_batch_size, parse_mutation, score_protein_variants, structure_tokens  # noqa: E402
 
 
 class _MockTokenizer:
@@ -148,3 +148,10 @@ def test_wt_mismatch_raises():
     model = _CoupledMockProSST()
     with pytest.raises(AssertionError, match='WT mismatch'):
         score_protein_variants(model, tok, 'ACDEF', [1, 2, 3, 4, 5], ['G1A'], mode='dual_independent')
+
+
+def test_effective_batch_size_quadratic_guard():
+    assert _effective_batch_size(60, batch_size=256, max_tokens=32768) == 256
+    assert _effective_batch_size(500, batch_size=256, max_tokens=32768) <= 48
+    assert _effective_batch_size(2000, batch_size=256, max_tokens=32768) <= 3
+    assert _effective_batch_size(4000, batch_size=256, max_tokens=32768) == 1

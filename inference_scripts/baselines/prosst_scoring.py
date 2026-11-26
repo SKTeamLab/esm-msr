@@ -70,9 +70,13 @@ def _resolve_device(model: torch.nn.Module, device: Optional[str | torch.device]
 
 
 def _effective_batch_size(seq_len: int, batch_size: int, max_tokens: int) -> int:
-    if max_tokens <= 0:
-        return max(1, int(batch_size))
-    return max(1, min(int(batch_size), max(1, int(max_tokens) // max(1, seq_len + 2))))
+    L = max(1, int(seq_len) + 2)
+    cap = max(1, int(batch_size))
+    if max_tokens > 0:
+        cap = min(cap, max(1, int(max_tokens) // L))
+    # Quadratic attention memory guard: ProSST disentangled attention allocates ~5 (B, H, L, L) score tensors
+    cap = min(cap, max(1, 12_000_000 // (L * L)))
+    return max(1, cap)
 
 
 @torch.no_grad()
@@ -149,7 +153,10 @@ def score_protein_variants(
         mask_id = vocab['<mask>']
 
     enc = tokenizer([seq], return_tensors='pt')
-    wt_ids = enc['input_ids'][0].cpu().numpy().astype(np.int64)
+    wt_ids_i64 = enc['input_ids'][0].cpu().numpy().astype(np.int64)
+    # Compact dtype for large multi-mutant libraries (ProSST vocab_size=25 fits in uint8 -> 8x lower RAM & faster hashing)
+    arr_dtype = np.uint8 if int(wt_ids_i64.max(initial=0)) < 255 and int(mask_id) < 255 else np.int64
+    wt_ids = wt_ids_i64.astype(arr_dtype)
     if wt_ids.shape[0] != len(seq) + 2:
         raise ValueError(f'Expected tokenized length {len(seq) + 2}, got {wt_ids.shape[0]}')
     ss_ids_1 = structure_tokens(sst_seq)
