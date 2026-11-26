@@ -2045,7 +2045,7 @@ ASA_HYDRO_LABELS = [
 ]
 
 
-def _compute_asa_k96_allpicks_bundle(split: str, B: int) -> dict | None:
+def _compute_asa_k96_allpicks_bundle(split: str, B: int, k: int = 96) -> dict | None:
     if split != 'capped' or not TSUBOYAMA_FEATS_CSV.exists():
         return None
     fr, _ = load_tsu_test_frame(split)
@@ -2063,17 +2063,138 @@ def _compute_asa_k96_allpicks_bundle(split: str, B: int) -> dict | None:
     cat = np.nan_to_num(np.asarray(2 * (dh > 0) + (asa > 0.5), float)).astype(int)
     dom = [d for d in (np.flatnonzero(pool & (group == lib)) for lib in libs) if len(d)]
     cnt = np.random.default_rng(5).multinomial(len(dom), np.full(len(dom), 1.0 / len(dom)), size=B).astype(float)
-    st = _model_cat_stats(fr, cols, y, cat, len(ASA_HYDRO_LABELS), dom, 96, positive_only=False)
+    st = _model_cat_stats(fr, cols, y, cat, len(ASA_HYDRO_LABELS), dom, k, positive_only=False)
     return dict(
         dcols=cols,
         stats_k=st,
         counts=cnt,
         cat_labels=list(ASA_HYDRO_LABELS),
-        k=96,
+        k=k,
         n_domains=len(dom),
         n_muts=int(pool.sum()),
         s_title=split_title(split),
     )
+
+
+def build_supp_property_gain_k24(
+    B: int = 1000,
+    split: str = 'capped',
+    prop_bundle: dict | None = None,
+) -> Path | None:
+    """Build standalone supplementary figure `_property_gain_k24.{png,pdf}` under `00_supplementary_figs/`.
+
+    Recomputes the top panel of main-text Figure 4 (Panel a: per-property rectified gain across
+    ASA x hydrophobicity quadrants + Picks (%) strip) at screening budget k = 24.
+    """
+    if prop_bundle is None:
+        prop_bundle = _compute_asa_k96_allpicks_bundle(split=split, B=B, k=24)
+    if prop_bundle is None:
+        print('[p09] Skipping _property_gain_k24: Tsuboyama feature CSV not available')
+        return None
+
+    out_supp = results_dir('supplementary_figs')
+    dcols = prop_bundle['dcols']
+    stats_k = prop_bundle['stats_k']
+    counts = prop_bundle['counts']
+    cat_labels = prop_bundle['cat_labels']
+    k = prop_bundle['k']
+    ncat = len(cat_labels)
+
+    mcols = _with_oracle_col(dcols, k)
+    cat_gap = 0.28
+    xpad_dist = (0.58, 0.58)
+    xs, spans = style.layout_grouped_columns(mcols, gap=cat_gap)
+    rng = np.random.default_rng(3)
+    colors = PALETTE_CAT[:ncat]
+    slot = 0.85
+    cw = slot / ncat
+    cats_hdr = {'oracle': 'Oracle', **style.GROUP_TITLE}
+
+    fig = plt.figure(figsize=(16.0, 6.1))
+    gs_a = fig.add_gridspec(
+        2, 1, height_ratios=[1.0, 0.115], hspace=0.025,
+        left=0.055, right=0.988, top=0.875, bottom=0.255,
+    )
+    ax_gain = fig.add_subplot(gs_a[0, 0])
+    ax_pref = fig.add_subplot(gs_a[1, 0])
+
+    omean, _, _ = _boot_mean_ci(stats_k[mcols[0]['name']][0], counts)
+    top_val = 0.0
+    fs_txt = 7.6
+    for mc, x_col in zip(mcols, xs):
+        m = mc['name']
+        V_m = stats_k[m][0]
+        mean, lo, hi = _boot_mean_ci(V_m, counts)
+        for c_idx in range(ncat):
+            x0 = x_col + (c_idx - (ncat - 1) / 2) * cw
+            style.raincloud(
+                ax_gain, x0, V_m[:, :, c_idx], colors[c_idx],
+                mean=float(mean[c_idx]), lo=float(lo[c_idx]), hi=float(hi[c_idx]),
+                width=cw * 0.96, rng=rng, transform=_symlog_tr, annotate=True, fs=fs_txt,
+            )
+            top_val = max(top_val, float(_symlog_tr(hi[c_idx])), float(_symlog_tr(V_m[:, :, c_idx]).max()))
+    _draw_cat_spans(ax_gain, xs, spans, headers=True, cats=cats_hdr, xpad=xpad_dist, gap=cat_gap, header_fs=11.8)
+
+    tk, tl = _symlog_ticks(10 ** (top_val - 1) if top_val > 1 else 1)
+    ax_gain.set_yticks(tk)
+    ax_gain.set_yticklabels(tl, fontsize=10.8)
+    ax_gain.set_ylim(-0.18, top_val + 0.16)
+    ax_gain.grid(axis='y', color=style.GRID, lw=0.6, zorder=0)
+    y_orc = [float(_symlog_tr(omean[c_idx])) for c_idx in range(ncat)]
+    for c_idx in range(ncat):
+        near_prev = any(abs(y_orc[c_idx] - y_orc[j]) < 0.025 for j in range(c_idx))
+        ls = (4.0, (4.0, 4.0)) if near_prev else (0.0, (4.0, 4.0))
+        ax_gain.axhline(y_orc[c_idx], color=colors[c_idx], ls=ls, lw=1.15, alpha=0.92, zorder=2)
+    ax_gain.set_ylabel(f'Rectified gain @ k={k} (kcal/mol)', fontsize=11.2)
+    ax_gain.set_xticks([])
+
+    _draw_cat_spans(ax_pref, xs, spans, headers=False, cats=cats_hdr, xpad=xpad_dist, gap=cat_gap)
+    ax_pref.set_ylim(0, 1)
+    ax_pref.set_yticks([0.5])
+    ax_pref.set_yticklabels(['Picks (%)'], fontsize=10.2, fontweight='semibold')
+    ax_pref.tick_params(axis='y', length=0, pad=6)
+    for sp_name in ('top', 'right', 'left', 'bottom'):
+        ax_pref.spines[sp_name].set_visible(False)
+    for mc, x_col in zip(mcols, xs):
+        m = mc['name']
+        p_mean, _, _ = _boot_mean_ci(stats_k[m][1], counts)
+        p_sum = float(p_mean.sum())
+        pcts = (100.0 * p_mean / p_sum) if p_sum > 0 else np.zeros(ncat)
+        x_cur = x_col - slot / 2.0
+        for c_idx in range(ncat):
+            w_seg = slot * (pcts[c_idx] / 100.0)
+            if w_seg <= 0:
+                continue
+            ax_pref.add_patch(plt.Rectangle((x_cur, 0.08), w_seg, 0.84, fc=colors[c_idx], alpha=0.55, ec='white', lw=1.0, zorder=3))
+            if pcts[c_idx] >= 5.0:
+                p_fs = 8.2 if pcts[c_idx] >= 14.0 else (7.0 if pcts[c_idx] >= 10.0 else 6.4)
+                ax_pref.text(
+                    x_cur + w_seg / 2.0, 0.50, f'{pcts[c_idx]:.0f}', ha='center', va='center',
+                    fontsize=p_fs, fontweight='bold', color='#1a1a1a', zorder=5,
+                )
+            x_cur += w_seg
+        ax_pref.add_patch(plt.Rectangle((x_col - slot / 2.0, 0.08), slot, 0.84, fc='none', ec='#555555', lw=0.8, zorder=4))
+    ax_pref.set_xticks(xs)
+    ax_pref.set_xticklabels([mc['label'] for mc in mcols], fontsize=10.2)
+
+    leg_a = fig.legend(
+        handles=[Patch(fc=colors[c_idx], alpha=0.8, label=cat_labels[c_idx]) for c_idx in range(ncat)],
+        loc='upper center', ncol=2, bbox_to_anchor=(0.52, 0.165),
+        fontsize=10.4, frameon=False, columnspacing=2.2,
+    )
+    fig.add_artist(leg_a)
+
+    note = (
+        f'Top {k} per {prop_bundle["s_title"]} test domain ({prop_bundle["n_domains"]} domains with the feature, {prop_bundle["n_muts"]:,} single mutants); '
+        f'gain = sum of max(ddG, 0) over every pick, whatever its predicted sign; boxes: interquartile range with darker colored median line; '
+        f'dots: domains; dark bars with vertical 95% CI whiskers (B = {B}) & annotations: mean over domains; dashed lines: oracle mean.'
+    )
+    kw_n = dict(fontsize=8.0, color='#444444')
+    fig.text(0.012, 0.015, style.wrap_to_px(fig, note, 0.975 * fig.bbox.width, **kw_n), ha='left', va='bottom', **kw_n)
+
+    out_path = out_supp / f'_property_gain_k{k}'
+    style.save(fig, out_path)
+    return out_path
 
 
 def build_figure4(
@@ -2427,9 +2548,9 @@ def add_args(ap) -> None:
     ap.add_argument('--budgets', nargs='+', type=int, default=[6, 24, 96], help='Fixed screening budgets K (default: 6 24 96).')
     ap.add_argument(
         '--only',
-        choices=('all', 'domainome_and_overview', 'figure4', 'supp_figure7'),
+        choices=('all', 'domainome_and_overview', 'figure4', 'supp_figure7', 'property_gain_k24'),
         default='all',
-        help='Optional substage selector (domainome_and_overview, figure4, or supp_figure7).',
+        help='Optional substage selector (domainome_and_overview, figure4, supp_figure7, or property_gain_k24).',
     )
 
 
@@ -2448,6 +2569,12 @@ def run(args=None) -> int:
 
     register_ext_styles()
     print(f'[p09:{STAGE}] Running split={split}, B={B}, only={only} ...')
+
+    if only == 'property_gain_k24':
+        out = build_supp_property_gain_k24(B=B, split=split)
+        if out is not None:
+            print(f'[p09:screening] Saved {out}.{{png,pdf}}')
+        return 0
 
     if only == 'supp_figure7':
         out = build_supp_figure7(B=B)
@@ -2470,6 +2597,7 @@ def run(args=None) -> int:
             for nm in ('screening_all_all_models', 'screening_enzymes_all_models')
         }
         build_figure4(tables_08=tables_08, act_tables=act_tables, specs=specs, B=B)
+        build_supp_property_gain_k24(B=B, split='capped')
         build_supp_figure7(D_all=tables_08['screening_per_protein_singles_all_models'], specs=specs, B=B)
         print('[p09:screening] Completed figure4.')
         return 0
@@ -2491,6 +2619,7 @@ def run(args=None) -> int:
             asa_k96_df=asa_k96_df, specs=specs, B=B,
         )
         build_figure4(tables_08=tables_08, act_tables=act_tables, specs=specs, B=B)
+        build_supp_property_gain_k24(B=B, split='capped')
         build_supp_figure7(D_all=tables_08['screening_per_protein_singles_all_models'], specs=specs, B=B)
         print('[p09:screening] Completed domainome_and_overview.')
         return 0
@@ -2509,6 +2638,7 @@ def run(args=None) -> int:
             asa_k96_df=asa_k96_df, specs=specs, B=B,
         )
         build_figure4(tables_08=tables_08, act_tables=act_tables, specs=specs, B=B)
+        build_supp_property_gain_k24(B=B, split='capped')
         build_supp_figure7(D_all=tables_08['screening_per_protein_singles_all_models'], specs=specs, B=B)
     print(f'[p09:{STAGE}] Completed split={split}.')
     return 0

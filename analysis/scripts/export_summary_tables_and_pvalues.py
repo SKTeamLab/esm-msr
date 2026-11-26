@@ -1056,6 +1056,72 @@ Key Assumptions & Limitations:
 # --------------------------------------------------------------------------------------
 # FIGURE 4: Rectified gain @ k=96 (a) and screening curves (b, c, d)
 # --------------------------------------------------------------------------------------
+def export_supp_property_gain_k24_pvalues() -> None:
+    print('[6b/10] Exporting Supplementary Figure _property_gain_k24 (ASA x hydrophobicity rectified gain @ k=24)...')
+    prop_bundle = p09._compute_asa_k96_allpicks_bundle(split='capped', B=1000, k=24)
+    assert prop_bundle is not None
+    stats_k = prop_bundle['stats_k']
+    cat_labels = prop_bundle['cat_labels']
+    n_dom = prop_bundle['n_domains']
+    n_muts = prop_bundle['n_muts']
+
+    d_cnt, s_w = make_domain_seed_draws(n_dom, B=B_FAST, seed=401, seed_counts=(3,))
+    model_names = [m for m in stats_k if not m.startswith('Top ') and m != 'oracle']
+    p_rows = []
+    for c_idx, c_lbl in list(enumerate(cat_labels)) + [(-1, 'Total rectified gain @ k=24 (sum over 4 quadrants)')]:
+        pts, rps = {}, {}
+        for m in model_names:
+            G_m = stats_k[m][0]
+            arr = (G_m.sum(axis=2) if c_idx == -1 else G_m[:, :, c_idx]).T
+            pt, rp = boot_domain_seeds(arr, B=B_FAST, counts=d_cnt, seed_weights=s_w if arr.shape[1] > 1 else None)
+            pts[m], rps[m] = pt, rp
+        comps = [dict(name=m, point=pts[m], reps=rps[m]) for m in model_names if m != 'ESM-MSR']
+        p_rows += build_comparison_rows(
+            benchmark='MegaScale_capped_test_singles_k24',
+            subset_or_metric=c_lbl,
+            resampling_unit='domain_cluster_x_seed',
+            msr_label='ESM-MSR WT-view',
+            msr_point=pts['ESM-MSR'],
+            msr_reps=rps['ESM-MSR'],
+            comparators=comps,
+            higher_is_better=True,
+            n_units=n_dom,
+            n_variants=n_muts,
+            bonferroni_family=f'SuppPropertyGainK24_quadrant_{c_idx}_8_comparators',
+        )
+
+    save_table_and_annotation(
+        pd.DataFrame(p_rows),
+        SUPP_PVAL / '_property_gain_k24_pvalues.csv',
+        f"""Statistical Annotation: _property_gain_k24_pvalues.csv
+============================================================
+Figure / Panel: Supplementary Figure _property_gain_k24 (Rectified gain @ k = 24 across the 4 ASA x hydrophobicity quadrants on Homology-Restricted MegaScale test single mutants; k = 24 companion to Main-Text Figure 4a).
+
+Metric Tested:
+  Mean per-domain rectified stability gain sum(max(ddG_true, 0)) among each model's top k = 24 single-mutant picks
+  per domain (33 domains with ASA/hydrophobicity annotations, {n_muts:,} single mutants), evaluated per quadrant
+  and summed across all 4 quadrants (Total rectified gain @ k = 24).
+
+Statistical Test & Resampling Procedure:
+  Paired nonparametric domain-cluster x training-seed bootstrap (B = {B_FAST:,}).
+  All 33 test domains are resampled identically across models via shared Multinomial(33, 1/33) weights,
+  jointly with Multinomial(3, 1/3) seed weights for 3-seed retrained models. Oracle is excluded from statistical
+  comparisons (upper bound, not a predictive model).
+
+Hypotheses & One-Sided P-Value Formula:
+  H0: E[gain_ESM-MSR - gain_X] <= 0  vs  H1: E[gain_ESM-MSR - gain_X] > 0.
+  Exact Monte Carlo one-sided p-value: p = (1 + #{{b: delta^(b) <= 0}}) / (B + 1).
+  Bonferroni correction multiplies p_one_sided_uncorrected by m = 8 clean comparator models within each quadrant
+  (and within total gain).
+
+Key Assumptions & Limitations:
+  - Test domains (N = 33) are treated as independent biological units.
+  - Because picks are fixed to k = 24 total per domain, quadrant-level gains depend on both pick allocation
+    across quadrants (shown in the Picks % strip) and ranking quality within each quadrant.
+""",
+    )
+
+
 def export_figure4() -> None:
     print('[6/10] Exporting Figure 4a (ASA x hydrophobicity rectified gain @ k=96)...')
     prop_bundle = p09._compute_asa_k96_allpicks_bundle(split='capped', B=1000)
@@ -1139,6 +1205,8 @@ Key Assumptions & Limitations:
     across quadrants (shown in the Picks % strip) and ranking quality within each quadrant.
 """,
     )
+
+    export_supp_property_gain_k24_pvalues()
 
     # --- Figure 4b, 4c, 4d: Screening curves (MegaScale, Domainome, ProteinGym Activity) ---
     print('[7/10] Exporting Figure 4b/c/d (MegaScale, Domainome, ProteinGym Activity screening curves)...')
