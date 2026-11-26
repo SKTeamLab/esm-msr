@@ -8,7 +8,7 @@ in the extra models we have predictions for (ESM-MSR sigma=0.5, DDGemb, DDMut, E
 IFUM WT/ESMFold, ESM3-small/medium/large, SPURS published/unfrozen, ThermoMPNN published,
 ProSST published) using the exact same resampling units, B, and Phipson-Smyth formula.
 
-Output: analysis/results/si_latex_tables/_extra_models_pvalues.csv
+Output: analysis/results/00_supplementary_figs/tables/_extra_models_pvalues.csv
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from scipy.stats import pearsonr, spearmanr
 ROOT = Path('/home/sareeves/playground/esm-msr-devel')
 WT_DDDG = ROOT / 'wt-dddg-scatters'
 WT_SI = Path(__file__).resolve().parents[2]
-OUT_CSV = WT_SI / 'analysis/results/si_latex_tables/_extra_models_pvalues.csv'
+OUT_CSV = WT_SI / 'analysis/results/00_supplementary_figs/tables/_extra_models_pvalues.csv'
 OUT_CSV.parent.mkdir(parents=True, exist_ok=True)
 
 for _p in (str(WT_DDDG / 'src'), str(WT_DDDG / 'analysis')):

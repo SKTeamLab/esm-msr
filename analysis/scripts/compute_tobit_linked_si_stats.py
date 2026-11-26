@@ -7,7 +7,7 @@ and unlinked latent RMSEs across ALL cDNA-proteolysis benchmarks where dG_wt is 
   - MegaScale full split (mega_splits): S2c (Overall/Stab/Destab & Doubles Epi/Add).
   - Held-out MGnify & Rocklin (S5a): unlinked latent RMSEs (primary ESM-MSR is already Tobit-linked).
 
-Saves to analysis/results/si_latex_tables/_tobit_linked_si_overrides.csv.
+Saves to analysis/results/00_supplementary_figs/tables/_tobit_linked_si_overrides.csv.
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from scipy.stats import pearsonr, spearmanr
 ROOT = Path('/home/sareeves/playground/esm-msr-devel')
 WT_DDDG = ROOT / 'wt-dddg-scatters'
 WT_SI = Path(__file__).resolve().parents[2]
-OUT_CSV = WT_SI / 'analysis/results/si_latex_tables/_tobit_linked_si_overrides.csv'
+OUT_CSV = WT_SI / 'analysis/results/00_supplementary_figs/tables/_tobit_linked_si_overrides.csv'
 
 for _p in (str(WT_DDDG / 'src'), str(WT_DDDG / 'analysis')):
     if _p not in sys.path:

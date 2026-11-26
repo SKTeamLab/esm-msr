@@ -38,7 +38,7 @@ SUPP_PVAL = WT_DDDG / 'analysis/results/00_supplementary_figs/pvalues'
 REF_DIR = WT_DDDG / 'analysis/reference'
 ABL_DIR = WT_TOBIT / 'analysis/results/09_ablation'
 
-OUT_DIR = WT_SI / 'analysis/results/si_latex_tables'
+OUT_DIR = WT_SI / 'analysis/results/00_supplementary_figs/tables'
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 EXTRA_CSV = OUT_DIR / '_extra_models_pvalues.csv'
 TOBIT_CSV = OUT_DIR / '_tobit_linked_si_overrides.csv'
