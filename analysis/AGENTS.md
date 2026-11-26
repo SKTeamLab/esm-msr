@@ -17,10 +17,10 @@ Every agent or contributor editing evaluation scripts, scoring tables, statistic
   - `SPURS`: **SPURS-multi** (`spursm`)
 - Never mix a singles-only model onto a multi-mutant benchmark (except in explicitly labelled additive/epistasis baselines) or a Dual-view/Stage-2 model onto a single-mutant-only benchmark (such as Domainome or single-mutant external $\Delta\Delta G$ sets).
 
-## 2. ESM3 Zero-Shot Convention (`σ = 0`, `per_res_plddt = 1.0`)
-- `ESM3-small-open` zero-shot is evaluated as **ESM-MSR at $\sigma = 0$** (`lora_alpha = 0`) with **`per_res_plddt = 1.0` wherever structure coordinates are finite** (`0.0` at BOS/EOS/missing coordinates), matching official `ESM3.logits()` conditioning (`src/esm_msr/models.py:_get_esm3_outputs`).
-- Never leave `per_res_plddt=None` in `ESM3.forward()`, which silently defaults `per_res_plddt` to all zeros and degrades zero-shot ESM3 accuracy.
-- When matching ProteinGym's published `ESM3` column, use single-site masked marginal summed additively over mutated positions (`--mask_strategy independent --skip_reverse --sigma 0`), which reproduces public ProteinGym `ESM3` to $r > 0.9999$.
+## 2. ESM3 Zero-Shot Convention (`σ = 0`, `per_res_plddt = 1.0`, opt-in `--default_plddt_one`)
+- `ESM3-small-open` zero-shot is evaluated as **ESM-MSR at $\sigma = 0$** (`lora_alpha = 0`) with **`--default_plddt_one`** (`per_res_plddt = 1.0` wherever structure coordinates are finite, `0.0` at BOS/EOS/missing coordinates), matching official `ESM3.logits()` conditioning (`src/esm_msr/models.py:_get_esm3_outputs`).
+- `default_plddt_one` defaults to **`False`** everywhere (`per_res_plddt=None`, ESM3's zero-filled default) so manuscript `FINAL_p0` checkpoints and future non-pLDDT runs stay 100% bit-exact with `FINAL_p0` training. Pass `--default_plddt_one` explicitly for zero-shot ESM3 (`σ = 0`) or `plddt=1.0` training/inference (saved to `hparams.yaml` and auto-restored on load).
+- When matching ProteinGym's published `ESM3` column, use single-site masked marginal summed additively over mutated positions (`--mask_strategy independent --skip_reverse --sigma 0 --default_plddt_one`), which reproduces public ProteinGym `ESM3` to $r > 0.9999$.
 
 ## 3. Rosetta Raw-Output Energy Scaling (`1 / 2.94`)
 - **Rosetta Cartesian $\Delta\Delta G$ predictions must always be scaled by `1 / 2.94`** (REU $\to$ kcal/mol) whenever scored from raw Rosetta outputs (critical for RMSE/MAE, calibration, and any scale-sensitive metric; verify sign convention too so stabilizing/destabilizing direction matches the target).
