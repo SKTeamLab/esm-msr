@@ -233,9 +233,9 @@ def _draw_pg_left(ax, pg: dict, ylim=(0.04, 1.0)) -> None:
     style_ov = {k: {'label': v} for k, v in pg['label_overrides'].items()}
     style.dot_panel(
         ax, groups, MODEL_ORDER, pg['table'], pg['cis'],
-        highlight=['ESM-MSR', 'ESM-MSR σ=0.5'], hollow=pg['hollow'],
+        highlight=['ESM-MSR', 'ESM-MSR σ=0.5'], highlight_scale=1.05, hollow=pg['hollow'],
         ylabel=r'Spearman $\rho$' if pg['pooled'] else r'Spearman $\rho$ (mean over assays / domains / WTs)',
-        xlabels=pg['labels'], rot=0, size=6.2, spread=0.84, ylim=ylim, style_overrides=style_ov,
+        xlabels=pg['labels'], rot=0, size=5.4, spread=0.84, ylim=ylim, style_overrides=style_ov,
     )
     if len(groups) > len(pg['cols']):
         ax.axvline(len(pg['cols']) - 0.5, color='#999999', lw=0.95, ls='--', zorder=2)
@@ -304,10 +304,10 @@ def _draw_thermo(ax, th: dict, ylim=None) -> list:
     label_ov = {'Rosetta': 'Rosetta (singles)'}
     style.dot_panel(
         ax, sets, models, table, cis,
-        highlight=['ESM-MSR'], hollow=hollow,
+        highlight=['ESM-MSR'], highlight_scale=1.05, hollow=hollow,
         ylabel=r'Spearman $\rho$ (pooled)',
         xlabels=[LABEL.get(d, d) for d in sets],
-        rot=0, ylim=ylim or (th['ymin'], 0.98), spread=spread, size=6.0,
+        rot=0, ylim=ylim or (th['ymin'], 0.98), spread=spread, size=5.2,
     )
     offs = np.linspace(-spread / 2, spread / 2, len(models))
     ov_labels = _overlap_short_labels()
@@ -335,6 +335,170 @@ def _draw_thermo(ax, th: dict, ylim=None) -> list:
     flagged = [m for m in models if S[S['model'] == m]['leak_flag'].any()]
     hs.append(Line2D([0], [0], marker='o', ms=8.5, mfc='none', mec=style.RING, mew=1.1, ls='none', label=f'training overlap ({", ".join(flagged)})'))
     return hs + style.version_handles()
+
+
+def _draw_pareto_panel(ax) -> dict:
+    """Draw Panel d: Biophys-2 vs Functional-3 ProteinGym Pareto frontier (176 unseen assays)."""
+    pareto_dir = results_dir('99_misc/pgym_pareto', create=False)
+    tab = pd.read_csv(pareto_dir / 'pgym_176_all105_summary.csv', index_col='model')
+    cis_df = pd.read_csv(pareto_dir / 'pgym_176_bootstrap_cis.csv')
+    ci_map = {(r.model, r.metric): (float(r.lo), float(r.hi)) for r in cis_df.itertuples()}
+
+    xcol, ycol = 'Biophys2_macro', 'Func3_macro'
+
+    # 1. Public zero-shot models (3 modality groups -> only these appear in the legend)
+    pub_mod_style = {
+        'Sequence-only': dict(color='#b8c0c8', marker='o', s=28, alpha=0.58, zorder=2, label='Public: Sequence-only (46)'),
+        'Structure + Sequence (no MSA)': dict(color='#4d90bd', marker='s', s=34, alpha=0.75, zorder=3, label='Public: Structure + Seq., no MSA (26)'),
+        'MSA / Retrieval': dict(color='#e08c3a', marker='^', s=36, alpha=0.75, zorder=3, label='Public: MSA / Retrieval (23)'),
+    }
+    legend_handles = []
+    for mod, kw in pub_mod_style.items():
+        sub = tab[tab['modality'] == mod]
+        if len(sub):
+            ax.scatter(sub[xcol], sub[ycol], edgecolors='none', **kw)
+            legend_handles.append(
+                Line2D([0], [0], marker=kw['marker'], color='none', markerfacecolor=kw['color'],
+                       markeredgecolor='none', markersize=6.2, alpha=min(1.0, kw['alpha'] + 0.15), label=kw['label'])
+            )
+
+    # 2. Compute exact 2D Pareto frontier across all 105 models (identical whether or not leaked baselines included)
+    A = tab[[xcol, ycol]].to_numpy(float)
+    names = tab.index.tolist()
+    nd = [
+        names[i]
+        for i in range(len(names))
+        if not any(np.all(A[j] >= A[i]) and np.any(A[j] > A[i]) for j in range(len(names)) if j != i)
+    ]
+    pf = tab.loc[nd].sort_values(xcol, ascending=False)
+    px = pf[xcol].to_numpy(float)
+    py = pf[ycol].to_numpy(float)
+    sx, sy = [px[0]], [py[0]]
+    for k in range(len(px) - 1):
+        sx.extend([px[k + 1], px[k + 1]])
+        sy.extend([py[k], py[k + 1]])
+    ax.plot(sx, sy, color='#222222', lw=1.6, ls='-', alpha=0.80, zorder=5)
+    legend_handles.append(
+        Line2D([0], [0], color='#222222', lw=1.6, ls='-', label=f'Global Pareto frontier ({len(pf)} of {len(tab)})')
+    )
+
+    # Highlight notable public models (VenusREM on Pareto frontier, ProSST-2048 top no-MSA, VespaG top seq-only)
+    for nm, ec, s_sz in (
+        ('VenusREM', '#111111', 64),
+        ('ProSST-2048', '#1b4f72', 52),
+        ('VespaG', '#333333', 50),
+    ):
+        if nm in tab.index:
+            m_st = pub_mod_style[tab.loc[nm, 'modality']]
+            ax.scatter(
+                tab.loc[nm, xcol], tab.loc[nm, ycol],
+                s=s_sz, marker=m_st['marker'], facecolor=m_st['color'],
+                edgecolor=ec, linewidth=1.1, zorder=7,
+            )
+
+    # 3. All stability baselines with full ProteinGym data (canonical manuscript colors/markers; labeled directly, omitted from legend)
+    stab_models = [
+        ('SPURS', 'SPURS', False),
+        ('MutateEverything', 'MutateEverything', False),
+        ('ThermoMPNN', 'ThermoMPNN', False),
+        ('GeoDDG-3D', 'GeoDDG-3D', False),
+        ('Rosetta', 'Rosetta', False),
+        ('ESM3ΔG', 'ESM3ΔG', True),
+        ('ESMtherm', 'ESMtherm', True),
+    ]
+    for tab_key, roster_name, has_overlap in stab_models:
+        if tab_key not in tab.index:
+            continue
+        xv, yv = float(tab.loc[tab_key, xcol]), float(tab.loc[tab_key, ycol])
+        m_obj = M.BY_NAME[roster_name]
+        s_sz = 115 if m_obj.marker == '*' else 56
+        ax.scatter(
+            xv, yv, s=s_sz, marker=m_obj.marker, facecolor=m_obj.color,
+            edgecolor='#ffffff', linewidth=0.55, zorder=8,
+        )
+        if has_overlap:
+            ax.plot(xv, yv, marker='o', ms=12.0, mfc='none', mec=style.RING, mew=1.15, ls='none', zorder=9)
+
+    legend_handles.append(
+        Line2D([0], [0], marker='o', ms=8.5, mfc='none', mec=style.RING, mew=1.15, ls='none',
+               label='Training overlap (ESM3ΔG, ESMtherm*)')
+    )
+
+    # 4. ESM-MSR trajectory in canonical manuscript greyscale (σ = 0 -> 0.5 -> 1.0)
+    traj_keys = ('ESM-MSR (σ=0.0)', 'ESM-MSR (σ=0.5)', 'ESM-MSR (σ=1.0)')
+    xs = [float(tab.loc[k, xcol]) for k in traj_keys]
+    ys = [float(tab.loc[k, ycol]) for k in traj_keys]
+    ax.plot(xs, ys, color='#555555', lw=1.7, ls=':', alpha=0.90, zorder=6)
+
+    msr_map = [
+        ('ESM-MSR (σ=0.0)', 'ESM3-small-open', 54),
+        ('ESM-MSR (σ=0.5)', 'ESM-MSR σ=0.5', 56),
+        ('ESM-MSR (σ=1.0)', 'ESM-MSR', 60),
+    ]
+    for tab_key, roster_name, s_sz in msr_map:
+        xv, yv = float(tab.loc[tab_key, xcol]), float(tab.loc[tab_key, ycol])
+        m_obj = M.BY_NAME[roster_name]
+        if (tab_key, xcol) in ci_map and (tab_key, ycol) in ci_map:
+            xlo, xhi = ci_map[(tab_key, xcol)]
+            ylo, yhi = ci_map[(tab_key, ycol)]
+            ax.errorbar(
+                xv, yv,
+                xerr=[[xv - xlo], [xhi - xv]],
+                yerr=[[yv - ylo], [yhi - yv]],
+                fmt='none', ecolor=m_obj.color, elinewidth=1.25, alpha=0.45, capsize=0, zorder=6,
+            )
+        ax.scatter(
+            xv, yv, s=s_sz, marker=m_obj.marker, facecolor=m_obj.color,
+            edgecolor='#ffffff', linewidth=0.75, zorder=10,
+        )
+
+    # 5. Explicit non-overlapping labels for ALL stability baselines, ESM-MSR greyscale trajectory, and top public methods
+    label_specs = {
+        # ESM-MSR greyscale trajectory
+        'ESM-MSR (σ=1.0)': ('ESM-MSR σ = 1.0', (12, -16), 'bold', '#000000', True),
+        'ESM-MSR (σ=0.5)': ('ESM-MSR σ = 0.5', (12, 10), 'bold', '#333333', True),
+        'ESM-MSR (σ=0.0)': ('ESM3-small-open\n(σ = 0)', (5, -7), 'bold', '#555555', False),
+        # Top public methods by modality
+        'VenusREM': ('VenusREM (MSA)', (10, 11), 'bold', '#8a4b00', True),
+        'S3F_MSA': ('S3F_MSA', (-10, 8), 'normal', '#8a4b00', False),
+        'ProSST-2048': ('ProSST-2048 (top no-MSA)', (14, 5), 'normal', '#1b4f72', True),
+        'VespaG': ('VespaG\n(top seq-only)', (-22, 18), 'bold', '#444444', True),
+        # All 7 stability baselines (explicitly labeled, omitted from legend)
+        'SPURS': ('SPURS', (20, 11), 'semibold', M.BY_NAME['SPURS'].color, True),
+        'MutateEverything': ('MutateEverything', (18, -7), 'semibold', M.BY_NAME['MutateEverything'].color, True),
+        'ThermoMPNN': ('ThermoMPNN', (15, -18), 'semibold', M.BY_NAME['ThermoMPNN'].color, True),
+        'GeoDDG-3D': ('GeoDDG-3D', (15, -4), 'semibold', M.BY_NAME['GeoDDG-3D'].color, True),
+        'Rosetta': ('Rosetta', (-14, -22), 'semibold', M.BY_NAME['Rosetta'].color, True),
+        'ESM3ΔG': ('ESM3ΔG', (13, -3), 'semibold', M.BY_NAME['ESM3ΔG'].color, True),
+        'ESMtherm': ('ESMtherm*', (13, 0), 'semibold', M.BY_NAME['ESMtherm'].color, True),
+    }
+    for nm, (txt, (dx, dy), fw, col_t, use_arrow) in label_specs.items():
+        if nm not in tab.index:
+            continue
+        xv, yv = float(tab.loc[nm, xcol]), float(tab.loc[nm, ycol])
+        ha = 'left' if dx >= 0 else 'right'
+        va = 'bottom' if dy > 2 else ('top' if dy < -2 else 'center')
+        ax.annotate(
+            txt, (xv, yv), xytext=(dx, dy), textcoords='offset points',
+            fontsize=7.8, fontweight=fw, color=col_t, ha=ha, va=va,
+            arrowprops=dict(arrowstyle='-', color='#888888', lw=0.65, shrinkA=1, shrinkB=4) if use_arrow else None,
+            bbox=dict(fc='white', ec='none', alpha=0.80, pad=0.45),
+            zorder=11,
+        )
+
+    ax.set_xlabel('Biophysical properties: mean Spearman ρ\n(Stability [n = 37] & Expression [n = 18])', fontsize=9.8)
+    ax.set_ylabel('Functional properties: mean Spearman ρ\n(Activity [38], Binding [13], Org. fitness [70])', fontsize=9.8)
+    ax.set_xlim(0.24, 0.775)
+    ax.set_ylim(0.055, 0.515)
+    ax.grid(color=style.GRID, lw=0.6, zorder=0)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.legend(
+        handles=legend_handles, loc='lower right', fontsize=7.6,
+        frameon=True, facecolor='white', edgecolor='#cccccc',
+        borderpad=0.45, labelspacing=0.35, handletextpad=0.45,
+    )
+    return dict(n_models=len(tab), pareto_models=list(pf.index))
 
 
 def run_summary_and_figure3(B: int) -> pd.DataFrame:
@@ -383,27 +547,40 @@ def run_summary_and_figure3(B: int) -> pd.DataFrame:
     D_th = th['S'].assign(order=th['S']['dataset'].map(order_map), msr_p0_seed_mean=th['S']['dataset'].map(th['val'])).sort_values(['order', 'model'])
     atomic_to_csv(D_th, out_sum / 'thermostability_sets.csv', index=False, float_format='%.4f')
 
-    # Main-text Figure 3 (a, b, c composite)
+    # Main-text Figure 3 (2x2 composite: a, b on top; c, d on bottom; no in-figure footnote)
     assert pg_main is not None
-    fig3 = plt.figure(figsize=(15.6, 11.6))
-    gs3 = fig3.add_gridspec(2, 2, height_ratios=[0.45, 0.55], width_ratios=[0.43, 0.57], hspace=0.42, wspace=0.15)
-    axa, axb, axc = fig3.add_subplot(gs3[0, :]), fig3.add_subplot(gs3[1, 0]), fig3.add_subplot(gs3[1, 1])
-    hs3 = _draw_thermo(axa, th, ylim=(th['ymin'], 1.2))
+    fig3 = plt.figure(figsize=(18.0, 12.2), facecolor='white')
+    gs_top = fig3.add_gridspec(1, 2, width_ratios=[0.57, 0.43], wspace=0.14, left=0.048, right=0.990, top=0.962, bottom=0.548)
+    gs_bot = fig3.add_gridspec(1, 2, width_ratios=[0.52, 0.48], wspace=0.17, left=0.048, right=0.990, top=0.452, bottom=0.072)
+    axa = fig3.add_subplot(gs_top[0, 0])
+    axb = fig3.add_subplot(gs_top[0, 1])
+    axc = fig3.add_subplot(gs_bot[0, 0])
+    axd = fig3.add_subplot(gs_bot[0, 1])
+
+    hs3 = _draw_thermo(axa, th, ylim=(th['ymin'], 1.24))
     axa.set_yticks([t for t in np.arange(np.ceil(th['ymin'] * 5) / 5, 1.0001, 0.2)])
-    axa.legend(handles=hs3, loc='upper center', bbox_to_anchor=(0.5, 0.995), ncol=5, fontsize=8.0, frameon=True, facecolor='white', edgecolor='#cccccc', columnspacing=1.1, handletextpad=0.3)
+    axa.legend(
+        handles=hs3, loc='upper center', bbox_to_anchor=(0.5, 0.995), ncol=4, fontsize=7.4,
+        frameon=True, facecolor='white', edgecolor='#cccccc', columnspacing=0.9, handletextpad=0.3, borderpad=0.35, labelspacing=0.3,
+    )
     _draw_pg_left(axb, pg_main)
     draw_property_sigma_panel(axc, pg_main['t_all'], pg_main['Rp'], mark_leaks=True, stats_without_leaks=True, compact=True)
-    note3 = 'a. ' + THERMO_NOTE + '\nb, c. ' + pg_main['note']
-    kwt3 = dict(fontsize=7.4, color='#444444')
-    tt3 = fig3.text(0.012, 0.006, style.wrap_to_px(fig3, note3, 0.975 * fig3.bbox.width, **kwt3), va='bottom', ha='left', **kwt3)
-    foot3 = tt3.get_window_extent(fig3.canvas.get_renderer()).height / fig3.bbox.height
-    fig3.subplots_adjust(left=0.05, right=0.995, top=0.965, bottom=foot3 + 0.075)
+    _draw_pareto_panel(axd)
+
     fig3.canvas.draw()
-    pa, pb, pc = (a_x.get_position() for a_x in (axa, axb, axc))
-    fig3.text(pa.x0 - 0.04, 0.99, 'a', ha='left', va='top', fontsize=14, fontweight='bold')
-    ytop = pb.y1 + 0.062
-    fig3.text(pb.x0 - 0.047, ytop, 'b', ha='left', va='top', fontsize=14, fontweight='bold')
-    fig3.text(pc.x0 - 0.052, ytop, 'c', ha='left', va='top', fontsize=14, fontweight='bold')
+    pa, pb, pc, pd_pos = (a_x.get_position() for a_x in (axa, axb, axc, axd))
+    fig3.text(pa.x0 - 0.038, 0.988, 'a', ha='left', va='top', fontsize=15, fontweight='bold')
+    fig3.text(pb.x0 - 0.040, 0.988, 'b', ha='left', va='top', fontsize=15, fontweight='bold')
+    fig3.text(pc.x0 - 0.038, pc.y1 + 0.058, 'c', ha='left', va='top', fontsize=15, fontweight='bold')
+    fig3.text(pd_pos.x0 - 0.046, pc.y1 + 0.058, 'd', ha='left', va='top', fontsize=15, fontweight='bold')
+
+    # Faint diagonal draft watermark reminding that σ=0 (and plddt=1 retrain) must be updated before publication
+    fig3.text(
+        0.50, 0.50, 'OLD DATA',
+        fontsize=128, fontweight='bold', color='#555555', alpha=0.11,
+        rotation=24, ha='center', va='center', zorder=20,
+    )
+
     style.save(fig3, out_main / 'figure3')
     return D_th
 

@@ -1,0 +1,4 @@
+Figure 2, Panel b — Assay unfolded-state floor induces apparent negative epistasis
+==================================================================================
+
+Density scatter of measured pairwise epistasis (dddG, kcal/mol) versus the label additive stability expectation (dG_add = dG_wt + ddG_A + ddG_B, kcal/mol) for Homology-Restricted MegaScale test doubles with both constituent singles measured (n = 12,455 doubles across 13 test domains). The unfolded-state floor (y = -x, dG_AB = 0; dashed red) and MegaScale reporting cutoff (y = -x - 1, dG_AB = -1; dotted red) induce a strong negative correlation (Spearman rho = -0.64).

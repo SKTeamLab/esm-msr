@@ -4,7 +4,7 @@ Every benchmarked model has one canonical name, group, order, colour, marker, li
 mapping across all figures and tables:
 
     zero-shot            ProSST, ProteinMPNN, ESM3-small-open
-    transfer             ESM-MSR (sigma = 1, then sigma = 0.5), MutateEverything, ThermoMPNN, SPURS
+    transfer             ESM-MSR (sigma = 0.5, then sigma = 1), MutateEverything, ThermoMPNN, SPURS
     supervised           GeoDDG-3D, Rosetta, ESM3ΔG
     megascale            ESMtherm, IFUM, DDGemb, DDMut
 
@@ -103,12 +103,12 @@ ROSTER = [
           views=('WT-view', 'Dual-view'), legend='ESM3-small-open (σ = 0)',
           label_all='ESM3-small-open\nWT-view (& Dual-view)', label_pair='ESM3-small-open\nWT-view → Dual-view', label_epi='ESM3-small-open\ncomb_AB −\nWT_A − WT_B'),
     # ---- transfer models, retrained on Homology-Restricted MegaScale ----------------------------------------------------------------------------------------
-    Model('ESM-MSR', 'transfer', '#000000', 'D', lw=2.6, single='msrp0:wt', multi='msrp0:comb', epi='msrp0:epi', add='msrp0:wt+',
-          views=('WT-view', 'Dual-view'),
-          label_all='ESM-MSR\nWT-view (& Dual-view)', label_pair='ESM-MSR\nWT-view → Dual-view', label_epi='ESM-MSR\ncomb_AB −\nWT_A − WT_B'),
     Model('ESM-MSR σ=0.5', 'transfer', '#4d4d4d', 'D', lw=2.2, single='msrp0@0.5:wt', multi='msrp0@0.5:comb', epi='msrp0@0.5:epi', add='msrp0@0.5:wt+',
           views=('WT-view', 'Dual-view'), legend='ESM-MSR σ = 0.5', sigma=True,
           label_all='ESM-MSR σ = 0.5\nWT-view (& Dual-view)', label_pair='ESM-MSR σ = 0.5\nWT-view → Dual-view', label_epi='ESM-MSR σ = 0.5\ncomb_AB −\nWT_A − WT_B'),
+    Model('ESM-MSR', 'transfer', '#000000', 'D', lw=2.6, single='msrp0:wt', multi='msrp0:comb', epi='msrp0:epi', add='msrp0:wt+',
+          views=('WT-view', 'Dual-view'),
+          label_all='ESM-MSR\nWT-view (& Dual-view)', label_pair='ESM-MSR\nWT-view → Dual-view', label_epi='ESM-MSR\ncomb_AB −\nWT_A − WT_B'),
     Model('MutateEverything', 'transfer', '#1b8a4b', 'h', single='me1', multi='me2', epi='me2:epi', views=('Stage 1', 'Stage 2'),
           label_all='MutateEverything\n(Stage 1 & Stage 2)', label_pair='MutateEverything\nStage 1 → Stage 2', label_epi='MutateEverything\nStage 2 − Stage 1'),
     Model('ThermoMPNN', 'transfer', '#1f5f8b', 'p', single='tmpnn', multi='tmpnnd', epi='tmpnnd:epi', views=('', '-D'),
