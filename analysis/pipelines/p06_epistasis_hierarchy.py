@@ -279,7 +279,7 @@ def run_core_epistasis(B: int, split: str = 'capped') -> None:
     epi_keys = ['msrp0:epi', 'me2:epi', 'tmpnnd:epi', 'spursm:epi']
     style_ov = {}
     if mega:
-        epi_keys += ['spursum:epi', 'spurspubm:epi', 'tmpnndpub:epi']
+        epi_keys += ['spursum:epi', 'tmpnndpub:epi']
         style_ov['spursm:epi'] = {'label': 'SPURS multi, frozen adapter (vs singles)'}
 
     # 1a. Naive rho and RMSE recomputed — MegaScale only in 01_megascale/epistasis/, 3-DMS in 99_misc/dms3/
@@ -394,18 +394,18 @@ def run_core_epistasis(B: int, split: str = 'capped') -> None:
     # 1c. Table 2.3: ddG ranking
     ms = ['msrp0:wt', 'msrp0:comb', 'me1', 'me2', 'tmpnn', 'tmpnnd', 'spurs', 'spursm']
     if mega:
-        ms += [k for k in ('spursu', 'spursum', 'spurspub', 'spurspubm', 'tmpnnpub', 'tmpnndpub') if k in fr_test.preds]
+        ms += [k for k in ('spursu', 'spursum', 'tmpnnpub', 'tmpnndpub') if k in fr_test.preds]
     rk_rows = []
     for ds, sp_lbl in zip(tsu_pair, ('val', 'test')):
         fr = load_frame(ds)
         sp_d = fr.spine
         dbl = (sp_d['n_mut'] == 2).to_numpy() & sp_d['use'].to_numpy()
         e_m = dbl & np.isfinite(sp_d['dddG_ML'].to_numpy())
-        epi_src = ['msrp0:epi', 'me2:epi', 'tmpnnd:epi', 'spursm:epi'] + (['spursum:epi', 'spurspubm:epi', 'tmpnndpub:epi'] if mega else [])
+        epi_src = ['msrp0:epi', 'me2:epi', 'tmpnnd:epi', 'spursm:epi'] + (['spursum:epi', 'tmpnndpub:epi'] if mega else [])
         epi_src = [k for k in epi_src if k in fr.preds]
         ren = {
             'msrp0:epi': 'msrp0:comb', 'me2:epi': 'me2', 'tmpnnd:epi': 'tmpnnd', 'spursm:epi': 'spursm',
-            'spursum:epi': 'spursum', 'spurspubm:epi': 'spurspubm', 'tmpnndpub:epi': 'tmpnndpub',
+            'spursum:epi': 'spursum', 'tmpnndpub:epi': 'tmpnndpub',
         }
         sets_rk = {
             'all variants': (fr, ms),
@@ -691,8 +691,7 @@ def run_publication_epistasis_bars(B: int, split: str = 'capped') -> tuple[pd.Da
         if m_key == 'spearman':
             p_spearman_ser = df_11l.set_index('model')['p_one']
 
-    # 11h: Main-text stacked figure (fig2 + fig3 with p-value brackets -> results/00_main_text_figs/fig2_fig3_stacked)
-    out_main = out_dir('main_text_figs')
+    # Main-text Figure 1 (vertical architecture schematic 'a' + stacked b/c panels)
     f2_csv = results_dir('megascale', split=split, create=False) / 'spearman_stab_destab.csv'
     cols2 = main_columns(fr, best, 'unmasked')
     if f2_csv.exists():
@@ -702,32 +701,6 @@ def run_publication_epistasis_bars(B: int, split: str = 'capped') -> tuple[pd.Da
         T2_tmp = table_grouped(fr, cols2, {'stabilizing': (use & (y > 0), 'all'), 'destabilizing': (use & (y < 0), 'all')}, rho_fn, MIN_N, counts, libs)
         ov2_tmp = table_grouped(fr, cols2, {'overall': (use, 'all')}, rho_fn, 3, counts, libs)
         t2 = pd.concat([T2_tmp, ov2_tmp], ignore_index=True)
-    T2_st, ov2_st = t2[t2['subset'] != 'overall'], t2[t2['subset'] == 'overall']
-    fig_st, (ax_top, ax_bot) = plt.subplots(2, 1, figsize=(12.5, 12.5))
-    style.bar_panel(
-        ax_top, cols2, T2_st, ('stabilizing', 'destabilizing'),
-        (count_text(T2_st, 'stabilizing', 'stabilizing, ddG > 0'), count_text(T2_st, 'destabilizing', 'destabilizing, ddG < 0')),
-        "Spearman's ρ (mean over test domains)", (-0.2, 1.12),
-        overall_df=ov2_st, overall_label=f'overall (n = {int(ov2_st.n_variants.max()):,})', zero_line=True, tick_fs=8.5,
-    )
-    style.bar_panel(
-        ax_bot, cols3, T3, ('additive', 'epistatic'),
-        (count_text(T3, 'additive', 'additive: singles model summed'), count_text(T3, 'epistatic', 'epistatic: model scores the double')),
-        "Spearman's ρ, double mutants", (0.0, 1.12), tick_fs=8.5,
-    )
-    if p_spearman_ser is not None:
-        top_y = _draw_pair_brackets(ax_bot, cols3, T3, p_spearman_ser, p_name_map=name_map, B_p=b_11l)
-        if top_y > 1.12:
-            ax_bot.set_ylim(0.0, top_y)
-    for ax_s, ltr in ((ax_top, 'b'), (ax_bot, 'c')):
-        ax_s.text(-0.045, 1.0, ltr, transform=ax_s.transAxes, fontsize=13, fontweight='bold', va='top', ha='right')
-        for txt in ax_s.texts:
-            if txt.get_fontsize() < 8:
-                txt.set_fontsize(8)
-    fig_st.tight_layout(pad=0.5, h_pad=1.2)
-    style.save(fig_st, out_main / 'fig2_fig3_stacked')
-
-    # Main-text Figure 1 (vertical architecture schematic 'a' + stacked b/c panels)
     try:
         from analysis.main_figures.figure1 import build_figure1
         build_figure1(split=split, t2=t2, t3=T3, p_spearman_ser=p_spearman_ser, B_p=b_11l)
@@ -1572,7 +1545,6 @@ def run_hierarchy_and_composite(B: int, split: str = 'capped', procs: int = 6, T
         if mega:
             plain = plain[:3] + [
                 ('SPURS multi (trained adapter)', 'spursum', 'spursu'),
-                ('SPURS multi (published)', 'spurspubm', 'spurspub'),
                 ('ThermoMPNN-D (published)', 'tmpnndpub', 'tmpnnpub'),
             ] + plain[3:]
         for name, direct, add in plain:
@@ -1608,7 +1580,7 @@ def run_hierarchy_and_composite(B: int, split: str = 'capped', procs: int = 6, T
         T_all = T_all.assign(split=sp_key)
 
         # Slice 1: 11d / 11b standard table & figures
-        std_keep = {m[0] for m in std_entries} | {'−dG_add', 'SPURS multi (trained adapter)', 'SPURS multi (published)', 'ThermoMPNN-D (published)'}
+        std_keep = {m[0] for m in std_entries} | {'−dG_add', 'SPURS multi (trained adapter)', 'ThermoMPNN-D (published)'}
         T_11d = T_all[T_all['model'].isin(std_keep)].copy()
         atomic_to_csv(T_11d, out_epi / f'epistasis_levels_bootstrap_{sp_key}.csv', index=False, float_format='%.5f')
         _draw_hierarchy_figure(T_11d, sp_key, out_epi / f'epistasis_levels_bars_{sp_key}', std_entries, LEVELS_MAIN, FOOT_HIER)
@@ -1654,7 +1626,6 @@ def run_hierarchy_and_composite(B: int, split: str = 'capped', procs: int = 6, T
             _hier_entry('ESM3ΔG', 'ESM3ΔG'),
         ]
         _draw_hierarchy_figure(T_p0, 'test', out_supp / 'fig5a_epistasis_levels_bars_test_p0', p0_entries, LEVELS_MAIN, FOOT_HIER)
-        _draw_hierarchy_figure(T_p0, 'test', out_main / 'epistasis_levels_e', p0_entries, LEVELS_MAIN, FOOT_HIER, overlay_sub0=True, panel_letter='e')
 
         # Build masking slice
         mk_src = [STD_EPI_NAME] + ([STD_CTX_NAME] if have_ctx else []) + [P1_EPI_NAME, P1M_EPI_NAME, '−dG_add']
@@ -1674,9 +1645,6 @@ def run_hierarchy_and_composite(B: int, split: str = 'capped', procs: int = 6, T
         ]
         _draw_hierarchy_figure(T_mk, 'test', out_supp / 'fig5a_epistasis_levels_bars_test_masking', mk_entries, LEVELS_MAIN, FOOT_HIER, title_desc='ESM-MSR masking ablations, epistasis level by level')
         build_supp_figure5(T_mk=T_mk)
-
-        # NEW High-Impact Composite Figure #1: results/00_main_text_figs/epistasis_main_composite.{png,pdf}
-        _build_epistasis_main_composite(out_main, fr, T3_df, p_spearman_ser, T_p0, p0_entries, tables_map, have_unf, B)
 
 
 def _build_epistasis_main_composite(out_main, fr_test, T3_df, p_spearman_ser, T_p0, p0_entries, tables_map, have_unf: bool, B: int) -> None:

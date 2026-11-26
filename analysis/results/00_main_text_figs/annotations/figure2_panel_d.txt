@@ -1,0 +1,4 @@
+Figure 2, Panel d — Five-level epistasis ANOVA and residual decomposition schematic
+===================================================================================
+
+Schematic of the five-level epistasis residual decomposition aligned column-for-column above Panel e: (1) naive / raw dddG, (2) saturation-subtracted dddG removing the global dG_add floor trend, (3) pair-level mean epistasis across position-pair matrices, (4) line-level pair-centred row/column marginals, and (5) cell-level double-centred site-specific interaction residuals.

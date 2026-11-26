@@ -154,7 +154,7 @@ Four of the 217 are size extremes that need special handling on a 32 GB card: `B
   * Headline `mpnn_score`: the mean of the log-odds with the wild-type and with the variant sequence as context, each mutated position decoded last.
   * `mpnn_score_wt_seq`: wild-type context only.
   * The encoder runs once per structure, and each distinct (position, other mutations) context is decoded once. All 217 DMS take about 2 h on a 24 GB GPU.
-* **SPURS** (the public HuggingFace weights by default).
+* **SPURS** (retrained single and multi checkpoints via `--checkpoint_single` / `--checkpoint_multi`).
   * Headline `SPURS_multi`.
   * Also `SPURS_single_additive` and `SPURS_multi_additive`.
 * **ThermoMPNN-D** (`--single_checkpoint`, `--epistatic_checkpoint`; set `THERMOMPNN_DIR`).
@@ -165,93 +165,54 @@ Four of the 217 are size extremes that need special handling on a 32 GB card: `B
 
 *Note: if using Windows Subsystem for Linux (WSL), it is recommended to install ChimeraX on Windows, not WSL. Everything should work even if you installed ESM-MSR into WSL.*
 
-1. Download, install, and open [ChimeraX](https://www.cgl.ucsf.edu/chimerax/download.html) (free for non-commercial use):
-1. Go to Tools -> Command Line Interface (check box if not checked)
-2. In the command line interface at the bottom, type (replacing the `/path/to/repo`): `devel install /path/to/repo/ChimeraX-ESM_MSR`
+The **ChimeraX-ESM-MSR** plugin (**v0.5.0**) supports UCSF ChimeraX `>= 1.3` (verified on ChimeraX `1.11.1` / Python 3.11 / PyQt6 / pandas 2.x & 3.x) and provides live ESM-MSR inference, two-stage fast double-mutant discovery, publication-grade 3D/2D visualization, and native ChimeraX CLI commands. For full installation options, complete UI & CLI reference, standalone `fast_doubles.py` usage, CSV schema, troubleshooting, and headless testing instructions, see **[`ChimeraX-ESM_MSR/README.md`](ChimeraX-ESM_MSR/README.md)**.
 
-## Using the ChimeraX GUI
+1. Download, install, and open [ChimeraX](https://www.cgl.ucsf.edu/chimerax/download.html) (free for non-commercial use).
+2. Open the Command Line Interface (`Tools -> Command Line Interface` if not already visible).
+3. Run (replacing `/path/to/repo` with your local `esm-msr` checkout):
+   ```
+   devel install /path/to/repo/ChimeraX-ESM_MSR
+   ```
 
-Load a valid protein structure (PDB, mmCIF) into ChimeraX. You can click and drag structure files into the window, or directly open a PDB structure (e.g. for the demo, use `open 1ufm`) via the ChimeraX command line. Open the GUI, located in the Tools tab under Stability->ESM_MSR. The GUI workflow is split into three main tabs: **Execution / IO**, **Screening Config**, and **Visualization**. The tool automatically remembers your most recent paths and configuration settings between sessions. You must fill out the first two boxes before hitting **"Run Prediction Script"**, and you must have a valid output (esp. by running the script) before you can complete the third tab and visualize the predictions with the **"Load CSV + Visualize Scores"** button. To complete the demo, you can leave all settings at their default values in the Execution I/O tab.
+## Using the ChimeraX GUI & Native CLI
 
-### 1. Execution & IO (Environment & Models)
+Load a valid protein structure (PDB or mmCIF) into ChimeraX — for example, click and drag a structure file into the window or run `open 1ufm` for the demo. Launch the plugin from **`Tools -> Stability -> ESM_MSR`** (or run `esm_msr open`; window title: **ESM-MSR Predictor & Visualizer**).
 
-**Environment & Paths:**
-* **Base Repo Dir:** Browse to the root of your cloned `esm-msr` folder. *Note: Setting this automatically populates the Python Env and Output CSV fields if they are currently empty. If you followed the instructions, the paths should be correct.*
-* **Python Env:** The environment used to run inference. *WARNING: if you used a conda environment, replace the path with just the name e.g. `msr_venv`.*
-* **Output CSV:** Where the resulting predictions will be saved.
-* **ESM3 Weights Location:** If you want to use locally stored weights, enter the location here.
+The interface is organized into two scrollable tabs — **`Execution / IO`** and **`Visualization`** — above a shared global action bar (**`Run Prediction Script`** / **`STOP`**, **`Load CSV`**, **`Load Last Output`**, **`Update Visualization`**, and **`Reset / Clear Viz`**) with a live progress bar and status footer. Your paths and configuration settings are remembered automatically between sessions.
 
-**Compute Environment & Model Configuration Files:**
-* **Compute Device & Batch Size:** Select your hardware (`cuda`, `mps`, `cpu`) and batch size. Lower the batch size if you encounter CUDA Out-Of-Memory (OOM) errors. Use `cpu` unless you configured CUDA during setup and have an Nvidia GPU.
-* **Checkpoint (.ckpt/.safetensors):** Select the trained LoRA checkpoint, for example the one stored in LoRA_models/esm-msr-small in this repo, or any of the checkpoints available from our HuggingFace page.
-* **LoRA Config (JSON/YAML):**  When you use the "Browse" button to select a Checkpoint, the GUI will automatically assume the configuration file is named `hparams.yaml` and is located in the same parent directory. It will warn you in red text if either file is missing or contains a dangling path reference. Architectural parameters (adapter mode, lora mode, rank, alpha) are automatically parsed from this file during inference.
+### 1. Execution / IO (Environment, Models & Screening Config)
 
-### 2. Screening Config
+* **Local Path Configuration & Auto-Detection:** Set **`Base Repo Dir:`** to your cloned `esm-msr` folder (auto-populating **`Output CSV:`** and the default **`Checkpoint:`** `LoRA_models/esm-msr-small/lora_seed1.safetensors` if blank). Click **`Auto-Detect`** next to **`Python Env:`** to scan local conda/mamba/venv environments on disk (~25 ms) and prioritize `[esm_msr, esm, torch]` installs via the **`Detected:`** dropdown, or enter an environment path/name manually. Optionally set **`ESM3 Weights:`** for locally cloned weights.
+* **Compute Environment & Model Configuration Files:** Select **`Compute Device:`** (`cuda`, `cuda:0`, `cuda:1`, `mps`, `cpu`), **`Model Precision (dtype):`** (`float32`, `bfloat16`, `float16`), and **`Batch Size:`** (default `16`). Choose a LoRA **`Checkpoint:`** (`.safetensors` or `.ckpt`) and optional **`LoRA Config:`** (`hparams.yaml` is auto-detected beside the checkpoint; set **`Sigma (σ):`** `= 0.0` for zero-shot ESM3 backbone control).
+* **Screening Config:** Pick your **`Target Model:`** (use **`Refresh`** if needed) and **`Chain:`**, then choose one of four mutually exclusive mutation scopes:
+  1. **`1. Full Screen:`** (`singles` or `singles+doubles`), with optional **`Positions:`** (supports negative indices and insertion codes, or populate from ChimeraX via **`Grab Selection`**), **`Invert (Except)`**, and **`Filter doubles by WT heavy-atom distance (Å):`** (default `6.0` Å).
+  2. **`2. Input CSV:`** score a predefined mutation list (`--input_csv`).
+  3. **`3. Direct Mutations:`** enter comma-separated mutations directly (e.g., `A12C,A12C:D15E`).
+  4. **`4. Fast Top-N Doubles (2-Stage):`** runs a fast cached WT-pass singles scan, selects the exact Top-$N$ additive pairs (`1–1,000,000` in `< 1 s`), rescores them with the full dual-view WT+MT model, and writes a unified re-ranked CSV (`Top N`, `Visualize Top M`, `Filter Cys/Pro before Stage 2`, optional `Dist <=`). Also runnable standalone via `ChimeraX-ESM_MSR/src/fast_doubles.py`.
+* **Screening Parameters & Log Console:** Configure **`Mask Strategy:`** (`Checkpoint default`, `marginal`, `independent`), **`Sigma (σ):`** (default `1.0`), **`Replace non-canonical residues`**, and **`Skip MT LoRA Pass (Additive Approximation)`** (`--skip_reverse`, ~10× faster single-pass WT approximation). Expand **`▸ Show Log Console`** to inspect or copy live subprocess output. Click **`Run Prediction Script`** (or red **`STOP`** to terminate safely), then **`Load Last Output`** to jump straight to visualization.
 
-This section defines exactly which mutations will be evaluated on your structure.
+### 2. Visualization, Export & Native CLI Commands
 
-**Target Selection:**
-Select which open ChimeraX model and specific chain you want to predict on. For NMR ensembles, changing the target model allows you to chose a different structural model from the ensemble.
+Load an existing prediction CSV with **`Load CSV`** (e.g., `data/example/1ufm_example.csv`) or **`Load Last Output`**. The top banner summarizes the loaded file, chain(s), mutation counts, and score range, and automatically handles `--skip_reverse` and unified two-stage CSVs.
 
-**Mutation Scope (Mutually Exclusive):**
-Select **one** of three methods to define the mutation space. Selecting one method will automatically disable the inputs for the others.
-1. **1. Full Screen:** Exhaustively scores mutations. Choose `singles`, `singles+doubles`.
-   * *Positions:* Leave empty for all residues, or type indices manually (e.g., `11,12`). You can also select residues in ChimeraX (ctrl + click + drag) and click **Grab Selection**.
-   * *Filter doubles by distance (Å):* If you are screening `singles+doubles`, you can check this box to strictly evaluate pairs of residues that are within a certain 3D spatial proximity based on minimum side-chain heavy atom distance.
-2. **2. Specify mutations in CSV:** Upload a predefined CSV list of mutations to score.
-3. **3. Input Mutations Directly:** Manually type a comma-separated list of precise mutations (e.g., `A12C,A12C:D15E`).
-
-**Screening Parameters:**
-* **Mask Strategy:** Choose between `Default (unmasked)`, `marginal`, or `independent`. `unmasked` tends to perform best, but there are compute savings especially if only specifying a few positions using `independent`. `marginal` is not recommended.
-* **Skip MT pass (Use Additive Approximation):** Fast approximation, especially suitable for single mutants. *Warning: Skips generating `mt_lora` predictions.*
-
-**Running Inference:**
-Click **Run Prediction Script** at the bottom of the window. A red **STOP** button will appear, which allows you to forcefully terminate the process tree if you accidentally launch a massive screening run. After preliminary setup (~1 minute or possibly much longer if downloading ESM3 weights for the first time), you can track the screening progress at the bottom of the GUI, stop, and modify the run parameters if it will take too long. *Note: Singles screening or using the additive approximation takes <1 minute on modern GPUs. Doubles screening on a 300AA protein can take hours (`independent` masking) or days (`unmasked`).*
-
-### 3. Visualization
-
-Once inference completes (or if you load an existing output CSV), navigate to the **Visualization** tab to map the stability and epistatic scores onto your 3D structure.
-
-**Note on Requirements:** *Single-mutation data is required for all visualization modes* to properly map additive stability scores onto sidechains.
-
-**Target Selection:**
-
-Confirm that you will apply the visualization to the correct chain entity. If you are visualizing a newly created result, this should be auto-populated to the correct value.
-
-#### Core Configuration
-The central paradigm is to visualize either singles, doubles, or interactions that are outside of the thresholds defined in the next section.
-* **Display Mode:** Choose the primary visualization strategy:
-  * **Singles:** Visualizes independent single mutations.
-  * **WT Epistasis:** Visualizes epistatic interactions between wild-type residues by asssessing truncation to Alanine (or Glycine). Mapped directly onto the native WT geometry; residue colors indicate effects of mutation to alanine.
-  * **MT Epistasis:** Visualizes epistatic interactions between mutant pairs, utilizing dynamically generated structural layers to resolve overlapping geometry.
-* **Select Pairs By:** Determines the metric used to filter and sort interactions (either the raw Epistasis ΔΔΔG score, or the total Double Mutant Stability score).
-* **Display Priority:** Determines which interactions to keep when the "Max Interactions" cap is hit. You can prioritize by High score (highest predicted stability change), Low score, or Magnitude (absolute value).
-* **Global Filters:** Quickly exclude specific mutations from the visualization to clean up the display. Note that No MT Cys is especially useful to mitigate false positives caused by assay bias.
-* **Score Selection (Additive Base):** Select which raw additive score to use as the base metric (Dual-view, WT LoRA, or MT LoRA). *Note: Dual-view is required for epistasis. If you skipped the MT pass during inference, only WT LoRA predictions will be available.*
-
-#### Global Thresholds and Networks
-* **Pos/Neg Thresholds:** Only mutations or epistatic pairs with scores strictly greater than the Positive Threshold or less than the Negative Threshold are visualized. Setting the negative threshold to -10 will effectively filter out al destabilizing mutants.
-* **Non-Target Chain Transp %:** Adjusts the opacity of opposing chains in the complex to reduce visual clutter.
-* **Max Interactions per Position:** (Epistasis modes only). Caps the number of epistatic network edges that can originate from a single residue to prevent visual overload (the "hairball" effect).
-* **Visualize Contacts:** Shows surrounding wild-type contextual residues within a specified Angstrom radius of the visualized mutant sidechains. 
-  * Contacting atoms are explicitly highlighted based on your styling preferences.
-* **Color Backbone by Highest Additive ΔΔG:** (Singles & WT Epistasis mode only). Colors the wild-type ribbon backbone on a Pink-to-White-to-Green gradient based on the highest-scoring candidate at each position.
-
-#### Rendering and Styling
-Customize the color, geometry style (stick, ball, sphere, wire), and transparency of the structural components.
-* **WT Style:** Applies to the "ghost" wild-type residues left behind for structural context, so you can assess "is the mutation really a better/worse fit?".
-* **Mut Color / Style:** Applies to the mutated sidechains. **LEAVE BLANK FOR ADDITIVE SCORE** to automatically color the mutant carbons based on their individual stability score (Pink-to-White-to-Green gradient).
-* **Contact Style:** Applies explicitly to the surrounding context residues.
+* **Display Modes (`Mode:`):**
+  * **`Singles`:** Displays the top passing single mutant per position on a cloned mutant model.
+  * **`WT epistasis`:** Maps Alanine/Glycine double-mutant epistasis directly onto native WT sidechains.
+  * **`MT epistasis`:** Displays double-mutant pairs across minimal non-conflicting clone layers with epistasis pseudobonds.
+  * **`Top-M Ranked Pairs`:** Highlights Top-$M$ double-mutant pairs (including distant/non-proximal hits) using **Okabe–Ito categorical pair coloring** on a neutral matte cartoon, with **`Disjoint residues`** deduplication, optional subtle dashed connectors, 3D labels, stacked 2D legend, and **`Pub Lighting`**.
+* **Color Scale & Export:** Choose from 5 verified zero-network palettes (**`Blue–White–Red (Classic)`** default, colorblind-safe **`Purple–White–Green (PRGn)`**, **`Brown–White–Teal (BrBG)`**, **`Cividis`**, and **`Viridis`**) with **`Auto Range`** or manual **`Min:`** / **`Max:`** bounds. Export publication-ready figures directly via **`Export 2D Heatmap...`** (20 × $L$ single-mutant landscape, PNG/PDF/SVG) and **`Export Pair Card...`** (Top-$M$ categorical legend card).
+* **Interactive Ranked Results Table:** Filter by mutation/residue (`Filter mutation / residue...`), switch **`View:`** (`Auto`, `Ranked Pairs`, `All Singles`, `All Doubles`), sort numerically, click any row to select and focus the camera on those residues, and use **`Isolate Pair`** / **`Show All`** to spotlight individual Top-$M$ pairs.
+* **Filters, Thresholds & Styling:** Exclude Cys/Pro (`No WT/Mut Cys/Pro`), select score base (`Dual-view`, `WT LoRA`, `MT LoRA`), set **`Pos Threshold:`** / **`Neg Threshold:`**, **`Non-Target Chain Transp %:`**, **`Color Backbone by Highest Additive ΔΔG`**, **`Nearby atoms within:`**, and per-element styling (**`WT:`**, **`Mutant:`**, **`Near Atom:`**, **`Near Res:`**). **`Reset / Clear Viz`** removes ESM-MSR clones, dedicated pseudobond groups (`"ESM-MSR Epistasis"`, `"ESM-MSR Ranked Pairs"`), and 2D legend labels without touching unrelated models or user pseudobonds.
+* **Native ChimeraX CLI Commands:** Script reproducible GUI or `--offscreen` `.cxc` figures using `esm_msr open`, `esm_msr load`, `esm_msr visualize`, `esm_msr pairs`, `esm_msr heatmap`, and `esm_msr reset`.
 
 #### Color Mapping Guide
-When using the default styling (leaving the Mut Color blank), the visualizer generates dynamic colorbars mapped to your data:
-* 🟩 **Green (Atoms/Backbone):** Favorable additive single-mutant stability (score > 0).
-* 🟥 **Pink (Atoms/Backbone):** Unfavorable additive single-mutant stability (score < 0).
-* 🟦 **Blue (Pseudobonds):** Positive epistasis / synergistic interaction (score > 0).
-* 🟧 **Orange (Pseudobonds):** Negative epistasis / antagonistic interaction (score < 0).
+* **Continuous Stability / Epistasis Modes (`Singles`, `WT epistasis`, `MT epistasis`):** Colored by the selected **`Palette:`** (default `Blue–White–Red`: **Red** = stabilizing/synergistic `> 0`, **White** = neutral `0`, **Blue** = destabilizing/antagonistic `< 0`; colorblind-safe `PRGn`, `BrBG`, `Viridis`, and `Cividis` also included).
+* **Categorical Pair Mode (`Top-M Ranked Pairs`):** Each ranked pair (`#1`–`#12`) receives a distinct high-contrast **Okabe–Ito / Tol** hue matched across its mutated sidechains, backbone anchor segments, optional Cα–Cα connector, 3D labels, and on-canvas 2D legend.
+
+See **[`ChimeraX-ESM_MSR/README.md`](ChimeraX-ESM_MSR/README.md)** for the full UI & CLI reference, reproducible `.cxc` script example, standalone `fast_doubles.py` documentation, CSV schema, and troubleshooting guide.
 
 ### Expected Output
 
-An example is shown below after loading the CSV under the indicated settings for the structure `1UFM`, corresponding to a default single mutant screen. The expected runtime is 1 minute for inference on an NVIDIA GPU at a batch size of 16 or 5 minutes on a CPU in addition to up to two minutes to load visual elements in ChimeraX. Note that because the example uses a smaller model and crystal rather than predicted structure, the selected mutations are slightly different than those from the paper.
+An example is shown below after loading `data/example/1ufm_example.csv` onto `1ufm` (`open 1ufm`), corresponding to a default single-mutant screen. Expected runtime is ~1 minute for inference on an NVIDIA GPU at batch size 16 (or ~5 minutes on CPU), plus up to two minutes to render visual elements in ChimeraX. Note that because the example uses the small demo model and a crystal structure rather than a predicted structure, the selected mutations differ slightly from those in the paper.
 
 ![Alt text](_assets/tool_github.png)

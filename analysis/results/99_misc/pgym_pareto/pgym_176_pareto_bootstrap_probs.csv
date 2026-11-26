@@ -1,0 +1,9 @@
+frontier,n_frontier_pt,s1_pareto_pt,s05_pareto_pt,s1_convex_pt,s05_convex_pt,P_pareto_s1,P_pareto_s05,P_pareto_both,P_convex_s1,P_convex_s05,P_convex_both,frontier_models
+5D: All 5 categories,6,True,True,True,True,1.0000,1.0000,1.0000,,,,ProSST-2048; ProSST-4096; VenusREM; S3F_MSA; ESM-MSR (σ=1.0); ESM-MSR (σ=0.5)
+2D: Stability vs Functional-3,4,True,True,True,True,1.0000,0.9991,0.9991,1.0000,0.7765,0.7765,ProSST-4096; VenusREM; ESM-MSR (σ=1.0); ESM-MSR (σ=0.5)
+2D: Stability vs Non-Stability,5,True,True,True,False,1.0000,0.9061,0.9061,1.0000,0.2307,0.2307,ProSST-2048; ProSST-4096; VenusREM; ESM-MSR (σ=1.0); ESM-MSR (σ=0.5)
+2D: Biophys-2 vs Functional-3,3,True,True,True,False,1.0000,0.9986,0.9986,1.0000,0.1192,0.1192,VenusREM; ESM-MSR (σ=1.0); ESM-MSR (σ=0.5)
+2D: Stability vs Activity,6,True,True,True,True,1.0000,0.9629,0.9629,1.0000,0.5680,0.5680,ProSST-2048; ProSST-4096; VenusREM; S3F_MSA; ESM-MSR (σ=1.0); ESM-MSR (σ=0.5)
+2D: Stability vs Binding,3,True,True,True,True,1.0000,0.9809,0.9809,1.0000,0.7200,0.7200,ProSST-4096; ESM-MSR (σ=1.0); ESM-MSR (σ=0.5)
+2D: Stability vs Org. fitness,6,True,True,True,False,1.0000,0.9451,0.9451,1.0000,0.4339,0.4339,ProSST-2048; ProSST-4096; VenusREM; S3F_MSA; ESM-MSR (σ=1.0); ESM-MSR (σ=0.5)
+2D: Stability vs Expression,3,True,False,True,False,1.0000,0.0051,0.0051,1.0000,0.0001,0.0001,ProSST-2048; VenusREM; ESM-MSR (σ=1.0)

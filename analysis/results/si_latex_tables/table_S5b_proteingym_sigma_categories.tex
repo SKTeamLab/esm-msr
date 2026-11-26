@@ -1,0 +1,22 @@
+\begin{table}[H]
+\centering
+\caption{\textbf{ESM-MSR LoRA Scale ($\sigma$) Breakdown Across the 5 Held-Out ProteinGym Functional Categories}. Per-category mean Spearman's $\rho$ and Pearson's $r$ across the 173 held-out ProteinGym DMS assays under the deployed readout for zero-shot ESM3-small-open ($\sigma=0$), ESM-MSR ($\sigma=0.5$), and ESM-MSR ($\sigma=1.0$). One-sided paired assay $\times$ seed bootstrap $p$-values ($B=10{,}000$; uncorrected). Best $\rho$ and $r$ per row are indicated in bold.}
+\label{tab:si_proteingym_sigma}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lccccccccc}
+\toprule
+{} & \multicolumn{2}{c}{$\sigma=0$ (ESM3)} & \multicolumn{3}{c}{ESM-MSR ($\sigma=0.5$)} & \multicolumn{4}{c}{ESM-MSR ($\sigma=1.0$)} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-6} \cmidrule(lr){7-10}
+Category & $\rho$ & $r$ & $\rho$ & $r$ & $p_{0.5\text{ vs }0}$ & $\rho$ & $r$ & $p_{1.0\text{ vs }0}$ & $p_{1.0\text{ vs }0.5}$ \\
+\midrule
+Stability ($n$=37) & 0.627 & 0.625 & 0.791 & 0.788 & $<10^{-4}$ & \textbf{0.827} & \textbf{0.822} & $<10^{-4}$ & $<10^{-4}$ \\
+Expression ($n$=18) & 0.437 & 0.434 & 0.492 & 0.504 & 0.0002 & \textbf{0.519} & \textbf{0.547} & 0.0002 & 0.005 \\
+Activity ($n$=38) & 0.411 & 0.404 & \textbf{0.448} & \textbf{0.449} & $<10^{-4}$ & 0.434 & 0.442 & 0.029 & 0.963 \\
+Binding ($n$=13) & 0.371 & 0.343 & \textbf{0.384} & \textbf{0.366} & 0.193 & 0.349 & 0.346 & 0.693 & 0.982 \\
+Org. Fitness ($n$=67) & 0.390 & 0.384 & \textbf{0.428} & \textbf{0.432} & $<10^{-4}$ & 0.415 & 0.430 & 0.015 & 0.945 \\
+\midrule
+Macro average (173 assays) & 0.447 & 0.438 & \textbf{0.509} & 0.508 & --- & \textbf{0.509} & \textbf{0.518} & $<10^{-4}$ & 0.457 \\
+\bottomrule
+\end{tabular}
+}
+\end{table}

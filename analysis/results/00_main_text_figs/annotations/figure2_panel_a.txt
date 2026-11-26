@@ -1,0 +1,4 @@
+Figure 2, Panel a — Thermodynamic-cycle schematic of pairwise epistasis types
+=============================================================================
+
+Thermodynamic-cycle schematic illustrating the six pairwise epistasis regimes (dddG = ddG_AB - ddG_A - ddG_B). Top row: weak positive (A), additive (B), and strong negative / clash (C) cycles. Bottom row: strong positive / compensation (D), additive (E), and weak negative (F) cycles.

@@ -66,6 +66,7 @@ CANONICAL_RESULT_TOPS = (
     '09_ablation',
     '10_inference_resources',
     '99_misc',
+    'si_latex_tables',
 )
 
 MSR_ROOT = Path(os.environ.get('MSR_ROOT', '~/playground/esm-msr-devel')).expanduser()

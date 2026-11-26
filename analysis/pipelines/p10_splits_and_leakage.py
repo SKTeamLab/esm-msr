@@ -1,9 +1,9 @@
 """Stage 10 — Split construction, homology holdout filters, reviewer reference tables, and mega_splits provenance.
 
 Consolidates:
-  - ``10_leakage_and_reference.py`` (reference items): SPURS public vs retrained inflation, published-paper hyperopt
+  - ``10_leakage_and_reference.py`` (reference items): published-paper hyperopt
     reference (table 1.5), and third-party ``nobb`` baseline ablation reference (table 2.5)
-    -> ``00_for_reviewers/reference/{published_reference.*, spurs_published_vs_retrained.*}`` & ``00_for_reviewers/baseline_nobb_ablation.*``
+    -> ``00_for_reviewers/reference/published_reference.*`` & ``00_for_reviewers/baseline_nobb_ablation.*``
   - ``20_split_best_partner.py``: best cross-set sequence & structural partner scatter for ``capped`` and ``hyperopt`` splits
     -> ``00_supplementary_figs/split_construction/split_best_partner_capped.*`` & ``00_for_reviewers/split_best_partner_hyperopt.*``
   - ``20b_split_overlap_heatmaps.py``: lower-triangular max identity & max TM-score heatmaps across all 16 benchmark sets
@@ -91,41 +91,7 @@ def run_reviewer_reference(B: int) -> None:
     out = results_dir('reviewer_reference')
     rev_out = results_dir('for_reviewers')
 
-    # 1. SPURS public vs retrained -> 00_for_reviewers/reference/spurs_published_vs_retrained.{csv,pdf,png}
-    ref_sp = pd.read_csv(REFERENCE / 'spurs_public_checkpoint.csv')
-    pub_sp = ref_sp[ref_sp.model == 'SPURS (public checkpoint)'].set_index('dataset').rho
-    rho_df = load_rho_df()
-    P_ci = primary_ci(rho_df)
-    ds_list = EXT12 + [
-        'tsuboyama_capped_val', 'tsuboyama_capped_test',
-        'DLG4_HUMAN_Faure_2021_binding_domain', 'GRB2_HUMAN_Faure_2021_binding_domain',
-        'MYO_HUMAN_Kung_2025_display', 'domainome',
-    ]
-    ren = {'tsuboyama_capped_val': 'tsu_capped_val', 'tsuboyama_capped_test': 'tsu_capped_test'}
-    fig, ax = plt.subplots(figsize=(12, 3.6))
-    sp_rows = []
-    for i, d_name in enumerate(ds_list):
-        v = P_ci.get((d_name, 'spurs'))
-        p = pub_sp.get(ren.get(d_name, d_name), np.nan)
-        if v is None or not np.isfinite(p):
-            continue
-        ax.plot([i, i], [v[0], p], color='#bbbbbb', lw=2, zorder=1)
-        ax.errorbar([i], [v[0]], yerr=[[v[0] - v[1]], [v[2] - v[0]]], fmt='s', color='#d35400', capsize=2, zorder=3, ms=6)
-        ax.plot([i], [p], marker='s', mfc='white', mec='#d35400', ms=7, ls='none', zorder=4)
-        sp_rows.append(dict(dataset=d_name, retrained=v[0], published=p, inflation=p - v[0]))
-    ax.plot([], [], 's', color='#d35400', label='retrained on Homology-Restricted MegaScale (3 seeds)')
-    ax.plot([], [], 's', mfc='white', mec='#d35400', label='public checkpoint (trained on 24 of the 33 test libraries)')
-    ax.set_xticks(range(len(ds_list)))
-    ax.set_xticklabels([LABEL[d_name] for d_name in ds_list], rotation=35, ha='right')
-    ax.set_ylabel('Spearman ρ')
-    ax.set_ylim(0.20, 0.92)
-    ax.legend(fontsize=8, loc='lower left', frameon=True, facecolor='white', edgecolor='#cccccc', framealpha=0.92)
-    ax.set_title('SPURS: what training overlap adds (public checkpoint against retrained SPURS)', loc='left', fontsize=9.5)
-    fig.tight_layout()
-    style.save(fig, out / 'spurs_published_vs_retrained')
-    atomic_to_csv(pd.DataFrame(sp_rows), out / 'spurs_published_vs_retrained.csv', index=False, float_format='%.4f')
-
-    # 2. Published-paper reference (table 1.5.1) -> 00_for_reviewers/reference/published_reference.{pdf,png}
+    # 1. Published-paper reference (table 1.5.1) -> 00_for_reviewers/reference/published_reference.{pdf,png}
     d_pr = read_table('1.5.1')
     ref_models = list(d_pr.columns[1:])
     groups = [r for r in d_pr.iloc[:, 0]]
@@ -670,7 +636,6 @@ def run_mega_clean_vs_homologous(B: int) -> None:
         ('ThermoMPNN (published)', 'tmpnnpub', 'tmpnndpub', 'tmpnndpub:epi', MODELS['tmpnnpub']['color'], True),
         ('SPURS (frozen adapter)', 'spurs', 'spursm', 'spursm:epi', MODELS['spurs']['color'], False),
         ('SPURS (trained adapter)', 'spursu', 'spursum', 'spursum:epi', MODELS['spursu']['color'], False),
-        ('SPURS (published)', 'spurspub', 'spurspubm', 'spurspubm:epi', MODELS['spurspub']['color'], True),
     ]
     active_models = []
     for label, ks, kd, ke, col, hatched in model_specs:

@@ -1,0 +1,14 @@
+Statistical Annotation: supp_figure5_epistasis_masking_pvalues.csv
+==================================================================
+Figure: Supplementary Figure 5 (ESM-MSR masking ablations across the 5-level pooled epistasis hierarchy).
+
+Statistical Test:
+  Exact paired domain-cloning x training-seed bootstrap replicates (`fig5_epistasis_levels_masking_reps_test.npz`,
+  B = 1,000, N = 13 domains); one-sided H1: ESM-MSR p0 (unmasked) > comparator;
+  p = (1 + #{b: delta^(b) <= 0}) / (B + 1); Bonferroni-corrected across the m = 3 masking/control variants
+  within each (level, regime) (`−dG_add` floor ceiling excluded from the masking family).
+
+Companion Point Metrics (No Additional Significance Testing):
+Columns `pearson_r_msr`, `pearson_r_comparator`, `rmse_msr`, and `rmse_comparator` report the
+  seed-averaged Pearson r and RMSE (kcal/mol) computed on the exact same pooled residual vectors at each
+  hierarchy level; `n_variants` records the exact item count (doubles, pairs, lines, or double-centered cells).

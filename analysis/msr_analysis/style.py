@@ -149,6 +149,7 @@ def dot_panel(
     ci: dict | None = None,
     spread: float = 0.72,
     highlight=None,
+    highlight_scale: float = 1.35,
     ylabel: str | None = None,
     ylim: tuple[float, float] | None = None,
     size: float = 6.5,
@@ -185,7 +186,7 @@ def dot_panel(
                 continue
             kw = marker_kwargs(
                 m,
-                size=size * (1.35 if hl else 1.0),
+                size=size * (highlight_scale if hl else 1.0),
                 hollow=True if want_hollow else (False if hollow else None),
                 overrides=ov,
             )

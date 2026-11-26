@@ -235,7 +235,6 @@ MEGA_TRACKED_RUNS = (
     'me_mega_st2_s1', 'me_mega_st2_s2', 'me_mega_st2_s3',
     'spurs_mega_s1', 'spurs_mega_s2', 'spurs_mega_s3',
     'spurs_mega_ta_s1', 'spurs_mega_ta_s2', 'spurs_mega_ta_s3',
-    'spurs_mega_public',
     'thermompnn_mega_s1', 'thermompnn_mega_s2', 'thermompnn_mega_s3',
     'thermompnn_mega_public_ens1', 'thermompnn_mega_public_ens2', 'thermompnn_mega_public_ens3',
 )

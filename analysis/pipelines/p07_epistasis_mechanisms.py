@@ -91,6 +91,175 @@ HEATMAP_MODELS = [
 # ----------------------------------------------------------------------------------------------
 # 1. Fig 6 scatters & Fig 7 epistasis types (11c + 11f)
 # ----------------------------------------------------------------------------------------------
+MAIN_DDD_GRID_MODELS = [
+    ('ESM-MSR', 'Retrained'),
+    ('MutateEverything Stage 2', 'Retrained'),
+    ('ThermoMPNN-D', 'Retrained'),
+    ('SPURS-multi', 'Retrained'),
+    ('ProteinMPNN', 'Zero-shot'),
+    ('ESM3-small-open', 'Zero-shot'),
+    ('GeoDDG-3D', 'Supervised'),
+    ('Rosetta', 'Supervised'),
+]
+
+
+def _main_models_dddg_grid(out_dddg, split: str, fit: np.ndarray, y_raw: np.ndarray, dG_add: np.ndarray, model: dict) -> None:
+    """2x4 subplots of predicted vs measured dddG across all 8 main epistasis models (all doubles and dG_add > 0)."""
+    entries = [(lbl, grp, model[lbl]['raw_seeds']) for lbl, grp in MAIN_DDD_GRID_MODELS if lbl in model]
+    if not entries:
+        return
+    sp_lbl = 'MegaScale mega_splits test doubles' if split == 'mega' else 'Homology-Restricted MegaScale test doubles'
+    cm = plt.get_cmap('plasma')
+    ncols = 4
+    nrows = int(np.ceil(len(entries) / ncols))
+
+    for fname, subset_title, cut in (
+        ('main_models_dddG_pred_vs_true_all', 'all doubles', None),
+        ('main_models_dddG_pred_vs_true_dG_gt0', 'ΔG_add > 0 (unsaturated doubles)', 0.0),
+    ):
+        ok = fit & np.isfinite(y_raw) & (True if cut is None else (np.isfinite(dG_add) & (dG_add > cut)))
+        for _, _, p in entries:
+            ok &= np.isfinite(p).all(axis=0)
+        yv_1d = y_raw[ok]
+        n_var = len(yv_1d)
+        # Compute shared square axis limits from measured y and pooled model predictions (0.3–99.7 pct)
+        pool_vals = np.concatenate([yv_1d] + [p[:, ok].ravel() for _, _, p in entries])
+        lo, hi = np.percentile(pool_vals, [0.3, 99.7])
+        pad = 0.05 * (hi - lo)
+        lim = (lo - pad, hi + pad)
+
+        fig, axes = plt.subplots(
+            nrows, ncols, figsize=(5.2 * ncols, 5.1 * nrows),
+            sharex=True, sharey=True, squeeze=False,
+        )
+        flat_axes = axes.ravel()
+        for idx, (ax, (m_label, grp, p)) in enumerate(zip(flat_axes, entries)):
+            p_ok = p[:, ok]
+            n_seeds = p_ok.shape[0]
+            xv = p_ok.ravel()
+            yv = np.tile(yv_1d, n_seeds)
+            n_pts = len(xv)
+            sub = np.random.default_rng(0).choice(n_pts, min(n_pts, 15000), replace=False)
+            z = gaussian_kde(np.vstack([xv[sub], yv[sub]]))(np.vstack([xv, yv]))
+            o = np.argsort(z)
+            col = cm(Normalize(z.min(), z.max())(z))
+            col[:, 3] = 0.3 / np.sqrt(n_seeds)
+
+            ax.axhline(0, color='#bbbbbb', lw=0.8, zorder=1)
+            ax.axvline(0, color='#bbbbbb', lw=0.8, zorder=1)
+            ax.scatter(xv[o], yv[o], c=col[o], s=7, edgecolors='none', rasterized=True, zorder=2)
+            ax.plot(lim, lim, color='#c0392b', ls='--', lw=1.5, zorder=4)
+            ax.set_xlim(lim)
+            ax.set_ylim(lim)
+            ax.set_aspect('equal', adjustable='box')
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+
+            row, col_i = divmod(idx, ncols)
+            if col_i == 0:
+                ax.set_ylabel(Y_DDD_LABEL, fontsize=12.0)
+            if row == nrows - 1:
+                ax.set_xlabel('predicted δΔΔG = dddG (kcal/mol)', fontsize=12.0)
+            ax.tick_params(axis='both', labelsize=10.5)
+
+            rho_v = float(np.mean([spearmanr(p_ok[s], yv_1d)[0] for s in range(n_seeds)]))
+            r_v = float(np.mean([pearsonr(p_ok[s], yv_1d)[0] for s in range(n_seeds)]))
+            rmse_v = float(np.mean([np.sqrt(np.mean((p_ok[s] - yv_1d) ** 2)) for s in range(n_seeds)]))
+            n_str = f'n = {n_var:,} (×{n_seeds})' if n_seeds > 1 else f'n = {n_var:,}'
+            ax.text(
+                0.04, 0.96, f'ρ = {rho_v:.2f}\nr = {r_v:.2f}\nRMSE = {rmse_v:.2f}\n{n_str}',
+                transform=ax.transAxes, va='top', fontsize=10.2, zorder=10,
+                bbox=dict(boxstyle='round,pad=0.28', fc='white', ec='#cccccc', alpha=0.92),
+            )
+            ax.text(
+                0.96, 0.04, grp,
+                transform=ax.transAxes, ha='right', va='bottom', fontsize=9.5, color='#555555', zorder=10,
+                bbox=dict(boxstyle='round,pad=0.22', fc='white', ec='none', alpha=0.75),
+            )
+            if idx == 0:
+                ax.legend(handles=[Line2D([0], [0], color='#c0392b', ls='--', lw=1.5, label='x = y')], loc='lower left', fontsize=9.5, framealpha=0.9)
+            ax.set_title(m_label, fontsize=13.0, fontweight='bold', pad=7)
+
+        for ax in flat_axes[len(entries):]:
+            ax.set_visible(False)
+
+        fig.tight_layout(rect=[0.0, 0.025, 1.0, 0.995])
+        fig.text(
+            0.01, 0.005,
+            f'{sp_lbl} with both singles measured ({subset_title}, n = {n_var:,}). Retrained models show 3 triplicate seeds integrated without ensemble averaging; stats are seed means.',
+            fontsize=9.5, va='bottom', ha='left', color='#444444',
+        )
+        also_supp = (split == 'capped' and cut == 0.0)
+        style.save(fig, out_dddg / fname, close=not also_supp)
+        if also_supp:
+            style.save(fig, out_dir('supplementary_figs') / '_epi_rmse')
+
+
+def _main_models_dddg_rmse_bars(out_dddg, split: str, fr: Frame, fit: np.ndarray, dG_add: np.ndarray, B: int = 1000) -> None:
+    """Grouped bar chart of epistasis RMSE (all doubles vs dG_add > 0) across all main models in global bar_panel style."""
+    from msr_analysis.boot import ci as boot_ci
+    from ._tsu_common import best_other, epi_columns, fig_width
+
+    sp = fr.spine
+    y = sp['dddG_ML'].to_numpy(float)
+    cl = sp['cluster'].astype(str).to_numpy()
+    grp = sp['group'].astype(str).to_numpy()
+    best, _ = best_other(fr)
+    cols = epi_columns(fr, best)
+    subsets = (
+        ('all', fit & np.isfinite(y), 'all doubles'),
+        ('dG_gt0', fit & np.isfinite(y) & np.isfinite(dG_add) & (dG_add > 0.0), 'ΔG_add > 0 (unsaturated)'),
+    )
+
+    rows = []
+    for c in cols:
+        if not c.get('draw', True):
+            continue
+        k = c['double']
+        if k not in fr.preds:
+            continue
+        preds = fr.preds[k]
+        for sub_key, m_sub, _ in subsets:
+            ok = m_sub & np.isfinite(preds).all(axis=0)
+            u, inv = np.unique(cl[ok], return_inverse=True)
+            e = np.stack([p[ok] - y[ok] for p in preds])
+            pt = float(np.mean(np.sqrt((e ** 2).mean(axis=1))))
+            ns = e.shape[0]
+            rng = np.random.default_rng(0)
+            reps = np.empty(B, dtype=float)
+            for b in range(B):
+                w = rng.multinomial(len(u), np.full(len(u), 1.0 / len(u))).astype(float)[inv]
+                sw = rng.multinomial(ns, np.full(ns, 1.0 / ns)).astype(float) / ns if ns > 1 else np.ones(1)
+                per_seed_rm = np.sqrt(((e ** 2) * w).sum(axis=1) / w.sum())
+                reps[b] = float(np.dot(sw, per_seed_rm))
+            lo, hi = boot_ci(reps)
+            rows.append(dict(
+                column=c['name'], key=k, subset=sub_key, value=pt, lo=lo, hi=hi,
+                n_variants=int(ok.sum()), n_libraries=int(len(np.unique(grp[ok]))), n_clusters=int(len(u)), n_seeds=ns,
+            ))
+
+    df = pd.DataFrame(rows)
+    atomic_to_csv(df, out_dddg / 'main_models_dddG_rmse_bars.csv', index=False, float_format='%.4f')
+
+    sub_labels = tuple(
+        f"{desc} (n = {int(df.loc[df['subset'] == sk, 'n_variants'].max()):,}, {int(df.loc[df['subset'] == sk, 'n_libraries'].max())} domains)"
+        for sk, _, desc in subsets
+    )
+    ymax = float(np.ceil((df['hi'].max() + 0.34) / 0.2) * 0.2)
+    fig, ax = plt.subplots(figsize=(fig_width(cols), 4.8))
+    style.bar_panel(
+        ax, cols, df, ('all', 'dG_gt0'), sub_labels,
+        ylabel='epistasis RMSE (kcal/mol; lower is better)',
+        ylim=(0.0, ymax),
+        zero_line=False,
+    )
+    ax.set_xlabel('predicted epistasis (1/2(MT_AB+WT_AB) − WT_A − WT_B for ESM-MSR / ESM3; direct − sum of singles for others)', fontsize=8.3)
+    fig.tight_layout(rect=[0.0, 0.0, 1.0, 0.94])
+    style.save(fig, out_dddg / 'main_models_dddG_rmse_bars', close=(split != 'capped'))
+    if split == 'capped':
+        style.save(fig, out_dir('supplementary_figs') / '_epi_rmse_bars')
+
+
 def _compare_models_scatters(out_path, title_str: str, m: np.ndarray, y: np.ndarray, dG_add: np.ndarray, model_preds: list) -> None:
     ok = m & np.isfinite(y)
     for _, p in model_preds:
@@ -826,6 +995,10 @@ def run_pair_heatmaps_and_dddg_tables(split: str = 'capped', pair_pngs: bool = F
     atomic_to_csv(pd.DataFrame(s_rows), out_dddg / 'stats.csv', index=False, float_format='%.4f')
     atomic_to_csv(pd.DataFrame(dg_rows), out_dgadd / 'stats.csv', index=False, float_format='%.4f')
 
+    # 2x4 subplots of all 8 main models (all doubles + dG_add > 0) and paired RMSE bar chart
+    _main_models_dddg_grid(out_dddg, split, fit, y_raw, dG_add, model)
+    _main_models_dddg_rmse_bars(out_dddg, split, fr, fit, dG_add)
+
     # 4-panel dG_additive vs predicted dddG side-by-side figure
     msr_names = [m for m in ('ESM-MSR', 'MutateEverything Stage 2', 'ThermoMPNN-D', 'SPURS-multi') if m in model]
     if len(msr_names) == 4:
@@ -1013,6 +1186,7 @@ def build_tobit_floor_link_figure(
     b_plot: pd.DataFrame,
     far_lbl: str,
     out_path: Path,
+    split_desc: str = 'Homology-Restricted MegaScale test',
 ) -> Path:
     """Standalone supplementary 2-panel figure splitting floor_saturation_mechanism (a/b)
     and highlighting ESM-MSR's default chosen Tobit observation link (sigma_y=0.28, mu_f=-0.14, sigma_f=0.50).
@@ -1022,14 +1196,17 @@ def build_tobit_floor_link_figure(
     sigma_f = float(TOBIT['sigma_f'])
     theta = float(np.hypot(sigma_y, sigma_f))
     h_tobit = tobit_link(sigma_y=sigma_y, mu_f=mu_f, sigma_f=sigma_f)
+    h_u0s1 = tobit_link(sigma_y=0.28, mu_f=0.0, sigma_f=1.0)
+    h_deep = tobit_link(sigma_y=0.28, mu_f=-1.0, sigma_f=1.0)
 
     xs_curve = np.linspace(-4.8, 4.8, 400)
     y_tobit = h_tobit(xs_curve)
+    y_u0s1 = h_u0s1(xs_curve)
+    y_deep = h_deep(xs_curve)
     y_soft = softplus_link(xs_curve)
-    y_leaky = leaky_link(xs_curve)
 
     xlim, ylim_a, ylim_b = (-4.8, 4.8), (-1.25, 5.0), (-1.6, 4.9)
-    c_tobit, c_soft, c_leaky, c_emp = '#000000', '#1f77b4', '#e07b00', '#9b1c1c'
+    c_tobit, c_u0s1, c_deep, c_soft, c_emp = '#000000', '#009e73', '#e07b00', '#1f77b4', '#9b1c1c'
 
     fig, (ax_a, ax_b) = plt.subplots(1, 2, figsize=(13.8, 6.4), facecolor='white')
 
@@ -1041,7 +1218,8 @@ def build_tobit_floor_link_figure(
         ax_a.fill_between(b_plot['x'], b_plot['q25'], b_plot['q75'], color=c_emp, alpha=0.18, lw=0, zorder=4)
         ax_a.plot(b_plot['x'], b_plot['median'], color=c_emp, lw=1.4, marker='o', ms=2.8, zorder=5)
     ax_a.plot(xs_curve, y_soft, color=c_soft, lw=1.4, ls='-.', zorder=6)
-    ax_a.plot(xs_curve, y_leaky, color=c_leaky, lw=1.5, ls='--', zorder=6)
+    ax_a.plot(xs_curve, y_u0s1, color=c_u0s1, lw=1.8, ls=(0, (4, 1.5, 1.5, 1.5)), zorder=6)
+    ax_a.plot(xs_curve, y_deep, color=c_deep, lw=1.8, ls='--', zorder=6)
     ax_a.plot(xs_curve, y_tobit, color=c_tobit, lw=2.3, zorder=7)
     ax_a.set_xlim(*xlim)
     ax_a.set_ylim(*ylim_a)
@@ -1051,13 +1229,14 @@ def build_tobit_floor_link_figure(
     ax_a.legend(
         handles=[
             Line2D([0], [0], color=c_tobit, lw=2.3, label=f'default Tobit link h(z) (σ_y={sigma_y:.2f}, μ_f={mu_f:.2f}, σ_f={sigma_f:.2f})'),
+            Line2D([0], [0], color=c_u0s1, lw=1.8, ls=(0, (4, 1.5, 1.5, 1.5)), label='wide-floor Tobit link (σ_y=0.28, μ_f=0.00, σ_f=1.00)'),
+            Line2D([0], [0], color=c_deep, lw=1.8, ls='--', label='deep-floor Tobit link (σ_y=0.28, μ_f=−1.00, σ_f=1.00)'),
             Line2D([0], [0], color=c_soft, lw=1.4, ls='-.', label='softplus floor link (f = 0, τ = 0.59)'),
-            Line2D([0], [0], color=c_leaky, lw=1.5, ls='--', label='leaky floor link (α = 0.10, clamp −1)'),
             Line2D([0], [0], color=c_emp, marker='o', ms=3.2, lw=1.4, label='empirical median & IQR'),
             Line2D([0], [0], color='#888888', ls=':', lw=1.1, label='y = x (unsaturated)'),
-            Line2D([0], [0], color='#666666', ls=(0, (2, 3)), lw=0.9, label=f'floor mean μ_f = {mu_f:.2f} kcal/mol'),
+            Line2D([0], [0], color='#666666', ls=(0, (2, 3)), lw=0.9, label=f'default floor mean μ_f = {mu_f:.2f} kcal/mol'),
         ],
-        loc='upper left', fontsize=8.0, framealpha=0.94, edgecolor='#cccccc',
+        loc='upper left', fontsize=7.8, framealpha=0.94, edgecolor='#cccccc',
     )
     ax_a.spines['top'].set_visible(False)
     ax_a.spines['right'].set_visible(False)
@@ -1069,7 +1248,8 @@ def build_tobit_floor_link_figure(
         ax_b.fill_between(b_all['x'], b_all['q25'] - b_all['x'], b_all['q75'] - b_all['x'], color=c_emp, alpha=0.18, lw=0, zorder=4)
         ax_b.plot(b_all['x'], b_all['median'] - b_all['x'], color=c_emp, lw=1.4, marker='o', ms=2.8, zorder=5)
     ax_b.plot(xs_curve, y_soft - xs_curve, color=c_soft, lw=1.4, ls='-.', zorder=6)
-    ax_b.plot(xs_curve, y_leaky - xs_curve, color=c_leaky, lw=1.5, ls='--', zorder=6)
+    ax_b.plot(xs_curve, y_u0s1 - xs_curve, color=c_u0s1, lw=1.8, ls=(0, (4, 1.5, 1.5, 1.5)), zorder=6)
+    ax_b.plot(xs_curve, y_deep - xs_curve, color=c_deep, lw=1.8, ls='--', zorder=6)
     ax_b.plot(xs_curve, y_tobit - xs_curve, color=c_tobit, lw=2.3, zorder=7)
     ax_b.set_xlim(*xlim)
     ax_b.set_ylim(*ylim_b)
@@ -1079,12 +1259,13 @@ def build_tobit_floor_link_figure(
     ax_b.legend(
         handles=[
             Line2D([0], [0], color=c_tobit, lw=2.3, label='default Tobit: h_Tobit(x) − x'),
+            Line2D([0], [0], color=c_u0s1, lw=1.8, ls=(0, (4, 1.5, 1.5, 1.5)), label='wide-floor Tobit (μ_f=0, σ_f=1): h(x) − x'),
+            Line2D([0], [0], color=c_deep, lw=1.8, ls='--', label='deep-floor Tobit (μ_f=−1, σ_f=1): h(x) − x'),
             Line2D([0], [0], color=c_soft, lw=1.4, ls='-.', label='softplus: h(x) − x'),
-            Line2D([0], [0], color=c_leaky, lw=1.5, ls='--', label='leaky: h(x) − x'),
             Line2D([0], [0], color=c_emp, marker='o', ms=3.2, lw=1.4, label='empirical median & IQR'),
             Line2D([0], [0], color='#888888', ls=':', lw=1.1, label='δΔΔG = 0 (additive)'),
         ],
-        loc='upper right', fontsize=8.0, framealpha=0.94, edgecolor='#cccccc',
+        loc='upper right', fontsize=7.8, framealpha=0.94, edgecolor='#cccccc',
     )
     ax_b.spines['top'].set_visible(False)
     ax_b.spines['right'].set_visible(False)
@@ -1105,8 +1286,8 @@ def build_tobit_floor_link_figure(
         f'Under ESM-MSR\'s default noisy-floor Tobit likelihood Y = max(X, F) with X ~ N(z, σ_y²), F ~ N(μ_f, σ_f²) and chosen parameters '
         f'σ_y = {sigma_y:.2f}, μ_f = {mu_f:.2f}, σ_f = {sigma_f:.2f} kcal/mol (θ = √(σ_y² + σ_f²) = {theta:.3f}), the closed-form expected-reading map '
         f'h_Tobit(z) = z Φ(a) + μ_f Φ(−a) + θ φ(a) [a = (z − μ_f) / θ] (solid black) reproduces the empirical median (dark red) across the entire transition with no extra fitted parameters '
-        f'(analytical softplus and leaky-clamp references shown for comparison).  '
-        f'b. Across all {len(Y):,} Homology-Restricted MegaScale test doubles, subtracting ΔG_add converts this measurement floor into large apparent positive epistasis '
+        f'(alternative Tobit floors μ_f = 0, σ_f = 1 in teal and μ_f = −1, σ_f = 1 in orange, plus analytical softplus in blue shown for comparison).  '
+        f'b. Across all {len(Y):,} {split_desc} doubles, subtracting ΔG_add converts this measurement floor into large apparent positive epistasis '
         f'(δΔΔG ≈ −ΔG_add for ΔG_add < 0), closely tracked by h_Tobit(x) − x. Supervising ESM-MSR with the Tobit NLL trains the model in unsaturated latent space without conflating floor saturation with true biophysical coupling.'
     )
     kw = dict(fontsize=8.0, color='#333333', linespacing=1.28)
@@ -1116,20 +1297,15 @@ def build_tobit_floor_link_figure(
     return out_path
 
 
-def run_tobit_floor_link_only(split: str = 'capped') -> Path:
-    """Fast standalone runner to rebuild only 00_supplementary_figs/tobit_floor_link.{png,pdf}."""
-    fr = load_frame(tsu_datasets(split)[1])
-    sp = fr.spine
-    ddg = sp['y'].to_numpy(float)
-    c_all = sp['dG_wt'].to_numpy(float)
-    ia, ib = singles_of_doubles(sp)
-    ok = epi_rows(fr) & (ia >= 0) & (ib >= 0)
-    idx = np.flatnonzero(ok)
-    W = c_all[ok]
-    A, B_s = W + ddg[ia[ok]], W + ddg[ib[ok]]
-    Y = W + ddg[ok]
-    x = A + B_s - W
-    dist = _cb_distances_for_doubles(sp['mut'].to_numpy(dtype=object)[idx], sp['code'].astype(str).to_numpy()[idx])
+def _render_tobit_link_for_arrays(
+    x: np.ndarray,
+    Y: np.ndarray,
+    muts: np.ndarray,
+    codes: np.ndarray,
+    out_path: Path,
+    split_desc: str,
+) -> Path:
+    dist = _cb_distances_for_doubles(muts, codes)
     far = np.isfinite(dist) & (dist > DISTANT_A)
     edges = np.arange(-4.5, 4.51, 0.5)
     b_all = _binned_quantiles(x, Y, edges, nmin=15)
@@ -1138,12 +1314,994 @@ def run_tobit_floor_link_only(split: str = 'capped') -> Path:
     y_plot = Y[far] if far.sum() >= 50 else Y
     b_plot = b_far if far.sum() >= 50 else b_all
     far_lbl = f'distant doubles (Cβ–Cβ > {DISTANT_A:g} Å, n = {len(y_plot):,})' if far.sum() >= 50 else f'all doubles (n = {len(y_plot):,})'
-    out_supp = out_dir('supplementary_figs')
     return build_tobit_floor_link_figure(
         x=x, Y=Y, x_plot=x_plot, y_plot=y_plot,
         b_all=b_all, b_plot=b_plot, far_lbl=far_lbl,
-        out_path=out_supp / 'tobit_floor_link',
+        out_path=out_path, split_desc=split_desc,
     )
+
+
+def _extract_train_doubles_capped() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None:
+    """Extract (x=dG_add, Y=dG_AB, muts, codes) for Homology-Restricted MegaScale training doubles with both singles measured."""
+    import json
+    import pickle
+    from msr_analysis.paths import DATA_DIR, REFERENCE
+
+    raw_csv = TSUBOYAMA_PDB_DIR.parent / 'Tsuboyama2023_Dataset2_Dataset3_20230416.csv'
+    pkl_path = DATA_DIR / 'splits_oct06_capped.pkl'
+    if not raw_csv.exists() or not pkl_path.exists():
+        print(f'[p07] Skipping train tobit_floor_link: missing {raw_csv} or {pkl_path}')
+        return None
+
+    with open(pkl_path, 'rb') as fh:
+        sp_pkl = pickle.load(fh)
+    train_pdbs = set(sp_pkl['train'])
+    train_wt_names = {p.replace('.pdb', '') for p in train_pdbs}
+
+    dg_wt_map: dict[str, float] = {}
+    dg_json_path = REFERENCE / 'dG_wt.json'
+    if dg_json_path.exists():
+        dg_wt_map = json.loads(dg_json_path.read_text(encoding='utf-8'))
+
+    df = pd.read_csv(
+        raw_csv,
+        usecols=['WT_name', 'mut_type', 'dG_ML', 'ddG_ML'],
+        low_memory=False,
+    )
+    wt_clean = df['WT_name'].astype(str).str.replace('.pdb', '', regex=False).str.replace('|', '_', regex=False)
+    df = df[wt_clean.isin(train_wt_names)].copy()
+    df['code'] = wt_clean[wt_clean.isin(train_wt_names)].to_numpy()
+    df['ddG_ML'] = pd.to_numeric(df['ddG_ML'], errors='coerce')
+    df['dG_ML'] = pd.to_numeric(df['dG_ML'], errors='coerce')
+    df['mut_type'] = df['mut_type'].astype(str)
+    # Keep substitutions only (exclude wt, ins, del)
+    df = df[~df['mut_type'].str.contains('wt|ins|del', case=False, na=True)]
+    df = df[np.isfinite(df['ddG_ML']) & np.isfinite(df['dG_ML'])].copy()
+    # Deduplicate (code, mut_type) by mean
+    df = df.groupby(['code', 'mut_type'], as_index=False)[['dG_ML', 'ddG_ML']].mean()
+    # Wild-type dG per code
+    wt_dg = df['code'].map(dg_wt_map)
+    # Fallback: dG_ML - ddG_ML median per code
+    fb_dg = (df['dG_ML'] - df['ddG_ML']).groupby(df['code']).median()
+    df['dG_wt'] = np.where(np.isfinite(wt_dg), wt_dg, df['code'].map(fb_dg))
+
+    n_mut = df['mut_type'].str.count(':') + 1
+    singles = df[n_mut == 1]
+    single_ddg = dict(zip(zip(singles['code'], singles['mut_type']), singles['ddG_ML']))
+
+    doubles = df[n_mut == 2]
+    xs, ys, muts, codes = [], [], [], []
+    for r in doubles.itertuples(index=False):
+        parts = r.mut_type.split(':')
+        if len(parts) != 2:
+            continue
+        da = single_ddg.get((r.code, parts[0]))
+        db = single_ddg.get((r.code, parts[1]))
+        if da is None or db is None or not (np.isfinite(da) and np.isfinite(db) and np.isfinite(r.dG_wt)):
+            continue
+        xs.append(float(r.dG_wt + da + db))
+        ys.append(float(r.dG_wt + r.ddG_ML))
+        muts.append(r.mut_type)
+        codes.append(r.code)
+    return (
+        np.asarray(xs, dtype=float),
+        np.asarray(ys, dtype=float),
+        np.asarray(muts, dtype=object),
+        np.asarray(codes, dtype=object),
+    )
+
+
+def run_tobit_floor_link_only(split: str = 'capped') -> list[Path]:
+    """Standalone runner to build 00_supplementary_figs/tobit_floor_link{,_val,_train}.{png,pdf}."""
+    out_supp = out_dir('supplementary_figs')
+    saved: list[Path] = []
+
+    for ds_name, stem, desc in (
+        (tsu_datasets(split)[1], 'tobit_floor_link', 'Homology-Restricted MegaScale test'),
+        (tsu_datasets(split)[0], 'tobit_floor_link_val', 'Homology-Restricted MegaScale validation'),
+    ):
+        fr = load_frame(ds_name)
+        sp = fr.spine
+        ddg = sp['y'].to_numpy(float)
+        c_all = sp['dG_wt'].to_numpy(float)
+        ia, ib = singles_of_doubles(sp)
+        ok = epi_rows(fr) & (ia >= 0) & (ib >= 0)
+        idx = np.flatnonzero(ok)
+        W = c_all[ok]
+        A, B_s = W + ddg[ia[ok]], W + ddg[ib[ok]]
+        Y = W + ddg[ok]
+        x = A + B_s - W
+        saved.append(_render_tobit_link_for_arrays(
+            x=x, Y=Y,
+            muts=sp['mut'].to_numpy(dtype=object)[idx],
+            codes=sp['code'].astype(str).to_numpy()[idx],
+            out_path=out_supp / stem,
+            split_desc=desc,
+        ))
+
+    if split == 'capped':
+        tr = _extract_train_doubles_capped()
+        if tr is not None:
+            x_tr, Y_tr, m_tr, c_tr = tr
+            saved.append(_render_tobit_link_for_arrays(
+                x=x_tr, Y=Y_tr, muts=m_tr, codes=c_tr,
+                out_path=out_supp / 'tobit_floor_link_train',
+                split_desc='Homology-Restricted MegaScale training',
+            ))
+    return saved
+
+
+def build_supp_epistasis_mcc_figure(split: str = 'capped', B: int = 10_000) -> Path:
+    """Build 2-panel supplementary epistasis classification MCC figure (a: raw dddG > 0; b: saturation-corrected r > 0).
+
+    Uses canonical manuscript model order (epi_columns), threshold 0 on both measured and predicted values,
+    pooled MCC over all usable doubles with both measured singles (E.Table, matching Figure 2e), and paired
+    domain-cluster x seed bootstrap (B=10,000) for 95% CIs and one-sided ESM-MSR > X p-values.
+    """
+    from scipy.stats import pearsonr
+    from esm_msr import epi_metrics as E
+    from msr_analysis.boot import ci as boot_ci
+    from msr_analysis.epistasis import make_epi_table
+    from msr_analysis.stats import make_domain_seed_draws
+    from ._tsu_common import BEST_LABEL, best_other, epi_columns, fig_width
+
+    ds = tsu_datasets(split)[1]
+    fr = load_frame(ds)
+    sp = fr.spine
+    best, _ = best_other(fr)
+    name_map = {'best other ddG': BEST_LABEL[best]} if best else {}
+    cols = [c for c in epi_columns(fr, best) if c.get('draw', True)]
+
+    # Exact (singles_key, doubles_key) pairs matching Figure 2e / p06_epistasis_hierarchy.py
+    key_pairs = {
+        'ProteinMPNN': ('pmpnn+', 'pmpnn'),
+        'ESM3-small-open': ('msrrel@0:wt', 'msrrel@0:comb'),
+        'ESM-MSR': ('msrp0:wt', 'msrp0:comb'),
+        'MutateEverything': ('me1', 'me2'),
+        'ThermoMPNN': ('tmpnn', 'tmpnnd'),
+        'SPURS': ('spurs', 'spursm'),
+        'best other ddG': ('geoddg+', 'geoddg'),
+        'Rosetta': ('rosetta+', 'rosetta'),
+    }
+
+    def _mcc_from_counts(tp, tn, fp, fn):
+        num = tp * tn - fp * fn
+        den = np.sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn))
+        with np.errstate(divide='ignore', invalid='ignore'):
+            return np.where(den > 0, num / den, 0.0)
+
+    def _one_sided_p(diffs: np.ndarray) -> tuple[float, int, int]:
+        fin = diffs[np.isfinite(diffs)]
+        nf = int(np.sum(fin <= 0.0))
+        return float((nf + 1) / (len(fin) + 1)), nf, int(len(fin))
+
+    # Build E.Table for each model x seed, verify common domain set
+    ref_tab = make_epi_table(sp, fr.preds['msrp0:wt'][0], fr.preds['msrp0:comb'][0], comb=fr.preds['msrp0:comb'][0], heads=('comb', 'add'))
+    libs = np.unique(ref_tab.lib)
+    n_libs = len(libs)
+    lib_idx = {l: i for i, l in enumerate(libs)}
+    dom_counts, seed_w = make_domain_seed_draws(n_libs, B=B, seed=2026, seed_counts=(3,))
+
+    # Map E.Table lib ids back to domain names for per-domain source data
+    use_idx = np.flatnonzero(sp['use'].to_numpy(dtype=bool))
+    code_col = 'code' if 'code' in sp else 'code_wt'
+    lib_names_map: dict[int, str] = {}
+    sp_grp = sp['group'].astype(str).to_numpy()[use_idx]
+    sp_code = sp[code_col].astype(str).to_numpy()[use_idx]
+    # Reconstruct exact lib_id -> code_wt mapping in E.Table order
+    code_to_grp = dict(zip(sp_code, sp_grp))
+    # Use ref_tab.lib indices alongside spine codes
+    sp_mut = sp['mut'].astype(str).to_numpy()[use_idx]
+    from msr_analysis.epistasis import parse_mut_key
+    keys_all = [parse_mut_key(m, c) for m, c in zip(sp_mut, sp_code)]
+    st_all = ['single' if k and len(k) == 1 else ('double' if k and len(k) == 2 else 'other') for k in keys_all]
+    gt_all = sp['y'].to_numpy(float)[use_idx]
+    dd_all = sp['dddG_ML'].to_numpy(float)[use_idx]
+    c_all = sp['dG_wt'].to_numpy(float)[use_idx]
+    singles_set = {tuple(k[0]) for i, k in enumerate(keys_all) if st_all[i] == 'single' and k is not None and len(k) == 1 and np.isfinite(gt_all[i])}
+    seen_libs: dict[tuple, int] = {}
+    for i, k in enumerate(keys_all):
+        if st_all[i] != 'double' or k is None or len(k) != 2:
+            continue
+        if not (np.isfinite(dd_all[i]) and np.isfinite(gt_all[i]) and np.isfinite(c_all[i])):
+            continue
+        m1, m2 = tuple(k[0]), tuple(k[1])
+        if m1[:-1] > m2[:-1]:
+            m1, m2 = m2, m1
+        if m1 not in singles_set or m2 not in singles_set:
+            continue
+        lk = tuple(k[0][:-2])
+        if lk not in seen_libs:
+            lid = len(seen_libs)
+            seen_libs[lk] = lid
+            lib_names_map[lid] = code_to_grp.get(str(lk[0]), str(lk[0]))
+
+    summary_rows = []
+    per_dom_rows = []
+    reps_store: dict[tuple[str, str], np.ndarray] = {}
+    pt_store: dict[tuple[str, str], float] = {}
+    extra_stats: dict[tuple[str, str], tuple[float, float]] = {}  # (pearson_r, rmse)
+    n_var_by_panel: dict[str, int] = {}
+
+    for c in cols:
+        cname = c['name']
+        disp = name_map.get(cname, cname)
+        kw, kd = key_pairs[cname]
+        wt_arr = fr.preds[kw]
+        db_arr = fr.preds[kd]
+        ns = min(wt_arr.shape[0], db_arr.shape[0])
+
+        for panel_key in ('raw', 'sat_corrected'):
+            # Per-seed, per-domain 2x2 counts (ns, n_libs)
+            tp_mat = np.zeros((ns, n_libs), dtype=float)
+            tn_mat = np.zeros((ns, n_libs), dtype=float)
+            fp_mat = np.zeros((ns, n_libs), dtype=float)
+            fn_mat = np.zeros((ns, n_libs), dtype=float)
+            seed_mccs, seed_accs, seed_f1s, seed_precs, seed_recs = [], [], [], [], []
+            seed_rhos, seed_rs, seed_rmses = [], [], []
+            n_ok_last = 0
+
+            for s in range(ns):
+                tab = make_epi_table(sp, wt_arr[s], db_arr[s], comb=db_arr[s], heads=('comb', 'add'))
+                if panel_key == 'raw':
+                    ym = tab.dddG
+                    yp, _ = E.predicted_dddg(tab, 'comb')
+                else:
+                    ym, yp = E.beyond_global(tab, 'comb')
+                ok = np.isfinite(ym) & np.isfinite(yp)
+                n_ok_last = int(ok.sum())
+                y_b = ym[ok] > 0.0
+                p_b = yp[ok] > 0.0
+                lib_ok = tab.lib[ok]
+
+                for l_val in libs:
+                    ml = (lib_ok == l_val)
+                    li = lib_idx[l_val]
+                    tp = float(np.sum(y_b[ml] & p_b[ml]))
+                    tn = float(np.sum((~y_b[ml]) & (~p_b[ml])))
+                    fp = float(np.sum((~y_b[ml]) & p_b[ml]))
+                    fn = float(np.sum(y_b[ml] & (~p_b[ml])))
+                    tp_mat[s, li], tn_mat[s, li], fp_mat[s, li], fn_mat[s, li] = tp, tn, fp, fn
+                    per_dom_rows.append(dict(
+                        panel=panel_key, model=disp, column=cname, domain=lib_names_map.get(int(l_val), str(l_val)),
+                        seed=s + 1, n_variants=int(ml.sum()), tp=int(tp), tn=int(tn), fp=int(fp), fn=int(fn),
+                        mcc=float(_mcc_from_counts(tp, tn, fp, fn)),
+                    ))
+
+                tp_t, tn_t, fp_t, fn_t = tp_mat[s].sum(), tn_mat[s].sum(), fp_mat[s].sum(), fn_mat[s].sum()
+                seed_mccs.append(float(_mcc_from_counts(tp_t, tn_t, fp_t, fn_t)))
+                seed_accs.append(float((tp_t + tn_t) / max(tp_t + tn_t + fp_t + fn_t, 1.0)))
+                prec = float(tp_t / max(tp_t + fp_t, 1.0))
+                rec = float(tp_t / max(tp_t + fn_t, 1.0))
+                seed_precs.append(prec)
+                seed_recs.append(rec)
+                seed_f1s.append(float(2 * prec * rec / max(prec + rec, 1e-12)))
+                seed_rhos.append(float(spearmanr(yp[ok], ym[ok])[0]) if np.ptp(yp[ok]) > 0 else np.nan)
+                seed_rs.append(float(pearsonr(yp[ok], ym[ok])[0]) if np.ptp(yp[ok]) > 0 else np.nan)
+                seed_rmses.append(float(np.sqrt(np.mean((yp[ok] - ym[ok]) ** 2))))
+
+            # Exact vectorized domain-cluster x seed bootstrap: (B, ns)
+            tp_b = dom_counts @ tp_mat.T
+            tn_b = dom_counts @ tn_mat.T
+            fp_b = dom_counts @ fp_mat.T
+            fn_b = dom_counts @ fn_mat.T
+            mcc_b_seed = _mcc_from_counts(tp_b, tn_b, fp_b, fn_b)
+            if ns > 1:
+                sw = seed_w[ns]
+                reps = np.sum(mcc_b_seed * sw, axis=1)
+            else:
+                reps = mcc_b_seed[:, 0]
+
+            pt = float(np.mean(seed_mccs))
+            lo, hi = boot_ci(reps)
+            reps_store[(panel_key, disp)] = reps
+            pt_store[(panel_key, disp)] = pt
+            extra_stats[(panel_key, disp)] = (float(np.nanmean(seed_rs)), float(np.nanmean(seed_rmses)))
+            n_var_by_panel[panel_key] = n_ok_last
+
+            summary_rows.append(dict(
+                panel=panel_key,
+                column=cname,
+                model=disp,
+                subset=panel_key,
+                value=pt,
+                lo=lo,
+                hi=hi,
+                accuracy=float(np.mean(seed_accs)),
+                f1=float(np.mean(seed_f1s)),
+                precision=float(np.mean(seed_precs)),
+                recall=float(np.mean(seed_recs)),
+                tp_mean=float(tp_mat.sum(axis=1).mean()),
+                tn_mean=float(tn_mat.sum(axis=1).mean()),
+                fp_mean=float(fp_mat.sum(axis=1).mean()),
+                fn_mean=float(fn_mat.sum(axis=1).mean()),
+                spearman_rho=float(np.nanmean(seed_rhos)),
+                pearson_r=float(np.nanmean(seed_rs)),
+                rmse=float(np.nanmean(seed_rmses)),
+                n_variants=n_ok_last,
+                n_libraries=n_libs,
+                n_seeds=ns,
+            ))
+
+    df_sum = pd.DataFrame(summary_rows)
+    df_raw = df_sum[df_sum['panel'] == 'raw'].copy()
+    df_sat = df_sum[df_sum['panel'] == 'sat_corrected'].copy()
+
+    # Two-panel stacked bar figure (a: raw dddG > 0; b: saturation-corrected r > 0), no overall title
+    w_fig = max(11.4, fig_width(cols))
+    fig = plt.figure(figsize=(w_fig, 9.6), facecolor='white')
+    gs = fig.add_gridspec(2, 1, left=0.080, right=0.985, top=0.950, bottom=0.125, hspace=0.46)
+    ax_a = fig.add_subplot(gs[0, 0])
+    ax_b = fig.add_subplot(gs[1, 0])
+
+    lo_a = min(-0.08, float(np.floor((df_raw['lo'].min() - 0.04) * 20) / 20))
+    hi_a = max(0.35, float(np.ceil((df_raw['hi'].max() + 0.11) * 20) / 20))
+    lo_b = min(-0.08, float(np.floor((df_sat['lo'].min() - 0.04) * 20) / 20))
+    hi_b = max(0.55, float(np.ceil((df_sat['hi'].max() + 0.11) * 20) / 20))
+
+    style.bar_panel(
+        ax_a, cols, df_raw, ('raw',), ('raw epistasis (δΔΔG > 0)',),
+        ylabel='Epistasis sign MCC\n(raw δΔΔG > 0)',
+        ylim=(lo_a, hi_a),
+        zero_line=True, tick_fs=8.5,
+    )
+    style.bar_panel(
+        ax_b, cols, df_sat, ('sat_corrected',), ('saturation-corrected (r > 0)',),
+        ylabel='Epistasis sign MCC\n(saturation-corrected r > 0)',
+        ylim=(lo_b, hi_b),
+        zero_line=True, tick_fs=8.5,
+    )
+    for ax_s in (ax_a, ax_b):
+        for txt in ax_s.texts:
+            if txt.get_fontsize() < 8.0:
+                txt.set_fontsize(8.0)
+
+    fig.canvas.draw()
+    pa, pb = ax_a.get_position(), ax_b.get_position()
+    fig.text(0.012, pa.y1 + 0.032, 'a', ha='left', va='top', fontsize=16, fontweight='bold')
+    fig.text(0.012, pb.y1 + 0.032, 'b', ha='left', va='top', fontsize=16, fontweight='bold')
+
+    supp_dir = out_dir('supplementary_figs')
+    out_path = supp_dir / '_epi_mcc'
+    style.save(fig, out_path)
+
+    # Export source data (gitignored *_sourcedata.csv) + paired one-sided bootstrap p-value table & annotation
+    src_dir = supp_dir / 'source_data'
+    pval_dir = supp_dir / 'pvalues'
+    src_dir.mkdir(parents=True, exist_ok=True)
+    pval_dir.mkdir(parents=True, exist_ok=True)
+    atomic_to_csv(df_sum, src_dir / '_epi_mcc_summary_sourcedata.csv', index=False, float_format='%.4f')
+    atomic_to_csv(pd.DataFrame(per_dom_rows), src_dir / '_epi_mcc_per_domain_sourcedata.csv', index=False, float_format='%.6f')
+
+    models_disp = [name_map.get(c['name'], c['name']) for c in cols]
+    comps = [m for m in models_disp if m != 'ESM-MSR']
+    m_clean = len(comps)
+    p_rows = []
+    for panel_key, metric_lbl in (
+        ('raw', 'epistasis_sign_MCC_raw_dddG_gt0'),
+        ('sat_corrected', 'epistasis_sign_MCC_saturation_corrected_r_gt0'),
+    ):
+        msr_pt = pt_store[(panel_key, 'ESM-MSR')]
+        msr_rp = reps_store[(panel_key, 'ESM-MSR')]
+        msr_r, msr_e = extra_stats[(panel_key, 'ESM-MSR')]
+        n_v = n_var_by_panel[panel_key]
+        p_by_c = {}
+        d_list = []
+        for comp in comps:
+            d_arr = msr_rp - reps_store[(panel_key, comp)]
+            p_one, nf, b_eff = _one_sided_p(d_arr)
+            p_by_c[comp] = p_one
+            d_list.append(d_arr)
+            lo_d, hi_d = boot_ci(d_arr)
+            cr, ce = extra_stats[(panel_key, comp)]
+            p_rows.append(dict(
+                benchmark='MegaScale_capped_test_epistasis',
+                subset_or_metric=metric_lbl,
+                resampling_unit='domain_cluster_x_seed',
+                test_type='pairwise',
+                msr_model='ESM-MSR',
+                comparator=comp,
+                direction='ESM-MSR > comparator',
+                value_msr=msr_pt,
+                value_comparator=pt_store[(panel_key, comp)],
+                pearson_r_msr=msr_r,
+                pearson_r_comparator=cr,
+                rmse_msr=msr_e,
+                rmse_comparator=ce,
+                delta_favoring_msr=msr_pt - pt_store[(panel_key, comp)],
+                ci95_lo=lo_d,
+                ci95_hi=hi_d,
+                n_units=n_libs,
+                n_variants=n_v,
+                B=b_eff,
+                n_boot_fail=nf,
+                p_one_sided_uncorrected=p_one,
+                bonferroni_m=m_clean,
+                p_one_sided_bonferroni=min(1.0, m_clean * p_one),
+            ))
+        best_c = max(comps, key=lambda x: pt_store[(panel_key, x)])
+        d_nb = msr_rp - reps_store[(panel_key, best_c)]
+        p_nb, nf_nb, b_nb = _one_sided_p(d_nb)
+        lo_nb, hi_nb = boot_ci(d_nb)
+        cr, ce = extra_stats[(panel_key, best_c)]
+        p_rows.append(dict(
+            benchmark='MegaScale_capped_test_epistasis',
+            subset_or_metric=metric_lbl,
+            resampling_unit='domain_cluster_x_seed',
+            test_type='next_best_clean',
+            msr_model='ESM-MSR',
+            comparator=best_c,
+            direction='ESM-MSR > comparator',
+            value_msr=msr_pt,
+            value_comparator=pt_store[(panel_key, best_c)],
+            pearson_r_msr=msr_r,
+            pearson_r_comparator=cr,
+            rmse_msr=msr_e,
+            rmse_comparator=ce,
+            delta_favoring_msr=msr_pt - pt_store[(panel_key, best_c)],
+            ci95_lo=lo_nb,
+            ci95_hi=hi_nb,
+            n_units=n_libs,
+            n_variants=n_v,
+            B=b_nb,
+            n_boot_fail=nf_nb,
+            p_one_sided_uncorrected=p_nb,
+            bonferroni_m=m_clean,
+            p_one_sided_bonferroni=min(1.0, m_clean * p_nb),
+        ))
+        worst_c = max(comps, key=lambda x: p_by_c[x])
+        d_w = msr_rp - reps_store[(panel_key, worst_c)]
+        p_iut, nf_w, b_w = _one_sided_p(d_w)
+        lo_w, hi_w = boot_ci(d_w)
+        cr, ce = extra_stats[(panel_key, worst_c)]
+        p_rows.append(dict(
+            benchmark='MegaScale_capped_test_epistasis',
+            subset_or_metric=metric_lbl,
+            resampling_unit='domain_cluster_x_seed',
+            test_type='all_clean_IUT',
+            msr_model='ESM-MSR',
+            comparator=f'ALL_CLEAN_IUT (limiting: {worst_c})',
+            direction='ESM-MSR > comparator',
+            value_msr=msr_pt,
+            value_comparator=pt_store[(panel_key, worst_c)],
+            pearson_r_msr=msr_r,
+            pearson_r_comparator=cr,
+            rmse_msr=msr_e,
+            rmse_comparator=ce,
+            delta_favoring_msr=msr_pt - pt_store[(panel_key, worst_c)],
+            ci95_lo=lo_w,
+            ci95_hi=hi_w,
+            n_units=n_libs,
+            n_variants=n_v,
+            B=b_w,
+            n_boot_fail=nf_w,
+            p_one_sided_uncorrected=p_iut,
+            bonferroni_m=1,
+            p_one_sided_bonferroni=p_iut,
+        ))
+        d_min = np.nanmin(np.vstack(d_list), axis=0)
+        p_jm, nf_jm, b_jm = _one_sided_p(d_min)
+        lo_jm, hi_jm = boot_ci(d_min)
+        p_rows.append(dict(
+            benchmark='MegaScale_capped_test_epistasis',
+            subset_or_metric=metric_lbl,
+            resampling_unit='domain_cluster_x_seed',
+            test_type='all_clean_joint_max',
+            msr_model='ESM-MSR',
+            comparator=f'ALL_CLEAN_JOINT_MAX (max of {m_clean} clean models per draw)',
+            direction='ESM-MSR > comparator',
+            value_msr=msr_pt,
+            value_comparator=np.nan,
+            pearson_r_msr=msr_r,
+            pearson_r_comparator=np.nan,
+            rmse_msr=msr_e,
+            rmse_comparator=np.nan,
+            delta_favoring_msr=msr_pt - max(pt_store[(panel_key, x)] for x in comps),
+            ci95_lo=lo_jm,
+            ci95_hi=hi_jm,
+            n_units=n_libs,
+            n_variants=n_v,
+            B=b_jm,
+            n_boot_fail=nf_jm,
+            p_one_sided_uncorrected=p_jm,
+            bonferroni_m=1,
+            p_one_sided_bonferroni=p_jm,
+        ))
+
+    atomic_to_csv(pd.DataFrame(p_rows), pval_dir / '_epi_mcc_pvalues.csv', index=False, float_format='%.6g')
+    atomic_write_text(
+        pval_dir / '_epi_mcc_pvalues_annotation.txt',
+        f"""Statistical Annotation: _epi_mcc_pvalues.csv
+============================================
+Figure / Panel: Supplementary Figure (_epi_mcc), Panel a (raw epistasis sign classification, threshold = 0 on both measured dddG and predicted dddG) and Panel b (saturation-corrected epistasis sign classification, threshold = 0 on both measured residual r = dddG - E[dddG | dG_add] and predicted residual r' = dddG' - E[dddG' | dG_add']).
+
+Metric Tested:
+  Pooled Matthews Correlation Coefficient (MCC) across all {n_var_by_panel['raw']:,} usable Homology-Restricted MegaScale test doubles with both constituent singles measured ({n_libs} test domains; 3-seed average for retrained transfer models). ProSST is omitted because it is strictly additive (predicted dddG = 0 identically).
+  Mean Pearson's r and RMSE (kcal/mol) on the same raw / saturation-corrected quantities are included alongside MCC.
+
+Statistical Test & Resampling Procedure:
+  Paired nonparametric domain-cluster x seed bootstrap (B = {B:,}, deterministic seed).
+  In each replicate, the {n_libs} test domains are resampled with replacement via a single shared Multinomial({n_libs}, 1/{n_libs}) weight vector applied to every model's per-domain 2x2 contingency counts (TP, TN, FP, FN), and 3-seed retrained models are resampled jointly across training seeds.
+  One-sided Phipson & Smyth (2010) p-value: p = (1 + #{{b : delta^(b) <= 0}}) / (B + 1).
+  Bonferroni correction adjusts within each panel over m = {m_clean} clean comparator models.
+  `all_clean_IUT` gives Berger's (1982) Intersection-Union Test (p_IUT = max_j p_j); `all_clean_joint_max` evaluates min_j(MCC_ESM-MSR^(b) - MCC_j^(b)) per draw.
+""",
+    )
+    return out_path
+
+
+def _kde_density_2d(xv: np.ndarray, yv: np.ndarray, max_fit: int = 12_000, grid_n: int = 180) -> np.ndarray:
+    """Fast, smooth 2D Gaussian KDE density via grid evaluation + bilinear interpolation."""
+    from scipy.interpolate import RegularGridInterpolator
+
+    n_pts = len(xv)
+    rng = np.random.default_rng(0)
+    sub = rng.choice(n_pts, min(n_pts, max_fit), replace=False)
+    kde = gaussian_kde(np.vstack([xv[sub], yv[sub]]))
+    if n_pts <= 20_000:
+        return kde(np.vstack([xv, yv]))
+    x_min, x_max = float(xv.min()), float(xv.max())
+    y_min, y_max = float(yv.min()), float(yv.max())
+    pad_x = 1e-6 * max(1.0, x_max - x_min)
+    pad_y = 1e-6 * max(1.0, y_max - y_min)
+    gx = np.linspace(x_min - pad_x, x_max + pad_x, grid_n)
+    gy = np.linspace(y_min - pad_y, y_max + pad_y, grid_n)
+    XX, YY = np.meshgrid(gx, gy, indexing='ij')
+    Z = kde(np.vstack([XX.ravel(), YY.ravel()])).reshape(grid_n, grid_n)
+    interp = RegularGridInterpolator((gx, gy), Z, bounds_error=False, fill_value=float(Z.min()))
+    return interp(np.column_stack([xv, yv]))
+
+
+_SCATTER_BOOT_STATE: dict = {}
+
+
+def _scatter_spearman_chunk(b_slice: tuple[int, int]) -> np.ndarray:
+    b0, b1 = b_slice
+    st = _SCATTER_BOOT_STATE
+    d_cnt, dom_idx, eng, xr_flat = st['d_cnt'], st['dom_idx'], st['eng'], st['xr_flat']
+    out_c = np.empty((b1 - b0, len(xr_flat)), dtype=float)
+    for bi, b in enumerate(range(b0, b1)):
+        wb = d_cnt[b, dom_idx].astype(float)
+        ry_b = eng.ry.ranks(wb)
+        sw_b = float(wb.sum())
+        my_b = float(np.dot(wb, ry_b) / sw_b)
+        vy_b = float(np.dot(wb, ry_b * ry_b) / sw_b - my_b * my_b)
+        for j, xr_j in enumerate(xr_flat):
+            rx_b = xr_j.ranks(wb)
+            mx_b = float(np.dot(wb, rx_b) / sw_b)
+            vx_b = float(np.dot(wb, rx_b * rx_b) / sw_b - mx_b * mx_b)
+            cxy_b = float(np.dot(wb, rx_b * ry_b) / sw_b - mx_b * my_b)
+            den_b = np.sqrt(max(vx_b * vy_b, 0.0))
+            out_c[bi, j] = (cxy_b / den_b) if den_b > 0.0 else np.nan
+    return out_c
+
+
+def _pooled_domain_boot_r_rmse(
+    p_seeds: np.ndarray,
+    y_1d: np.ndarray,
+    dom_idx: np.ndarray,
+    n_dom: int,
+    d_cnt: np.ndarray,
+    s_w: np.ndarray | None,
+) -> tuple[float, np.ndarray, float, np.ndarray]:
+    """Exact domain-cluster x seed bootstrap for pooled Pearson r and pooled RMSE."""
+    ns = p_seeds.shape[0]
+    B = d_cnt.shape[0]
+    nd = np.bincount(dom_idx, minlength=n_dom).astype(float)
+    sy = np.bincount(dom_idx, weights=y_1d, minlength=n_dom)
+    sy2 = np.bincount(dom_idx, weights=y_1d ** 2, minlength=n_dom)
+
+    r_seed_reps = np.empty((B, ns), dtype=float)
+    e_seed_reps = np.empty((B, ns), dtype=float)
+    r_pts, e_pts = [], []
+    W_n = d_cnt @ nd
+    W_sy = d_cnt @ sy
+    W_sy2 = d_cnt @ sy2
+    for s in range(ns):
+        ps = p_seeds[s]
+        r_pts.append(float(pearsonr(ps, y_1d)[0]))
+        e_pts.append(float(np.sqrt(np.mean((ps - y_1d) ** 2))))
+        sx = np.bincount(dom_idx, weights=ps, minlength=n_dom)
+        sx2 = np.bincount(dom_idx, weights=ps ** 2, minlength=n_dom)
+        sxy = np.bincount(dom_idx, weights=ps * y_1d, minlength=n_dom)
+        sse = np.bincount(dom_idx, weights=(ps - y_1d) ** 2, minlength=n_dom)
+        W_sx = d_cnt @ sx
+        W_sx2 = d_cnt @ sx2
+        W_sxy = d_cnt @ sxy
+        W_sse = d_cnt @ sse
+        cov = W_sxy - (W_sx * W_sy) / W_n
+        vx = np.maximum(W_sx2 - (W_sx ** 2) / W_n, 0.0)
+        vy = np.maximum(W_sy2 - (W_sy ** 2) / W_n, 0.0)
+        denom = np.sqrt(vx * vy)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            r_seed_reps[:, s] = np.where(denom > 0, cov / denom, np.nan)
+            e_seed_reps[:, s] = np.sqrt(W_sse / W_n)
+    if ns == 1 or s_w is None:
+        return float(r_pts[0]), r_seed_reps[:, 0], float(e_pts[0]), e_seed_reps[:, 0]
+    return (
+        float(np.mean(r_pts)),
+        np.sum(r_seed_reps * s_w, axis=1),
+        float(np.mean(e_pts)),
+        np.sum(e_seed_reps * s_w, axis=1),
+    )
+
+
+def build_supp_megascale_scatter_trio(split: str = 'capped', B: int = 10_000, compute_pvals: bool = True) -> list[Path]:
+    """Build 3 style-matched supplementary scatter figures on MegaScale test:
+      1. _megascale_singles_scatters.{png,pdf}   (9 main singles models, 3x3, shared y-axis)
+      2. _megascale_doubles_scatters.{png,pdf}   (9 main doubles models, 3x3, shared y-axis)
+      3. _megascale_epistasis_scatters.{png,pdf} (8 main epistasis models, 2x4, shared y-axis)
+    Matches _epi_rmse styling: plasma KDE density coloring, x=y line, 3-seed integration without
+    ensemble averaging, and seed-mean rho / r / RMSE / n summary boxes.
+    """
+    from msr_analysis.boot import SpearmanEngine, ci as boot_ci
+    from msr_analysis.stats import make_domain_seed_draws
+
+    fr = load_frame(tsu_datasets(split)[1])
+    sp = fr.spine
+    use = sp['use'].to_numpy()
+    y_ddg = sp['y'].to_numpy(float)
+    y_epi = sp['dddG_ML'].to_numpy(float)
+    n_mut = sp['n_mut'].to_numpy()
+    groups_all = sp['group'].astype(str).to_numpy()
+
+    configs = [
+        dict(
+            stem='_megascale_singles_scatters',
+            benchmark='MegaScale_capped_test_singles',
+            subset_desc='Homology-Restricted MegaScale test single mutants' if split == 'capped' else 'MegaScale mega_splits test single mutants',
+            mask=use & (n_mut == 1) & np.isfinite(y_ddg),
+            y_arr=y_ddg,
+            ylabel='measured ΔΔG (kcal/mol)',
+            default_xlabel='predicted ΔΔG (kcal/mol)',
+            ncols=3,
+            pt_size=5.0,
+            alpha_base=0.22,
+            leg_loc='lower right',
+            leg_bbox=(0.985, 0.13),
+            msr_name='ESM-MSR WT-view',
+            models=[
+                ('ProSST', 'prosst', 'Zero-shot', 'predicted score (log-likelihood)'),
+                ('ProteinMPNN', 'pmpnn', 'Zero-shot', 'predicted score (log-odds)'),
+                ('ESM3-small-open WT-view', 'msrrel@0:wt', 'Zero-shot', 'predicted ΔΔG (kcal/mol)'),
+                ('ESM-MSR WT-view', 'msrp0:wt', 'Retrained', 'predicted ΔΔG (kcal/mol)'),
+                ('MutateEverything Stage 1', 'me1', 'Retrained', 'predicted ΔΔG (kcal/mol)'),
+                ('ThermoMPNN', 'tmpnn', 'Retrained', 'predicted ΔΔG (kcal/mol)'),
+                ('SPURS', 'spurs', 'Retrained', 'predicted ΔΔG (kcal/mol)'),
+                ('GeoDDG-3D', 'geoddg', 'Supervised', 'predicted ΔΔG (kcal/mol)'),
+                ('Rosetta', 'rosetta', 'Supervised', 'predicted ΔΔG (kcal/mol)'),
+            ],
+            extra_note='ProSST and ProteinMPNN output uncalibrated log-likelihood/log-odds scores rather than kcal/mol; all panels share the measured y-axis while x-axes span each model\'s prediction range.',
+        ),
+        dict(
+            stem='_megascale_doubles_scatters',
+            benchmark='MegaScale_capped_test_doubles',
+            subset_desc='Homology-Restricted MegaScale test double mutants' if split == 'capped' else 'MegaScale mega_splits test double mutants',
+            mask=use & (n_mut == 2) & np.isfinite(y_ddg),
+            y_arr=y_ddg,
+            ylabel='measured ΔΔG (kcal/mol)',
+            default_xlabel='predicted ΔΔG (kcal/mol)',
+            ncols=3,
+            pt_size=6.5,
+            alpha_base=0.28,
+            leg_loc='lower right',
+            leg_bbox=(0.985, 0.13),
+            msr_name='ESM-MSR Dual-view',
+            models=[
+                ('ProSST (additive)', 'prosst', 'Zero-shot', 'predicted score (log-likelihood)'),
+                ('ProteinMPNN', 'pmpnn', 'Zero-shot', 'predicted score (log-odds)'),
+                ('ESM3-small-open Dual-view', 'msrrel@0:comb', 'Zero-shot', 'predicted ΔΔG (kcal/mol)'),
+                ('ESM-MSR Dual-view', 'msrp0:comb', 'Retrained', 'predicted ΔΔG (kcal/mol)'),
+                ('MutateEverything Stage 2', 'me2', 'Retrained', 'predicted ΔΔG (kcal/mol)'),
+                ('ThermoMPNN-D', 'tmpnnd', 'Retrained', 'predicted ΔΔG (kcal/mol)'),
+                ('SPURS-multi', 'spursm', 'Retrained', 'predicted ΔΔG (kcal/mol)'),
+                ('GeoDDG-3D', 'geoddg', 'Supervised', 'predicted ΔΔG (kcal/mol)'),
+                ('Rosetta', 'rosetta', 'Supervised', 'predicted ΔΔG (kcal/mol)'),
+            ],
+            extra_note='ProSST (additive sum of singles) and ProteinMPNN output uncalibrated log-likelihood/log-odds scores rather than kcal/mol; all panels share the measured y-axis while x-axes span each model\'s prediction range.',
+        ),
+        dict(
+            stem='_megascale_epistasis_scatters',
+            benchmark='MegaScale_capped_test_epistasis',
+            subset_desc='Homology-Restricted MegaScale test doubles with both singles measured (all epistasis)' if split == 'capped' else 'MegaScale mega_splits test doubles with both singles measured (all epistasis)',
+            mask=epi_rows(fr) & np.isfinite(y_epi),
+            y_arr=y_epi,
+            ylabel=Y_DDD_LABEL,
+            default_xlabel='predicted δΔΔG = dddG (kcal/mol)',
+            ncols=4,
+            pt_size=6.5,
+            alpha_base=0.30,
+            leg_loc='lower left',
+            leg_bbox=None,
+            msr_name='ESM-MSR',
+            models=[
+                ('ProteinMPNN', 'pmpnn:epi', 'Zero-shot', 'predicted δΔΔG (log-odds)'),
+                ('ESM3-small-open', 'msrrel@0:epi', 'Zero-shot', 'predicted δΔΔG = dddG (kcal/mol)'),
+                ('ESM-MSR', 'msrp0:epi', 'Retrained', 'predicted δΔΔG = dddG (kcal/mol)'),
+                ('MutateEverything Stage 2', 'me2:epi', 'Retrained', 'predicted δΔΔG = dddG (kcal/mol)'),
+                ('ThermoMPNN-D', 'tmpnnd:epi', 'Retrained', 'predicted δΔΔG = dddG (kcal/mol)'),
+                ('SPURS-multi', 'spursm:epi', 'Retrained', 'predicted δΔΔG = dddG (kcal/mol)'),
+                ('GeoDDG-3D', 'geoddg:epi', 'Supervised', 'predicted δΔΔG = dddG (kcal/mol)'),
+                ('Rosetta', 'rosetta:epi', 'Supervised', 'predicted δΔΔG = dddG (kcal/mol)'),
+            ],
+            extra_note='ProSST is omitted because it is strictly additive (predicted δΔΔG = 0 identically). All panels share the measured y-axis while x-axes span each model\'s prediction range.',
+        ),
+    ]
+
+    supp_dir = out_dir('supplementary_figs')
+    src_dir = supp_dir / 'source_data'
+    pval_dir = supp_dir / 'pvalues'
+    src_dir.mkdir(parents=True, exist_ok=True)
+    pval_dir.mkdir(parents=True, exist_ok=True)
+    cm = plt.get_cmap('plasma')
+    saved_paths: list[Path] = []
+
+    def _one_sided_p(diffs: np.ndarray) -> tuple[float, int, int]:
+        fin = diffs[np.isfinite(diffs)]
+        nf = int(np.sum(fin <= 0.0))
+        return float((nf + 1) / (len(fin) + 1)), nf, int(len(fin))
+
+    for cfg_i, cfg in enumerate(configs):
+        entries = [
+            (lbl, k, grp, xlab, fr.preds[k])
+            for lbl, k, grp, xlab in cfg['models']
+            if k in fr.preds
+        ]
+        ok = cfg['mask'].copy()
+        for _, _, _, _, p_arr in entries:
+            ok &= np.isfinite(p_arr).all(axis=0)
+        yv_1d = cfg['y_arr'][ok]
+        dom_arr = groups_all[ok]
+        uniq_doms, dom_idx = np.unique(dom_arr, return_inverse=True)
+        n_dom = len(uniq_doms)
+        n_var = len(yv_1d)
+
+        # Shared y-axis limits from measured y (0.2–99.8 pct + 5% padding)
+        y_lo, y_hi = np.percentile(yv_1d, [0.2, 99.8])
+        y_pad = 0.055 * (y_hi - y_lo)
+        ylim = (float(y_lo - y_pad), float(y_hi + y_pad))
+
+        ncols = cfg['ncols']
+        nrows = int(np.ceil(len(entries) / ncols))
+        fig_w = 19.2 if ncols == 4 else 14.8
+        fig_h = 11.4 if nrows == 2 else 15.8
+        fig, axes = plt.subplots(
+            nrows, ncols,
+            figsize=(fig_w, fig_h),
+            sharex=False, sharey=True, squeeze=False,
+            facecolor='white',
+        )
+        flat_axes = axes.ravel()
+
+        sum_rows = []
+        seed_rows = []
+        preds_ok_map: dict[str, np.ndarray] = {}
+
+        for idx, (ax, (m_label, k, grp, xlab, p_full)) in enumerate(zip(flat_axes, entries)):
+            p_ok = p_full[:, ok]
+            preds_ok_map[m_label] = p_ok
+            n_seeds = p_ok.shape[0]
+            xv = p_ok.ravel()
+            yv = np.tile(yv_1d, n_seeds)
+
+            # Per-panel x-limits covering at least [ylim[0], ylim[1]] and [0.3, 99.7] pct of predictions
+            x_q0, x_q1 = np.percentile(xv, [0.3, 99.7])
+            x_pad = 0.055 * max(x_q1 - x_q0, 1e-3)
+            xlim = (float(min(x_q0 - x_pad, ylim[0])), float(max(x_q1 + x_pad, ylim[1])))
+
+            z = _kde_density_2d(xv, yv)
+            o = np.argsort(z)
+            col = cm(Normalize(float(z.min()), float(z.max()))(z))
+            col[:, 3] = cfg['alpha_base'] / np.sqrt(n_seeds)
+
+            ax.axhline(0.0, color='#bbbbbb', lw=0.8, zorder=1)
+            ax.axvline(0.0, color='#bbbbbb', lw=0.8, zorder=1)
+            ax.scatter(xv[o], yv[o], c=col[o], s=cfg['pt_size'], edgecolors='none', rasterized=True, zorder=2)
+            diag_lo, diag_hi = min(xlim[0], ylim[0]), max(xlim[1], ylim[1])
+            ax.plot([diag_lo, diag_hi], [diag_lo, diag_hi], color='#c0392b', ls='--', lw=1.5, zorder=4, clip_on=True)
+            ax.set_xlim(xlim)
+            ax.set_ylim(ylim)
+            ax.set_box_aspect(1)
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+
+            row_i, col_i = divmod(idx, ncols)
+            if col_i == 0:
+                ax.set_ylabel(cfg['ylabel'], fontsize=11.5)
+            ax.set_xlabel(xlab, fontsize=10.2)
+            ax.tick_params(axis='both', labelsize=9.8)
+
+            rhos = [float(spearmanr(p_ok[s], yv_1d)[0]) for s in range(n_seeds)]
+            rs = [float(pearsonr(p_ok[s], yv_1d)[0]) for s in range(n_seeds)]
+            rmses = [float(np.sqrt(np.mean((p_ok[s] - yv_1d) ** 2))) for s in range(n_seeds)]
+            rho_m = float(np.mean(rhos))
+            r_m = float(np.mean(rs))
+            rmse_m = float(np.mean(rmses))
+            rho_sd = float(np.std(rhos, ddof=1)) if n_seeds > 1 else np.nan
+            r_sd = float(np.std(rs, ddof=1)) if n_seeds > 1 else np.nan
+            rmse_sd = float(np.std(rmses, ddof=1)) if n_seeds > 1 else np.nan
+
+            sum_rows.append(dict(
+                model=m_label, group=grp, key=k, n_seeds=n_seeds, n_variants=n_var, n_domains=n_dom,
+                spearman_rho=rho_m, spearman_rho_sd=rho_sd,
+                pearson_r=r_m, pearson_r_sd=r_sd,
+                rmse=rmse_m, rmse_sd=rmse_sd,
+            ))
+            for s in range(n_seeds):
+                seed_rows.append(dict(
+                    model=m_label, group=grp, key=k, seed=s + 1, n_variants=n_var, n_domains=n_dom,
+                    spearman_rho=rhos[s], pearson_r=rs[s], rmse=rmses[s],
+                ))
+
+            n_str = f'n = {n_var:,} (×{n_seeds})' if n_seeds > 1 else f'n = {n_var:,}'
+            ax.text(
+                0.04, 0.96, f'ρ = {rho_m:.2f}\nr = {r_m:.2f}\nRMSE = {rmse_m:.2f}\n{n_str}',
+                transform=ax.transAxes, va='top', ha='left', fontsize=9.8, zorder=10,
+                bbox=dict(boxstyle='round,pad=0.28', fc='white', ec='#cccccc', alpha=0.92),
+            )
+            ax.text(
+                0.96, 0.04, grp,
+                transform=ax.transAxes, ha='right', va='bottom', fontsize=9.2, color='#555555', zorder=10,
+                bbox=dict(boxstyle='round,pad=0.22', fc='white', ec='none', alpha=0.78),
+            )
+            if idx == 0:
+                leg_kw = dict(handles=[Line2D([0], [0], color='#c0392b', ls='--', lw=1.5, label='x = y')],
+                              loc=cfg['leg_loc'], fontsize=9.2, framealpha=0.92, edgecolor='#cccccc')
+                if cfg['leg_bbox'] is not None:
+                    leg_kw['bbox_to_anchor'] = cfg['leg_bbox']
+                ax.legend(**leg_kw)
+            ax.set_title(m_label, fontsize=12.2, fontweight='bold', pad=7)
+
+        for ax in flat_axes[len(entries):]:
+            ax.set_visible(False)
+
+        if nrows == 2:
+            fig.subplots_adjust(left=0.048, right=0.992, top=0.962, bottom=0.108, hspace=0.28, wspace=0.11)
+        else:
+            fig.subplots_adjust(left=0.058, right=0.992, top=0.974, bottom=0.074, hspace=0.26, wspace=0.13)
+        foot_txt = (
+            f'{cfg["subset_desc"]} (n = {n_var:,}, {n_dom} domains). '
+            f'Retrained models show 3 triplicate seeds integrated without ensemble averaging; stats are seed means. '
+            f'{cfg["extra_note"]}'
+        )
+        kw_f = dict(fontsize=9.0, color='#444444')
+        fig.text(0.012, 0.008, style.wrap_to_px(fig, foot_txt, 0.975 * fig.bbox.width, **kw_f), va='bottom', ha='left', **kw_f)
+
+        out_path = supp_dir / cfg['stem']
+        style.save(fig, out_path)
+        saved_paths.append(out_path)
+
+        # Save source data (summary + per-seed)
+        atomic_to_csv(pd.DataFrame(sum_rows), src_dir / f'{cfg["stem"]}_summary_sourcedata.csv', index=False, float_format='%.6g')
+        atomic_to_csv(pd.DataFrame(seed_rows), src_dir / f'{cfg["stem"]}_per_seed_sourcedata.csv', index=False, float_format='%.6g')
+
+        if not compute_pvals:
+            continue
+
+        # Paired one-sided domain-cluster x seed bootstrap p-values (ESM-MSR vs all comparators for pooled rho, r, RMSE)
+        d_cnt, s_w = make_domain_seed_draws(n_dom, B=B, seed=701 + cfg_i, seed_counts=(3,))
+        # Exact count-weighted pooled Spearman bootstrap via SpearmanEngine (shared domain weights per draw)
+        g_zero = np.zeros(n_var, dtype=np.int64)
+        eng = SpearmanEngine(yv_1d, g_zero, 1)
+        m_list = list(preds_ok_map.keys())
+        xr_flat = []
+        m_seed_slices = {}
+        cur_idx = 0
+        for m_label in m_list:
+            p_ok = preds_ok_map[m_label]
+            ns = p_ok.shape[0]
+            m_seed_slices[m_label] = (cur_idx, cur_idx + ns)
+            for s in range(ns):
+                xr_flat.append(eng.prepare(p_ok[s]))
+            cur_idx += ns
+
+        n_workers = min(8, max(1, mp.cpu_count() or 1))
+        chunk_sz = max(1, (B + n_workers * 2 - 1) // (n_workers * 2))
+        chunks = [(i, min(B, i + chunk_sz)) for i in range(0, B, chunk_sz)]
+        _SCATTER_BOOT_STATE.clear()
+        _SCATTER_BOOT_STATE.update(d_cnt=d_cnt, dom_idx=dom_idx, eng=eng, xr_flat=xr_flat)
+        try:
+            if n_workers > 1 and B > 100:
+                with mp.get_context('fork').Pool(n_workers) as pool:
+                    rho_mat = np.vstack(pool.map(_scatter_spearman_chunk, chunks))
+            else:
+                rho_mat = np.vstack([_scatter_spearman_chunk(ch) for ch in chunks])
+        finally:
+            _SCATTER_BOOT_STATE.clear()
+
+        rho_pt_map, rho_rep_map = {}, {}
+        r_pt_map, r_rep_map = {}, {}
+        e_pt_map, e_rep_map = {}, {}
+        for m_label in m_list:
+            p_ok = preds_ok_map[m_label]
+            ns = p_ok.shape[0]
+            sw_ns = s_w[ns] if (isinstance(s_w, dict) and ns in s_w) else (s_w if not isinstance(s_w, dict) else None)
+            j0, j1 = m_seed_slices[m_label]
+            s_rhos = rho_mat[:, j0:j1]
+            s_pts = [float(spearmanr(p_ok[s], yv_1d)[0]) for s in range(ns)]
+            rho_pt_map[m_label] = float(np.mean(s_pts))
+            rho_rep_map[m_label] = s_rhos[:, 0] if (ns == 1 or sw_ns is None) else np.sum(s_rhos * sw_ns, axis=1)
+            r_pt, r_rp, e_pt, e_rp = _pooled_domain_boot_r_rmse(p_ok, yv_1d, dom_idx, n_dom, d_cnt, sw_ns if ns > 1 else None)
+            r_pt_map[m_label], r_rep_map[m_label] = r_pt, r_rp
+            e_pt_map[m_label], e_rep_map[m_label] = e_pt, e_rp
+
+        msr_nm = cfg['msr_name']
+        comps = [m for m in preds_ok_map if m != msr_nm]
+        m_clean = len(comps)
+        p_rows = []
+        for met_name, pt_m, rp_m, higher_better in (
+            ('pooled_spearman_rho', rho_pt_map, rho_rep_map, True),
+            ('pooled_pearson_r', r_pt_map, r_rep_map, True),
+            ('pooled_rmse', e_pt_map, e_rep_map, False),
+        ):
+            sign = 1.0 if higher_better else -1.0
+            dir_str = 'ESM-MSR > comparator' if higher_better else 'ESM-MSR < comparator (lower RMSE better)'
+            p_by_c = {}
+            for comp in comps:
+                d_arr = sign * (rp_m[msr_nm] - rp_m[comp])
+                p_one, nf, b_eff = _one_sided_p(d_arr)
+                p_by_c[comp] = p_one
+                lo_d, hi_d = boot_ci(d_arr)
+                p_rows.append(dict(
+                    benchmark=cfg['benchmark'], metric=met_name,
+                    resampling_unit='domain_cluster_x_seed', test_type='pairwise',
+                    msr_model=msr_nm, comparator=comp, direction=dir_str,
+                    value_msr=pt_m[msr_nm], value_comparator=pt_m[comp],
+                    delta_favoring_msr=sign * (pt_m[msr_nm] - pt_m[comp]),
+                    ci95_lo=lo_d, ci95_hi=hi_d,
+                    n_units=n_dom, n_variants=n_var, B=b_eff, n_boot_fail=nf,
+                    p_one_sided_uncorrected=p_one, bonferroni_m=m_clean,
+                    p_one_sided_bonferroni=min(1.0, m_clean * p_one),
+                ))
+            best_c = (max(comps, key=lambda c: pt_m[c]) if higher_better else min(comps, key=lambda c: pt_m[c]))
+            d_nb = sign * (rp_m[msr_nm] - rp_m[best_c])
+            p_nb, nf_nb, b_nb = _one_sided_p(d_nb)
+            lo_nb, hi_nb = boot_ci(d_nb)
+            p_rows.append(dict(
+                benchmark=cfg['benchmark'], metric=met_name,
+                resampling_unit='domain_cluster_x_seed', test_type='next_best_clean',
+                msr_model=msr_nm, comparator=best_c, direction=dir_str,
+                value_msr=pt_m[msr_nm], value_comparator=pt_m[best_c],
+                delta_favoring_msr=sign * (pt_m[msr_nm] - pt_m[best_c]),
+                ci95_lo=lo_nb, ci95_hi=hi_nb,
+                n_units=n_dom, n_variants=n_var, B=b_nb, n_boot_fail=nf_nb,
+                p_one_sided_uncorrected=p_nb, bonferroni_m=m_clean,
+                p_one_sided_bonferroni=min(1.0, m_clean * p_nb),
+            ))
+            worst_c = max(comps, key=lambda c: p_by_c[c])
+            d_w = sign * (rp_m[msr_nm] - rp_m[worst_c])
+            p_iut, nf_w, b_w = _one_sided_p(d_w)
+            lo_w, hi_w = boot_ci(d_w)
+            p_rows.append(dict(
+                benchmark=cfg['benchmark'], metric=met_name,
+                resampling_unit='domain_cluster_x_seed', test_type='all_clean_IUT',
+                msr_model=msr_nm, comparator=f'ALL_CLEAN_IUT (limiting: {worst_c})', direction=dir_str,
+                value_msr=pt_m[msr_nm], value_comparator=pt_m[worst_c],
+                delta_favoring_msr=sign * (pt_m[msr_nm] - pt_m[worst_c]),
+                ci95_lo=lo_w, ci95_hi=hi_w,
+                n_units=n_dom, n_variants=n_var, B=b_w, n_boot_fail=nf_w,
+                p_one_sided_uncorrected=p_iut, bonferroni_m=1, p_one_sided_bonferroni=p_iut,
+            ))
+
+        atomic_to_csv(pd.DataFrame(p_rows), pval_dir / f'{cfg["stem"]}_pvalues.csv', index=False, float_format='%.6g')
+        atomic_write_text(
+            pval_dir / f'{cfg["stem"]}_pvalues_annotation.txt',
+            f"""Statistical Annotation: {cfg['stem']}_pvalues.csv
+==================================================
+Figure: Supplementary Figure ({cfg['stem']}) — {cfg['subset_desc']} (n = {n_var:,}, {n_dom} domains).
+
+Metrics Tested:
+  Pooled Spearman's rho, pooled Pearson's r, and pooled RMSE (kcal/mol) across all {n_var:,} variants, matching the seed-mean summary statistics shown in each scatter panel.
+
+Statistical Test & Resampling Procedure:
+  Paired nonparametric domain-cluster x training-seed bootstrap (B = {B:,}, deterministic seed).
+  All {n_dom} test domains are resampled identically across models via shared Multinomial({n_dom}, 1/{n_dom}) cluster weights, jointly with Multinomial(3, 1/3) seed weights for 3-seed retrained models.
+  One-sided Phipson & Smyth (2010) p-value: p = (1 + #{{b : delta_favoring_msr^(b) <= 0}}) / (B + 1).
+  Bonferroni correction adjusts within each metric over all m = {m_clean} clean comparator models.
+  `all_clean_IUT` gives Berger's (1982) Intersection-Union Test (p_IUT = max_j p_j).
+""",
+        )
+    return saved_paths
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1152,9 +2310,19 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument('--pair-pngs', action='store_true', help='Also render all 30 individual 20x20 pair-epistasis PNG grids')
     ap.add_argument('--per-model-pngs', action='store_true', help='Also render all 36 individual per-model dddG scatter PNGs')
     ap.add_argument('--workers', type=int, default=4, help='Worker processes for Rosetta bootstrap')
-    ap.add_argument('--only', choices=('all', 'fig6', 'fig7', 'link', 'tobit_floor_link', 'heatmaps', 'rosetta'), default='all', help='Optional substage selector')
+    ap.add_argument('--only', choices=('all', 'fig6', 'fig7', 'link', 'tobit_floor_link', 'heatmaps', 'rosetta', 'epi_mcc', 'scatter_trio'), default='all', help='Optional substage selector')
     args = ap.parse_args(argv)
     B = resolve_b(args)
+
+    if args.only == 'scatter_trio':
+        outs = build_supp_megascale_scatter_trio(split=args.split, B=max(B, 10_000))
+        print('[p07:epistasis_mechanisms] Saved scatter trio:', ', '.join(str(o) for o in outs))
+        return 0
+
+    if args.only == 'epi_mcc':
+        out = build_supp_epistasis_mcc_figure(split=args.split, B=max(B, 10_000))
+        print(f'[p07:epistasis_mechanisms] Saved {out}.{{png,pdf}}')
+        return 0
 
     if args.only == 'tobit_floor_link':
         out = run_tobit_floor_link_only(split=args.split)

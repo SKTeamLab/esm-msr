@@ -1,0 +1,12 @@
+Statistical Annotation: _thermostability_rmse_pvalues.csv
+=========================================================
+Figure: Supplementary Figure (_thermostability_rmse) — raw RMSE (kcal/mol; no recalibration) across all 9 main-text thermostability datasets (`MegaScale test`, `Ssym`, `S461`, `K2369`, `S783`, `S2648`, `Q3421`, `S8754`, `PTMUL`) for all 8 kcal/mol-scale main models (omitting uncalibrated log-odds ProSST and ProteinMPNN).
+
+Metric Tested:
+  Pooled raw RMSE (kcal/mol; lower is better), averaged over 3 training seeds for retrained transfer models; Spearman rho and Pearson r are included alongside.
+
+Statistical Test & Resampling Procedure:
+  Paired nonparametric bootstrap (B = 10,000, deterministic seed): domain-cluster x seed bootstrap on MegaScale test (33 domains) and mutation x seed bootstrap on each of the 8 external thermostability benchmarks (matching Main Figures 1 & 3a).
+  One-sided Phipson & Smyth (2010) p-value for H1: RMSE_ESM-MSR < RMSE_X:
+    p = (1 + #{b : RMSE_X^(b) - RMSE_ESM-MSR^(b) <= 0}) / (B + 1).
+  Models with documented direct training overlap on a dataset (GeoDDG-3D / ESM3dG where flagged) are marked `excluded_training_overlap=True` and excluded from the clean Bonferroni family.

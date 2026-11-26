@@ -70,10 +70,10 @@ STAGE = 'tsuboyama'
 DESCRIPTION = 'Tsuboyama / MegaScale rankings, NDCG@96, ESM3 scoring variants, and mega_splits comparison'
 
 CAPPED_KEYS = list(dict.fromkeys(
-    k for m in M.ROSTER if not m.sigma and m.name != 'SPURS published*' for k in (m.single, m.multi) if k
+    k for m in M.ROSTER if not m.sigma for k in (m.single, m.multi) if k
 ))
 RETR_KEYS = ['me1', 'me2', 'tmpnn', 'tmpnnd', 'spurs', 'spursm']
-MEGA_EXTRA = ['spursu', 'spursum', 'spurspub', 'spurspubm', 'tmpnnpub', 'tmpnndpub']
+MEGA_EXTRA = ['spursu', 'spursum', 'tmpnnpub', 'tmpnndpub']
 MEGA_BASE = ['msrp0:wt', 'msrp0:comb', *RETR_KEYS]
 MEGA_KEYS = MEGA_BASE + MEGA_EXTRA
 
@@ -310,15 +310,21 @@ def run_publication_bars(B: int, split: str = 'capped') -> None:
     note1 = [F_COMPOSITE]
     if draw_ov1 and len(d1):
         note1.insert(0, f'Overall = NDCG@96 of a library with its singles and doubles ranked together; differs from singles bar by {d1.min():+.2f} to {d1.max():+.2f}.')
-    fig1, ax1 = plt.subplots(figsize=(w_fig, 4.9))
+    fig1, ax1 = plt.subplots(figsize=(12.5, 6.4))
     style.bar_panel(
         ax1, cols, T1, ('singles', 'doubles'),
         (count_text(T1, 'singles', 'singles'), count_text(T1, 'doubles', 'doubles')),
-        f'NDCG@{K_NDCG} (mean over test domains)', (0.0, 1.12),
+        f'Rectified NDCG@{K_NDCG} (mean over test domains)', (0.0, 1.12),
         overall_df=ov1 if draw_ov1 else None, overall_label=f'overall (n = {int(ov1.n_variants.max()):,})',
+        tick_fs=8.5,
     )
-    finish_bar_fig(fig1, f'{s_title}, NDCG@{K_NDCG} per library, 95% intervals from resampling domains (B = {B:,})', note1)
-    style.save(fig1, out / 'ndcg96_singles_doubles')
+    for t in ax1.texts:
+        if t.get_fontsize() < 8:
+            t.set_fontsize(8)
+    fig1.tight_layout(pad=0.5)
+    out_supp_rect = results_dir('supplementary_figs') if split == 'capped' else out
+    stem_rect = '_ndcg96_rectified_singles_doubles' if split == 'capped' else 'ndcg96_singles_doubles'
+    style.save(fig1, out_supp_rect / stem_rect)
 
     # Stabilizing vs destabilizing (domain and mutation bootstrap; per-domain and pooled)
     for kind in ('domain', 'mutation'):
@@ -1118,14 +1124,14 @@ def run_mega_splits(B: int) -> None:
 
     # Version comparison (03_version_comparison.py)
     ver_name = {
-        'spurs': 'SPURS frozen', 'spursu': 'SPURS trained', 'spurspub': 'SPURS published',
-        'spursm': 'SPURS multi frozen', 'spursum': 'SPURS multi trained', 'spurspubm': 'SPURS multi published',
+        'spurs': 'SPURS frozen', 'spursu': 'SPURS trained',
+        'spursm': 'SPURS multi frozen', 'spursum': 'SPURS multi trained',
         'tmpnn': 'ThermoMPNN retrain', 'tmpnnpub': 'ThermoMPNN published',
         'tmpnnd': 'ThermoMPNN-D retrain', 'tmpnndpub': 'ThermoMPNN-D published',
     }
     ver_pairs = [
-        ('spursu', 'spurs'), ('spurspub', 'spurs'), ('spurspub', 'spursu'),
-        ('spursum', 'spursm'), ('spurspubm', 'spursm'), ('spurspubm', 'spursum'),
+        ('spursu', 'spurs'),
+        ('spursum', 'spursm'),
         ('tmpnnpub', 'tmpnn'), ('tmpnndpub', 'tmpnnd'),
     ]
     ver_pairs = [(a, b) for a, b in ver_pairs if a in fr['test'].preds and b in fr['test'].preds]
@@ -1179,9 +1185,9 @@ def run_mega_splits(B: int) -> None:
 
     # Variant-by-variant agreement matrices
     ag_sets = {
-        'singles': (['spurs', 'spursu', 'spurspub', 'tmpnn', 'tmpnnpub'], ok_t & (sp_t['n_mut'] == 1).to_numpy()),
+        'singles': (['spurs', 'spursu', 'tmpnn', 'tmpnnpub'], ok_t & (sp_t['n_mut'] == 1).to_numpy()),
         'doubles, epistasis term (multi - own-family singles)': (
-            ['spursm:epi', 'spursum:epi', 'spurspubm:epi', 'tmpnndpub:epi', 'tmpnnd:epi'],
+            ['spursm:epi', 'spursum:epi', 'tmpnndpub:epi', 'tmpnnd:epi'],
             ok_t & (sp_t['n_mut'] == 2).to_numpy() & np.isfinite(sp_t['dddG_ML'].to_numpy()),
         ),
     }
@@ -1235,13 +1241,530 @@ def run_mega_splits(B: int) -> None:
     style.save(fig_ag, out / 'version_agreement')
 
 
+def build_supp_backbone_and_origin_figure(split: str = 'capped', B: int = 10_000) -> Path:
+    """Build 2-panel supplementary ranking figure on Homology-Restricted MegaScale test:
+      - Panel a: Native vs destabilized backbones (per-library Spearman rho across 30 native vs 7 destabilized libraries)
+      - Panel b: Natural vs synthetic (de novo) proteins (per-domain Spearman rho across 20 natural vs 13 synthetic domains)
+    No overall figure title; exports *_sourcedata.csv (with Pearson r, RMSE, n) and *_pvalues.csv + annotation.
+    """
+    import re as _re
+    from scipy.stats import pearsonr
+    from msr_analysis.stats import boot_domain_seeds, make_domain_seed_draws
+
+    fr, _ = load_tsu_test_frame(split=split)
+    sp = fr.spine
+    use = sp['use'].to_numpy(dtype=bool)
+    y = sp['y'].to_numpy(float)
+    best, _ = best_other(fr)
+    name_map = {'best other ddG': BEST_LABEL[best]} if best else {}
+    cols = [c for c in main_columns(fr, best, 'unmasked') if c.get('draw', True)]
+
+    def _pearson(p: np.ndarray, yy: np.ndarray) -> float:
+        return float(pearsonr(p, yy)[0]) if len(yy) >= 3 and np.ptp(p) > 0 and np.ptp(yy) > 0 else np.nan
+
+    def _rmse(p: np.ndarray, yy: np.ndarray) -> float:
+        return float(np.sqrt(np.mean((p - yy) ** 2))) if len(yy) >= 1 else np.nan
+
+    def _per_unit(key: str, mask: np.ndarray, unit_col: str, fn) -> pd.DataFrame:
+        g = sp[unit_col].astype(str).to_numpy()
+        arr = fr.preds[key]
+        out_d = {}
+        for u in sorted(np.unique(g[mask])):
+            m = mask & (g == u) & np.isfinite(arr).all(axis=0) & np.isfinite(y)
+            if m.sum() < MIN_N:
+                continue
+            vals = [fn(pr[m], y[m]) for pr in arr]
+            if np.isfinite(vals).any():
+                out_d[u] = vals
+        return pd.DataFrame.from_dict(out_d, orient='index', dtype=float) if out_d else pd.DataFrame(dtype=float)
+
+    def _one_sided_p(diffs: np.ndarray) -> tuple[float, int, int]:
+        fin = diffs[np.isfinite(diffs)]
+        nf = int(np.sum(fin <= 0.0))
+        return float((nf + 1) / (len(fin) + 1)), nf, int(len(fin))
+
+    # Masks: Panel a (per library `code`) and Panel b (per domain `group`)
+    wt_bb = sp['wt_backbone'].to_numpy(dtype=bool)
+    grp_s = sp['group'].astype(str)
+    is_nat = (grp_s.str.match(r'^[0-9][A-Za-z0-9]{3}$') | (grp_s == 'v2_2LC2')).to_numpy(dtype=bool)
+
+    panel_specs = [
+        (
+            'backbone', 'code',
+            [('native', use & wt_bb), ('destabilized', use & ~wt_bb), ('overall', use)],
+        ),
+        (
+            'origin', 'group',
+            [('natural', use & is_nat), ('synthetic', use & ~is_nat), ('overall', use)],
+        ),
+    ]
+
+    summary_rows = []
+    per_unit_rows = []
+    p_rows = []
+
+    for p_idx, (panel_key, unit_col, sub_list) in enumerate(panel_specs):
+        for s_idx, (sub_name, m_sub) in enumerate(sub_list):
+            vals_rho: dict[str, pd.DataFrame] = {}
+            mean_r: dict[str, float] = {}
+            mean_rmse: dict[str, float] = {}
+            n_var = int((m_sub & np.isfinite(y)).sum())
+
+            for c in cols:
+                cname = c['name']
+                disp = name_map.get(cname, cname)
+                k = c.get('all', c['single'])
+                df_rho = _per_unit(k, m_sub, unit_col, rho_fn)
+                df_r = _per_unit(k, m_sub, unit_col, _pearson)
+                df_e = _per_unit(k, m_sub, unit_col, _rmse)
+                vals_rho[disp] = df_rho
+                mean_r[disp] = float(df_r.mean(axis=1).mean()) if len(df_r) else np.nan
+                mean_rmse[disp] = float(df_e.mean(axis=1).mean()) if len(df_e) else np.nan
+                for u_id, row in df_rho.iterrows():
+                    for si, v in enumerate(row.values):
+                        per_unit_rows.append(dict(
+                            panel=panel_key, subset=sub_name, unit_col=unit_col, unit=u_id,
+                            column=cname, model=disp, key=k, seed=si + 1,
+                            spearman_rho=float(v),
+                            pearson_r=float(df_r.loc[u_id].iloc[si]) if u_id in df_r.index else np.nan,
+                            rmse=float(df_e.loc[u_id].iloc[si]) if u_id in df_e.index else np.nan,
+                        ))
+
+            models_disp = [name_map.get(c['name'], c['name']) for c in cols]
+            common_units = sorted(set.intersection(*(set(vals_rho[m].index) for m in models_disp)))
+            n_u = len(common_units)
+            # Parent-domain count for reporting
+            parent_doms = sp.loc[m_sub & sp[unit_col].astype(str).isin(common_units), 'group'].astype(str).nunique()
+            d_cnt, s_w = make_domain_seed_draws(n_u, B=B, seed=500 + 20 * p_idx + s_idx, seed_counts=(3,))
+            pt_map, rep_map = {}, {}
+
+            for c in cols:
+                cname = c['name']
+                disp = name_map.get(cname, cname)
+                k = c.get('all', c['single'])
+                arr = vals_rho[disp].reindex(common_units).to_numpy(float)
+                pt, rp = boot_domain_seeds(arr, B=B, counts=d_cnt, seed_weights=s_w if arr.shape[1] > 1 else None)
+                pt_map[disp], rep_map[disp] = pt, rp
+                lo, hi = ci(rp)
+                summary_rows.append(dict(
+                    panel=panel_key, subset=sub_name, column=cname, model=disp, key=k,
+                    value=pt, lo=lo, hi=hi,
+                    pearson_r=mean_r[disp], rmse=mean_rmse[disp],
+                    n_libraries=n_u, n_domains=int(parent_doms), n_variants=n_var, n_seeds=int(arr.shape[1]),
+                ))
+
+            # Paired one-sided bootstrap p-values: ESM-MSR > X
+            comps = [m for m in models_disp if m != 'ESM-MSR']
+            m_clean = len(comps)
+            p_by_c = {}
+            d_list = []
+            for comp in comps:
+                d_arr = rep_map['ESM-MSR'] - rep_map[comp]
+                p_one, nf, b_eff = _one_sided_p(d_arr)
+                p_by_c[comp] = p_one
+                d_list.append(d_arr)
+                lo_d, hi_d = ci(d_arr)
+                p_rows.append(dict(
+                    benchmark=f'MegaScale_capped_test_{panel_key}',
+                    subset_or_metric=f'per_{unit_col}_mean_spearman_{sub_name}',
+                    resampling_unit=f'{unit_col}_x_seed',
+                    test_type='pairwise',
+                    msr_model='ESM-MSR',
+                    comparator=comp,
+                    direction='ESM-MSR > comparator',
+                    value_msr=pt_map['ESM-MSR'],
+                    value_comparator=pt_map[comp],
+                    pearson_r_msr=mean_r['ESM-MSR'],
+                    pearson_r_comparator=mean_r[comp],
+                    rmse_msr=mean_rmse['ESM-MSR'],
+                    rmse_comparator=mean_rmse[comp],
+                    delta_favoring_msr=pt_map['ESM-MSR'] - pt_map[comp],
+                    ci95_lo=lo_d, ci95_hi=hi_d,
+                    n_units=n_u, n_variants=n_var, B=b_eff, n_boot_fail=nf,
+                    p_one_sided_uncorrected=p_one, bonferroni_m=m_clean,
+                    p_one_sided_bonferroni=min(1.0, m_clean * p_one),
+                ))
+            best_c = max(comps, key=lambda x: pt_map[x])
+            d_nb = rep_map['ESM-MSR'] - rep_map[best_c]
+            p_nb, nf_nb, b_nb = _one_sided_p(d_nb)
+            lo_nb, hi_nb = ci(d_nb)
+            p_rows.append(dict(
+                benchmark=f'MegaScale_capped_test_{panel_key}',
+                subset_or_metric=f'per_{unit_col}_mean_spearman_{sub_name}',
+                resampling_unit=f'{unit_col}_x_seed',
+                test_type='next_best_clean',
+                msr_model='ESM-MSR', comparator=best_c, direction='ESM-MSR > comparator',
+                value_msr=pt_map['ESM-MSR'], value_comparator=pt_map[best_c],
+                pearson_r_msr=mean_r['ESM-MSR'], pearson_r_comparator=mean_r[best_c],
+                rmse_msr=mean_rmse['ESM-MSR'], rmse_comparator=mean_rmse[best_c],
+                delta_favoring_msr=pt_map['ESM-MSR'] - pt_map[best_c],
+                ci95_lo=lo_nb, ci95_hi=hi_nb,
+                n_units=n_u, n_variants=n_var, B=b_nb, n_boot_fail=nf_nb,
+                p_one_sided_uncorrected=p_nb, bonferroni_m=m_clean,
+                p_one_sided_bonferroni=min(1.0, m_clean * p_nb),
+            ))
+            worst_c = max(comps, key=lambda x: (p_by_c[x], pt_map[x]))
+            d_w = rep_map['ESM-MSR'] - rep_map[worst_c]
+            p_iut, nf_w, b_w = _one_sided_p(d_w)
+            lo_w, hi_w = ci(d_w)
+            p_rows.append(dict(
+                benchmark=f'MegaScale_capped_test_{panel_key}',
+                subset_or_metric=f'per_{unit_col}_mean_spearman_{sub_name}',
+                resampling_unit=f'{unit_col}_x_seed',
+                test_type='all_clean_IUT',
+                msr_model='ESM-MSR', comparator=f'ALL_CLEAN_IUT (limiting: {worst_c})', direction='ESM-MSR > comparator',
+                value_msr=pt_map['ESM-MSR'], value_comparator=pt_map[worst_c],
+                pearson_r_msr=mean_r['ESM-MSR'], pearson_r_comparator=mean_r[worst_c],
+                rmse_msr=mean_rmse['ESM-MSR'], rmse_comparator=mean_rmse[worst_c],
+                delta_favoring_msr=pt_map['ESM-MSR'] - pt_map[worst_c],
+                ci95_lo=lo_w, ci95_hi=hi_w,
+                n_units=n_u, n_variants=n_var, B=b_w, n_boot_fail=nf_w,
+                p_one_sided_uncorrected=p_iut, bonferroni_m=1, p_one_sided_bonferroni=p_iut,
+            ))
+            d_min = np.nanmin(np.vstack(d_list), axis=0)
+            p_jm, nf_jm, b_jm = _one_sided_p(d_min)
+            lo_jm, hi_jm = ci(d_min)
+            p_rows.append(dict(
+                benchmark=f'MegaScale_capped_test_{panel_key}',
+                subset_or_metric=f'per_{unit_col}_mean_spearman_{sub_name}',
+                resampling_unit=f'{unit_col}_x_seed',
+                test_type='all_clean_joint_max',
+                msr_model='ESM-MSR', comparator=f'ALL_CLEAN_JOINT_MAX (max of {m_clean} clean models per draw)',
+                direction='ESM-MSR > comparator',
+                value_msr=pt_map['ESM-MSR'], value_comparator=np.nan,
+                pearson_r_msr=mean_r['ESM-MSR'], pearson_r_comparator=np.nan,
+                rmse_msr=mean_rmse['ESM-MSR'], rmse_comparator=np.nan,
+                delta_favoring_msr=pt_map['ESM-MSR'] - max(pt_map[x] for x in comps),
+                ci95_lo=lo_jm, ci95_hi=hi_jm,
+                n_units=n_u, n_variants=n_var, B=b_jm, n_boot_fail=nf_jm,
+                p_one_sided_uncorrected=p_jm, bonferroni_m=1, p_one_sided_bonferroni=p_jm,
+            ))
+
+    df_sum = pd.DataFrame(summary_rows)
+    df_a = df_sum[(df_sum['panel'] == 'backbone') & (df_sum['subset'] != 'overall')]
+    ov_a = df_sum[(df_sum['panel'] == 'backbone') & (df_sum['subset'] == 'overall')]
+    df_b = df_sum[(df_sum['panel'] == 'origin') & (df_sum['subset'] != 'overall')]
+    ov_b = df_sum[(df_sum['panel'] == 'origin') & (df_sum['subset'] == 'overall')]
+
+    w_fig = max(12.2, fig_width(cols))
+    fig = plt.figure(figsize=(w_fig, 10.6), facecolor='white')
+    gs = fig.add_gridspec(2, 1, left=0.072, right=0.988, top=0.955, bottom=0.115, hspace=0.45)
+    ax_a = fig.add_subplot(gs[0, 0])
+    ax_b = fig.add_subplot(gs[1, 0])
+
+    n_nat_bb = int(df_a.loc[df_a['subset'] == 'native', 'n_variants'].max())
+    l_nat_bb = int(df_a.loc[df_a['subset'] == 'native', 'n_libraries'].max())
+    n_dst_bb = int(df_a.loc[df_a['subset'] == 'destabilized', 'n_variants'].max())
+    l_dst_bb = int(df_a.loc[df_a['subset'] == 'destabilized', 'n_libraries'].max())
+    n_ov_a = int(ov_a['n_variants'].max())
+
+    style.bar_panel(
+        ax_a, cols, df_a, ('native', 'destabilized'),
+        (
+            f'native backbone (n = {n_nat_bb:,}, {l_nat_bb} libraries)',
+            f'destabilized backbone (n = {n_dst_bb:,}, {l_dst_bb} libraries)',
+        ),
+        "Spearman's ρ (mean over test libraries)", (0.0, 1.15),
+        overall_df=ov_a, overall_label=f'overall (n = {n_ov_a:,})',
+        tick_fs=8.5,
+    )
+
+    n_nat_pr = int(df_b.loc[df_b['subset'] == 'natural', 'n_variants'].max())
+    d_nat_pr = int(df_b.loc[df_b['subset'] == 'natural', 'n_libraries'].max())
+    n_syn_pr = int(df_b.loc[df_b['subset'] == 'synthetic', 'n_variants'].max())
+    d_syn_pr = int(df_b.loc[df_b['subset'] == 'synthetic', 'n_libraries'].max())
+    n_ov_b = int(ov_b['n_variants'].max())
+
+    style.bar_panel(
+        ax_b, cols, df_b, ('natural', 'synthetic'),
+        (
+            f'natural proteins (n = {n_nat_pr:,}, {d_nat_pr} domains)',
+            f'synthetic / de novo (n = {n_syn_pr:,}, {d_syn_pr} domains)',
+        ),
+        "Spearman's ρ (mean over test domains)", (0.0, 1.15),
+        overall_df=ov_b, overall_label=f'overall (n = {n_ov_b:,})',
+        tick_fs=8.5,
+    )
+    for ax_s in (ax_a, ax_b):
+        for txt in ax_s.texts:
+            if txt.get_fontsize() < 8.0:
+                txt.set_fontsize(8.0)
+
+    fig.canvas.draw()
+    pa, pb = ax_a.get_position(), ax_b.get_position()
+    fig.text(0.012, pa.y1 + 0.030, 'a', ha='left', va='top', fontsize=16, fontweight='bold')
+    fig.text(0.012, pb.y1 + 0.030, 'b', ha='left', va='top', fontsize=16, fontweight='bold')
+
+    supp_dir = results_dir('supplementary_figs')
+    out_path = supp_dir / '_backbone_and_origin'
+    style.save(fig, out_path)
+
+    src_dir = supp_dir / 'source_data'
+    pval_dir = supp_dir / 'pvalues'
+    src_dir.mkdir(parents=True, exist_ok=True)
+    pval_dir.mkdir(parents=True, exist_ok=True)
+    atomic_to_csv(df_sum, src_dir / '_backbone_and_origin_summary_sourcedata.csv', index=False, float_format='%.4f')
+    atomic_to_csv(pd.DataFrame(per_unit_rows), src_dir / '_backbone_and_origin_per_unit_sourcedata.csv', index=False, float_format='%.6f')
+    atomic_to_csv(pd.DataFrame(p_rows), pval_dir / '_backbone_and_origin_pvalues.csv', index=False, float_format='%.6g')
+    atomic_write_text(
+        pval_dir / '_backbone_and_origin_pvalues_annotation.txt',
+        f"""Statistical Annotation: _backbone_and_origin_pvalues.csv
+========================================================
+Figure / Panel: Supplementary Figure (_backbone_and_origin) on Homology-Restricted MegaScale test (`tsuboyama_capped_test`).
+  - Panel a: Native wild-type backbones (30 libraries, n = {n_nat_bb:,}) vs destabilized mutant backbones (7 libraries across 4 parent domains: 1YEZ_V46S, 2K52_F21S/L42A, 2K5H_G11S/G23A, 2MKX_L11A/N29S; n = {n_dst_bb:,}).
+  - Panel b: Natural proteins (20 domains: 19 PDB domains + N-terminally trimmed construct v2_2LC2; n = {n_nat_pr:,}) vs synthetic / de novo designed proteins (13 domains: 12 Rocklin HEEH/HHH designs + 1 trRosetta hallucination; n = {n_syn_pr:,}).
+
+Metric Tested:
+  Mean per-library (Panel a) or per-domain (Panel b) Spearman's rank correlation (rho), with mean Pearson's r and RMSE (kcal/mol) reported alongside.
+
+Statistical Test & Resampling Procedure:
+  Paired nonparametric cluster x seed bootstrap (B = {B:,}, deterministic seed).
+  In each replicate, units (libraries in Panel a; domains in Panel b) are resampled with replacement using one shared Multinomial weight vector across all 9 models, and 3-seed retrained models are resampled jointly across seeds.
+  One-sided Phipson & Smyth (2010) p-value: p = (1 + #{{b : delta^(b) <= 0}}) / (B + 1).
+  Bonferroni adjusts within each subset over m = 8 clean comparators (ProSST, ProteinMPNN, ESM3-small-open, MutateEverything, ThermoMPNN, SPURS, GeoDDG-3D, Rosetta).
+  `all_clean_IUT` gives Berger's (1982) Intersection-Union Test (p_IUT = max_j p_j); `all_clean_joint_max` evaluates min_j(rho_ESM-MSR^(b) - rho_j^(b)) per draw.
+""",
+    )
+    return out_path
+
+
+def build_supp_ndcg96_combined(split: str = 'capped', B: int = 10_000) -> Path:
+    """Build combined 2-panel supplementary NDCG@96 figure on Homology-Restricted MegaScale test:
+      - Panel a: Rectified NDCG@96 (rel = max(ddG, 0); 33 singles domains, 8 doubles domains with >=1 ddG > 0)
+      - Panel b: Shifted NDCG@96 (rel = ddG - min(ddG); all 33 singles domains and all 13 doubles domains)
+    No overall figure title or footnote annotation; exports *_sourcedata.csv and *_pvalues.csv + annotation.
+    """
+    from scipy.stats import pearsonr
+    from msr_analysis.stats import boot_domain_seeds, make_domain_seed_draws
+
+    fr, _ = load_tsu_test_frame(split=split)
+    sp = fr.spine
+    use = sp['use'].to_numpy(dtype=bool)
+    n_mut = sp['n_mut'].to_numpy()
+    single, double = use & (n_mut == 1), use & (n_mut == 2)
+    y = sp['y'].to_numpy(float)
+    libs = sorted(np.unique(sp['group'].to_numpy()[use]))
+    counts = make_domain_counts(libs, B=B, seed=5)
+
+    best, _ = best_other(fr)
+    name_map = {'best other ddG': BEST_LABEL[best]} if best else {}
+    cols = [c for c in main_columns(fr, best, 'unmasked') if c.get('draw', True)]
+
+    def _pearson(p: np.ndarray, yy: np.ndarray) -> float:
+        return float(pearsonr(p, yy)[0]) if len(yy) >= 3 and np.ptp(p) > 0 and np.ptp(yy) > 0 else np.nan
+
+    def _rmse(p: np.ndarray, yy: np.ndarray) -> float:
+        return float(np.sqrt(np.mean((p - yy) ** 2))) if len(yy) >= 1 else np.nan
+
+    def _one_sided_p(diffs: np.ndarray) -> tuple[float, int, int]:
+        fin = diffs[np.isfinite(diffs)]
+        nf = int(np.sum(fin <= 0.0))
+        return float((nf + 1) / (len(fin) + 1)), nf, int(len(fin))
+
+    # Panel a: Rectified NDCG@96
+    cells = {'singles': (single, 'singles'), 'doubles': (double, 'doubles')}
+    T_rect = table_grouped(fr, cols, cells, ndcg96_rectified, 1, counts, libs)
+    ov_rect = table_grouped(fr, cols, {'overall': (use, 'all')}, ndcg96_rectified, 1, counts, libs)
+    d_rect = (ov_rect.set_index('column')['value'] - T_rect[T_rect['subset'] == 'singles'].set_index('column')['value']).dropna()
+    draw_ov_rect = int((d_rect.abs() <= 0.01).sum()) < 0.9 * len(d_rect)
+
+    # Panel b: Shifted NDCG@96
+    T_shft = table_grouped(fr, cols, cells, ndcg96_shifted, MIN_N, counts, libs)
+    ov_shft = table_grouped(fr, cols, {'overall': (use, 'all')}, ndcg96_shifted, MIN_N, counts, libs)
+    d_shft = (ov_shft.set_index('column')['value'] - T_shft[T_shft['subset'] == 'singles'].set_index('column')['value']).dropna()
+    draw_ov_shft = int((d_shft.abs() <= 0.01).sum()) < 0.9 * len(d_shft)
+
+    w_fig = max(12.5, fig_width(cols))
+    fig = plt.figure(figsize=(w_fig, 10.6), facecolor='white')
+    gs = fig.add_gridspec(2, 1, left=0.072, right=0.988, top=0.955, bottom=0.115, hspace=0.45)
+    ax_a = fig.add_subplot(gs[0, 0])
+    ax_b = fig.add_subplot(gs[1, 0])
+
+    style.bar_panel(
+        ax_a, cols, T_rect, ('singles', 'doubles'),
+        (count_text(T_rect, 'singles', 'singles'), count_text(T_rect, 'doubles', 'doubles')),
+        f'Rectified NDCG@{K_NDCG} (mean over test domains)', (0.0, 1.12),
+        overall_df=ov_rect if draw_ov_rect else None,
+        overall_label=f'overall (n = {int(ov_rect.n_variants.max()):,})',
+        tick_fs=8.5,
+    )
+    style.bar_panel(
+        ax_b, cols, T_shft, ('singles', 'doubles'),
+        (count_text(T_shft, 'singles', 'singles'), count_text(T_shft, 'doubles', 'doubles')),
+        f'Shifted NDCG@{K_NDCG} (mean over test domains)', (0.0, 1.12),
+        overall_df=ov_shft if draw_ov_shft else None,
+        overall_label=f'overall (n = {int(ov_shft.n_variants.max()):,})',
+        tick_fs=8.5,
+    )
+    for ax_s in (ax_a, ax_b):
+        for txt in ax_s.texts:
+            if txt.get_fontsize() < 8.0:
+                txt.set_fontsize(8.0)
+
+    fig.canvas.draw()
+    pa, pb = ax_a.get_position(), ax_b.get_position()
+    fig.text(0.012, pa.y1 + 0.030, 'a', ha='left', va='top', fontsize=16, fontweight='bold')
+    fig.text(0.012, pb.y1 + 0.030, 'b', ha='left', va='top', fontsize=16, fontweight='bold')
+
+    supp_dir = results_dir('supplementary_figs')
+    out_path = supp_dir / '_ndcg96_singles_doubles'
+    style.save(fig, out_path)
+
+    # Remove standalone rectified duplicate if present
+    for ext in ('.png', '.pdf'):
+        dup = supp_dir / f'_ndcg96_rectified_singles_doubles{ext}'
+        if dup.exists():
+            dup.unlink()
+
+    # Export enriched source data + B=10,000 paired one-sided bootstrap p-values
+    src_dir = supp_dir / 'source_data'
+    pval_dir = supp_dir / 'pvalues'
+    src_dir.mkdir(parents=True, exist_ok=True)
+    pval_dir.mkdir(parents=True, exist_ok=True)
+
+    cells_full = {'singles': (single, 'singles'), 'doubles': (double, 'doubles'), 'overall': (use, 'all')}
+    per_dom_rows = []
+    sum_parts = []
+    p_rows = []
+
+    for m_idx, (mode_name, metric_fn, mn, df_pair, df_ov) in enumerate((
+        ('rectified', ndcg96_rectified, 1, T_rect, ov_rect),
+        ('shifted', ndcg96_shifted, MIN_N, T_shft, ov_shft),
+    )):
+        df_m = pd.concat([df_pair, df_ov], ignore_index=True).copy()
+        df_m.insert(0, 'mode', mode_name)
+        df_m['model'] = df_m['column'].map(lambda x: name_map.get(x, x))
+        r_col, e_col = [], []
+        vals_sub: dict[tuple[str, str], pd.DataFrame] = {}
+        r_map, e_map = {}, {}
+        n_var_map = {}
+
+        for sub_name, (m_sub, which) in cells_full.items():
+            n_var_map[sub_name] = int((m_sub & np.isfinite(y)).sum())
+            for c in cols:
+                disp = name_map.get(c['name'], c['name'])
+                k = c.get('all', c['single']) if which == 'all' else (c['single'] if which == 'singles' else c['double'])
+                df_v = per_library(fr, k, m_sub, metric_fn, mn)
+                df_r = per_library(fr, k, m_sub, _pearson, mn)
+                df_e = per_library(fr, k, m_sub, _rmse, mn)
+                vals_sub[(sub_name, disp)] = df_v
+                r_map[(sub_name, disp)] = float(df_r.mean(axis=1).mean()) if len(df_r) else np.nan
+                e_map[(sub_name, disp)] = float(df_e.mean(axis=1).mean()) if len(df_e) else np.nan
+                for dom, row in df_v.iterrows():
+                    for si, v in enumerate(row.values):
+                        per_dom_rows.append(dict(
+                            mode=mode_name, subset=sub_name, model=disp, column=c['name'], key=k,
+                            domain=dom, seed=si + 1, ndcg96=float(v),
+                            pearson_r=float(df_r.loc[dom].iloc[si]) if dom in df_r.index else np.nan,
+                            rmse=float(df_e.loc[dom].iloc[si]) if dom in df_e.index else np.nan,
+                        ))
+
+        for row in df_m.itertuples(index=False):
+            r_col.append(r_map.get((row.subset, row.model), np.nan))
+            e_col.append(e_map.get((row.subset, row.model), np.nan))
+        df_m['pearson_r'] = r_col
+        df_m['rmse'] = e_col
+        sum_parts.append(df_m)
+
+        models_disp = [name_map.get(c['name'], c['name']) for c in cols]
+        comps = [m for m in models_disp if m != 'ESM-MSR']
+        m_clean = len(comps)
+        for s_idx, sub_name in enumerate(('singles', 'doubles', 'overall')):
+            common_doms = sorted(set.intersection(*(set(vals_sub[(sub_name, m)].index) for m in models_disp)))
+            d_cnt, s_w = make_domain_seed_draws(len(common_doms), B=B, seed=700 + 20 * m_idx + s_idx, seed_counts=(3,))
+            pt_map, rep_map = {}, {}
+            for m in models_disp:
+                arr = vals_sub[(sub_name, m)].reindex(common_doms).to_numpy(float)
+                pt_map[m], rep_map[m] = boot_domain_seeds(arr, B=B, counts=d_cnt, seed_weights=s_w if arr.shape[1] > 1 else None)
+            p_by_c, d_list = {}, []
+            for comp in comps:
+                d_arr = rep_map['ESM-MSR'] - rep_map[comp]
+                p_one, nf, b_eff = _one_sided_p(d_arr)
+                p_by_c[comp] = p_one
+                d_list.append(d_arr)
+                lo_d, hi_d = ci(d_arr)
+                p_rows.append(dict(
+                    benchmark='MegaScale_capped_test', subset_or_metric=f'ndcg96_{mode_name}_{sub_name}',
+                    resampling_unit='domain_cluster_x_seed', test_type='pairwise',
+                    msr_model='ESM-MSR', comparator=comp, direction='ESM-MSR > comparator',
+                    value_msr=pt_map['ESM-MSR'], value_comparator=pt_map[comp],
+                    pearson_r_msr=r_map[(sub_name, 'ESM-MSR')], pearson_r_comparator=r_map[(sub_name, comp)],
+                    rmse_msr=e_map[(sub_name, 'ESM-MSR')], rmse_comparator=e_map[(sub_name, comp)],
+                    delta_favoring_msr=pt_map['ESM-MSR'] - pt_map[comp], ci95_lo=lo_d, ci95_hi=hi_d,
+                    n_units=len(common_doms), n_variants=n_var_map[sub_name], B=b_eff, n_boot_fail=nf,
+                    p_one_sided_uncorrected=p_one, bonferroni_m=m_clean,
+                    p_one_sided_bonferroni=min(1.0, m_clean * p_one),
+                ))
+            best_c = max(comps, key=lambda x: pt_map[x])
+            d_nb = rep_map['ESM-MSR'] - rep_map[best_c]
+            p_nb, nf_nb, b_nb = _one_sided_p(d_nb)
+            lo_nb, hi_nb = ci(d_nb)
+            p_rows.append(dict(
+                benchmark='MegaScale_capped_test', subset_or_metric=f'ndcg96_{mode_name}_{sub_name}',
+                resampling_unit='domain_cluster_x_seed', test_type='next_best_clean',
+                msr_model='ESM-MSR', comparator=best_c, direction='ESM-MSR > comparator',
+                value_msr=pt_map['ESM-MSR'], value_comparator=pt_map[best_c],
+                pearson_r_msr=r_map[(sub_name, 'ESM-MSR')], pearson_r_comparator=r_map[(sub_name, best_c)],
+                rmse_msr=e_map[(sub_name, 'ESM-MSR')], rmse_comparator=e_map[(sub_name, best_c)],
+                delta_favoring_msr=pt_map['ESM-MSR'] - pt_map[best_c], ci95_lo=lo_nb, ci95_hi=hi_nb,
+                n_units=len(common_doms), n_variants=n_var_map[sub_name], B=b_nb, n_boot_fail=nf_nb,
+                p_one_sided_uncorrected=p_nb, bonferroni_m=m_clean,
+                p_one_sided_bonferroni=min(1.0, m_clean * p_nb),
+            ))
+            worst_c = max(comps, key=lambda x: (p_by_c[x], pt_map[x]))
+            d_w = rep_map['ESM-MSR'] - rep_map[worst_c]
+            p_iut, nf_w, b_w = _one_sided_p(d_w)
+            lo_w, hi_w = ci(d_w)
+            p_rows.append(dict(
+                benchmark='MegaScale_capped_test', subset_or_metric=f'ndcg96_{mode_name}_{sub_name}',
+                resampling_unit='domain_cluster_x_seed', test_type='all_clean_IUT',
+                msr_model='ESM-MSR', comparator=f'ALL_CLEAN_IUT (limiting: {worst_c})', direction='ESM-MSR > comparator',
+                value_msr=pt_map['ESM-MSR'], value_comparator=pt_map[worst_c],
+                pearson_r_msr=r_map[(sub_name, 'ESM-MSR')], pearson_r_comparator=r_map[(sub_name, worst_c)],
+                rmse_msr=e_map[(sub_name, 'ESM-MSR')], rmse_comparator=e_map[(sub_name, worst_c)],
+                delta_favoring_msr=pt_map['ESM-MSR'] - pt_map[worst_c], ci95_lo=lo_w, ci95_hi=hi_w,
+                n_units=len(common_doms), n_variants=n_var_map[sub_name], B=b_w, n_boot_fail=nf_w,
+                p_one_sided_uncorrected=p_iut, bonferroni_m=1, p_one_sided_bonferroni=p_iut,
+            ))
+
+    atomic_to_csv(pd.concat(sum_parts, ignore_index=True), src_dir / '_ndcg96_singles_doubles_summary_sourcedata.csv', index=False, float_format='%.4f')
+    atomic_to_csv(pd.DataFrame(per_dom_rows), src_dir / '_ndcg96_singles_doubles_per_domain_sourcedata.csv', index=False, float_format='%.6f')
+    atomic_to_csv(pd.DataFrame(p_rows), pval_dir / '_ndcg96_singles_doubles_pvalues.csv', index=False, float_format='%.6g')
+    atomic_write_text(
+        pval_dir / '_ndcg96_singles_doubles_pvalues_annotation.txt',
+        f"""Statistical Annotation: _ndcg96_singles_doubles_pvalues.csv
+===========================================================
+Figure / Panel: Supplementary Figure (_ndcg96_singles_doubles) on Homology-Restricted MegaScale test (`tsuboyama_capped_test`).
+  - Panel a: Rectified NDCG@96 (relevance = max(ddG, 0); 33 singles domains, 8 doubles domains containing >=1 stabilizing double, 33 overall domains).
+  - Panel b: Shifted NDCG@96 (relevance = ddG - min(ddG) per domain & subset; all 33 singles domains, all 13 doubles domains, all 33 overall domains).
+
+Statistical Test & Resampling Procedure:
+  Paired nonparametric domain-cluster x seed bootstrap (B = {B:,}, deterministic seed) over the common test domain set for each subset, with 3-seed retrained models resampled jointly across training seeds.
+  One-sided Phipson & Smyth (2010) p-value: p = (1 + #{{b : delta^(b) <= 0}}) / (B + 1).
+  Bonferroni correction adjusts within each (mode, subset) over all m = 8 clean comparator models.
+  `all_clean_IUT` gives Berger's (1982) Intersection-Union Test (p_IUT = max_j p_j).
+""",
+    )
+    return out_path
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = base_parser(STAGE, DESCRIPTION, with_split=True)
     ap.add_argument('--compare-splits', action='store_true', default=True, help='Also generate mega_splits overview & capped-vs-mega comparison (default: True)')
     ap.add_argument('--no-compare-splits', dest='compare_splits', action='store_false', help='Skip mega_splits comparison when running --split capped')
-    ap.add_argument('--only', choices=('all', 'supp_figure3'), default='all', help='Optional substage selector')
+    ap.add_argument('--only', choices=('all', 'supp_figure3', 'backbone_origin', 'ndcg96_combined'), default='all', help='Optional substage selector')
     args = ap.parse_args(argv)
     B = resolve_b(args)
+
+    if args.only == 'ndcg96_combined':
+        out = build_supp_ndcg96_combined(split=args.split, B=max(B, 10_000))
+        print(f'[p02:tsuboyama] Saved {out}.{{png,pdf}}')
+        return 0
+
+    if args.only == 'backbone_origin':
+        out = build_supp_backbone_and_origin_figure(split=args.split, B=max(B, 10_000))
+        print(f'[p02:tsuboyama] Saved {out}.{{png,pdf}}')
+        return 0
 
     if args.only == 'supp_figure3':
         out = build_supp_figure3(B=B)

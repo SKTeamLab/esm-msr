@@ -1,0 +1,56 @@
+Statistical Annotation: figure3a_thermostability_pvalues.csv
+==============================================================
+Figure / Panel: Main-Text Figure 3, Panel a (8 external thermostability benchmarks: Ssym, S461, K2369, S783, S2648, Q3421, S8754, PTMUL).
+
+Metric Tested:
+  Pooled Spearman's rank correlation (rho) over all measured variants in each benchmark dataset
+  (singles-only heads on single-mutant benchmarks; multi-mutant/doubles heads on PTMUL; 3-seed mean for retrained models).
+
+Statistical Tests & Resampling Units (BOTH reported):
+  Paired nonparametric bootstrap with joint data-unit x training-seed resampling (B = 10,000):
+  1. `mutation_x_seed` (PRIMARY — matches Figure 3a's plotted 95% error bars and standard ddG benchmark literature):
+     Resamples individual mutations with replacement identically across all models, jointly resampling
+     the 3 training seeds via Multinomial(3, 1/3) for multi-seed transfer models. Tests generalization
+     to new mutations drawn from this panel of proteins (especially informative on small-protein-count sets
+     like Ssym with only 15 proteins).
+  2. `protein_cluster_x_seed` (CONSERVATIVE SENSITIVITY CHECK):
+     Resamples whole protein homology clusters with replacement identically across models (jointly with seeds).
+     Fully accounts for within-protein correlation of mutations and tests generalization to unseen proteins.
+     On PTMUL (90 protein clusters, 914 mutations), protein-cluster resampling has substantially wider CIs
+     than mutation resampling because mutations on the same protein share structural/experimental context.
+
+Hypotheses & One-Sided P-Value Formula:
+  H0: rho_ESM-MSR <= rho_X  vs  H1: rho_ESM-MSR > rho_X.
+  Exact Monte Carlo one-sided p-value (Phipson & Smyth, 2010):
+    p_one_sided_uncorrected = (1 + #{b : rho_ESM-MSR^(b) - rho_X^(b) <= 0}) / (B + 1),
+  minimum resolution 1 / (10,001) = 9.999e-05.
+
+Training Overlap & Multiple-Testing Correction (Bonferroni):
+  Models with documented training overlap from `leak_audit_matrix.csv` (GeoDDG-3D on all 8 sets; ESM3dG on
+  K2369, S2648, S8754, PTMUL) are flagged `excluded_training_overlap = True` and excluded from the clean
+  comparator family (their uncorrected p-values are still reported for transparency).
+  Bonferroni correction is applied within each (dataset, resampling_unit) across the m_clean clean external
+  comparators (m_clean = 7 on K2369, S2648, S8754, PTMUL; m_clean = 8 on Ssym, S461, S783, Q3421).
+
+CRITICAL DISTINCTION — Next-Best Clean Model vs Exceeding Every Clean Model:
+  For every (dataset, unit), three distinct summary rows are included:
+  1. `next_best_clean`: One-sided test of ESM-MSR vs the single runner-up j* = argmax_{j in clean} rho_hat_j
+     (e.g., Rosetta on PTMUL). Reports both uncorrected p_j* and Bonferroni-adjusted min(1, m_clean * p_j*).
+  2. `all_clean_IUT`: Berger's (1982) Intersection-Union Test for the composite claim
+     H1: (forall j in clean, rho_ESM-MSR > rho_j) against H0: (exists j in clean, rho_ESM-MSR <= rho_j).
+     By the IUT theorem, rejecting iff all m_clean one-sided tests reject at level alpha strictly controls
+     Type I error <= alpha WITHOUT Bonferroni correction; its p-value is p_IUT = max_{j in clean} p_j.
+     Note: p_IUT equals p(next_best_clean) ONLY when the point-estimate runner-up also has the largest
+     pairwise p-value; if another comparator has higher paired SE, p_IUT can strictly exceed p(next_best_clean).
+  3. `all_clean_joint_max`: Simultaneous paired bootstrap margin Delta_min^(b) = rho_ESM-MSR^(b) - max_{j in clean} rho_j^(b).
+     Its p-value P_boot(exists j in clean: rho_j^(b) >= rho_ESM-MSR^(b)) = P_boot(Union_j E_j) directly accounts
+     for multiple runners-up beating ESM-MSR on DIFFERENT bootstrap draws (e.g., Rosetta on some draws and
+     MutateEverything on other draws in PTMUL). By probability union bounds:
+       max_j p_j (IUT) <= p_joint <= min(1, sum_j p_j) <= min(1, m_clean * max_j p_j) (Bonferroni).
+     Thus `next_best_clean`, `all_clean_IUT`, and `all_clean_joint_max` answer related but mathematically distinct
+     questions and are NOT identical in general.
+
+Companion Point Metrics (No Additional Significance Testing):
+Columns `pearson_r_msr`, `pearson_r_comparator`, `rmse_msr`, and `rmse_comparator` report the
+  raw (unrecalibrated) pooled Pearson r and RMSE (kcal/mol, seed-averaged) on each benchmark set;
+  `n_variants` = total variants, `n_units` = mutations (for mutation_x_seed) or protein clusters (for protein_cluster_x_seed).

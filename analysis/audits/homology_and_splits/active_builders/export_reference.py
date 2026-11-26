@@ -34,8 +34,6 @@ EXPECTED_REFERENCE_FILES = {
     'leak_audit_structure_homology.csv': 'active_builders/export_reference.py (from oct2026_leak_audit/07_structure_homology.py)',
     'mgnify_homology_classes.csv.gz': 'active_builders/export_reference.py (from oct2026_leak_audit/20_mgnify_vs_capped_train.py)',
     # Static committed auxiliary reference tables (documented provenance)
-    'leak_public_spurs.csv': 'Static committed audit of published SPURS checkpoint mega_splits training overlap (consumed by p10_splits_and_leakage.py)',
-    'spurs_public_checkpoint.csv': 'Static committed Spearman rho of published SPURS checkpoint vs retrained SPURS (consumed by p10_splits_and_leakage.py)',
     'pgym_thermompnn_corrected_s1_per_dms.csv': 'Static committed seed-1 corrected ThermoMPNN-D fallback on ProteinGym',
 }
 

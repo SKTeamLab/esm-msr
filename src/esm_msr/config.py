@@ -136,6 +136,9 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                       help="Include ESM3's sequence LM output head in the WT LoRA targets (default True). Pass --no-incl_sequence_head_wt to freeze.")
     arch.add_argument('--incl_sequence_head_mt', action=argparse.BooleanOptionalAction, default=True,
                       help="Include ESM3's sequence LM output head in the MT LoRA targets (default True). Pass --no-incl_sequence_head_mt to freeze.")
+    arch.add_argument('--default_plddt_one', action=argparse.BooleanOptionalAction, default=False,
+                      help="Opt-in: pass per_res_plddt=1.0 for residues with finite backbone coordinates (matching ESM3.logits()) "
+                           "when use_plddt is False. Default False preserves exact manuscript FINAL_p0 behavior (per_res_plddt=None -> zeros).")
 
     obj = parser.add_argument_group("Objective")
     obj.add_argument('--lambda_rank_wt', type=float, default=1.0)
@@ -168,6 +171,18 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     obj.add_argument('--tobit_sigma_y', type=float, default=0.28, help="The Tobit likelihood (and the posterior label): the assay's noise on a reading, kcal/mol (losses.TOBIT_SIGMA_Y).")
     obj.add_argument('--tobit_mu_f', type=float, default=0.05, help="The mean of the unfolded floor, kcal/mol (losses.TOBIT_MU_F).")
     obj.add_argument('--tobit_sigma_f', type=float, default=0.38, help="The spread of the unfolded floor, kcal/mol (losses.TOBIT_SIGMA_F).")
+    obj.add_argument('--learn_tobit_mu_f', action='store_true',
+                     help="Learn the global Tobit floor mean mu_f directly through tobit_regression_loss (initialized at --tobit_mu_f, smoothly bounded by --tobit_mu_f_bounds).")
+    obj.add_argument('--learn_tobit_sigma_f', action='store_true',
+                     help="Learn the global Tobit floor spread sigma_f directly through tobit_regression_loss (initialized at --tobit_sigma_f, smoothly bounded by --tobit_sigma_f_bounds).")
+    obj.add_argument('--tobit_lr_mult', type=float, default=5.0,
+                     help="Learning-rate multiplier (relative to --learning_rate) for learnable Tobit parameters mu_f / sigma_f (default 5.0, matching calibration scale).")
+    obj.add_argument('--tobit_warmup_steps', type=int, default=None,
+                     help="Hold learnable Tobit parameters fixed for the first N optimizer steps while LoRA and calibration settle (default: --lr_warmup_steps).")
+    obj.add_argument('--tobit_mu_f_bounds', type=float, nargs=2, default=[-2.0, 1.0],
+                     help="Smooth [lo, hi] bounds (kcal/mol) for learnable mu_f (default: -2.0 1.0).")
+    obj.add_argument('--tobit_sigma_f_bounds', type=float, nargs=2, default=[0.10, 2.0],
+                     help="Smooth [lo, hi] bounds (kcal/mol) for learnable sigma_f (default: 0.10 2.0).")
     obj.add_argument('--lambda_cond_mt', type=float, default=0.0,
                      help="Weight on the MT head's conditional legs trained directly: with masked blocks the row and column passes are the legs; each is scored as the partner single's latent "
                           "plus the calibrated leg against the double's label, with ListMLE lists of the same legs (rank weight lambda_cond_mt * lambda_rank_mt / lambda_reg_mt). Only "

@@ -107,7 +107,7 @@ def test_domain_steps_set_the_step_themselves():
 def test_the_number_of_flags_is_small():
     """The point of the strip. A new flag is allowed, but it has to be a decision: raise this bound on purpose."""
     keys = set(vars(parse()))
-    assert len(keys) <= 64, sorted(keys)      # 60 + --last_n_layers_wt/_mt (Nov 16, the last-4-layers ablation) + --reg_nll/--reg_exclude_range (Nov 19, the regression ablations)
+    assert len(keys) <= 70, sorted(keys)      # 60 + --last_n_layers_wt/_mt (Nov 16) + --reg_nll/--reg_exclude_range (Nov 19) + 6 learnable Tobit floor flags (Nov 20)
     with pytest.raises(SystemExit):
         parse('--block_marginal_mt', '--block_mask_mt', '0.0')
     with pytest.raises(SystemExit):

@@ -47,3 +47,8 @@ data/mgnify_v2/
 
 # Private working notes (not published)
 /docs/OUTSTANDING_EXPERIMENTS.md
+
+# Figure-reproduction source data tables (excluded by tag)
+*_sourcedata.csv
+*_sourcedata.tsv
+*_sourcedata.parquet

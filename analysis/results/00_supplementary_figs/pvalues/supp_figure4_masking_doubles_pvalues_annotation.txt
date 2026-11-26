@@ -1,0 +1,11 @@
+Statistical Annotation: supp_figure4_masking_doubles_pvalues.csv
+================================================================
+Figure: Supplementary Figure 4 (Masking strategies on Homology-Restricted MegaScale test double mutants).
+
+Metric Tested:
+  Mean per-domain Spearman's rho on double mutants (13 test domains) comparing ESM-MSR (Unmasked) against
+  ESM-MSR masking ablations (One-at-a-time masking, Masked marginal) and zero-shot ESM3-small-open variants.
+
+Statistical Test:
+  Paired nonparametric domain-cluster x seed bootstrap (B = 10,000); one-sided H1: ESM-MSR (Unmasked) > comparator;
+  p = (1 + #{b: delta^(b) <= 0}) / (B + 1); Bonferroni-corrected over all m = 5 comparators.

@@ -53,7 +53,6 @@ LABELS = {
     'spurs_retrain_s1': ('SPURS', 'retrained (single + multi)', 1, True),
     'spurs_retrain_s2': ('SPURS', 'retrained (single + multi)', 2, True),
     'spurs_retrain_s3': ('SPURS', 'retrained (single + multi)', 3, True),
-    'spurs_published': ('SPURS', 'published checkpoint', None, False),
     'proteinmpnn': ('ProteinMPNN', 'zero-shot', None, False),
 }
 GROUPS = ['Tsuboyama', 'External', 'DMS', 'Domainome', 'ProteinGym']

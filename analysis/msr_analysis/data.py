@@ -566,14 +566,12 @@ def _load_mega(frame: Frame, ds: str, out: dict, sources: list[Path]):
         sources.extend(paths)
         return [pd.read_csv(q, low_memory=False) for q in paths]
 
-    for tag, fmt in (('spursu', f'spurs_mega_ta_s{{seed}}/tsuboyama_{split}.csv'), ('spurspub', f'spurs_mega_public/tsuboyama_{split}.csv')):
-        d = _opt(fmt, SEEDS if tag == 'spursu' else [0])
-        if d is None:
-            continue
+    d = _opt(f'spurs_mega_ta_s{{seed}}/tsuboyama_{split}.csv', SEEDS)
+    if d is not None:
         u = [x['uid'].astype(str).to_numpy(dtype=object) for x in d]
         a = np.vstack([_align_id(ids, k, x['SPURS_single_additive'].to_numpy()) for k, x in zip(u, d)])
         m = np.vstack([_align_id(ids, k, x['SPURS_multi'].to_numpy()) for k, x in zip(u, d)])
-        out[tag], out[f'{tag}m'], out[f'{tag}m:epi'] = a, m, m - a
+        out['spursu'], out['spursum'], out['spursum:epi'] = a, m, m - a
     d = _opt(f'thermompnn_mega_public_ens{{seed}}/predictions_{split}.csv')
     if d is not None:
         k = [(x['code'].astype(str) + '_' + x['mut_type'].astype(str)).to_numpy(dtype=object) for x in d]
@@ -661,6 +659,7 @@ def _load_frame(ds: str, refresh: bool = False, check_sources: bool = False) -> 
             _load_msr(fr, ds, out, sources)
             if ds in TSU_MEGA:
                 _load_mega(fr, ds, out, sources)
+                _load_public(fr, ds, out, sources)
                 fr.preds = synthesize_missing_epi(_tidy(out))
                 return _finish(fr, pkl, sources)
             _load_me(fr, ds, out, sources)

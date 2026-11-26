@@ -1,0 +1,11 @@
+Statistical Annotation: supp_figure3_doubles_vs_singles_pvalues.csv
+===================================================================
+Figure: Supplementary Figure 3 (Doubles-trained vs singles-only versions evaluated on Homology-Restricted MegaScale test single mutants).
+
+Metrics Tested:
+  1. Between-model: ESM-MSR Dual-view vs MutateEverything Stage 2, ThermoMPNN-D, and SPURS-multi on single mutants (mean per-domain rho, 33 domains).
+  2. Within-model degradation: One-sided test that singles-only > doubles-trained (i.e., whether training on doubles hurts single-mutant accuracy).
+
+Statistical Test:
+  Paired nonparametric domain-cluster x training-seed bootstrap (B = 10,000), exact Monte Carlo one-sided p-value
+  p = (1 + #{b: delta^(b) <= 0}) / (B + 1), Bonferroni-corrected within each test family (m = 3 between-model; m = 4 within-model).

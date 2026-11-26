@@ -153,6 +153,24 @@ def tf_single_label(y, cens, cens_src, wt_lat, dG_wt, post=None):
     return tobit_posterior_mean(dG_wt + y, dG_wt + wt_lat, tag, **(post or {})) - dG_wt
 
 
+def _init_bounded_param(init: float, bounds: tuple[float, float]) -> torch.nn.Parameter:
+    """Create an unconstrained scalar Parameter whose sigmoid maps onto ``(lo, hi)`` with initial value ``init``."""
+    lo, hi = float(bounds[0]), float(bounds[1])
+    if not (lo < hi):
+        raise ValueError(f"Tobit parameter bounds must satisfy lo < hi, got ({lo}, {hi})")
+    if not (lo <= float(init) <= hi):
+        raise ValueError(f"Initial Tobit parameter value {init} is outside bounds ({lo}, {hi})")
+    eps = 1e-6
+    p = min(max((float(init) - lo) / (hi - lo), eps), 1.0 - eps)
+    raw = math.log(p / (1.0 - p))
+    return torch.nn.Parameter(torch.tensor(raw, dtype=torch.float32))
+
+
+def _eval_bounded_param(raw: torch.nn.Parameter, bounds: tuple[float, float]) -> torch.Tensor:
+    lo, hi = float(bounds[0]), float(bounds[1])
+    return lo + (hi - lo) * torch.sigmoid(raw)
+
+
 class ESM3EpistasisLightningModule(pl.LightningModule):
     def __init__(self, val_dataloader_names=None, **kwargs):
         super().__init__()
@@ -163,7 +181,13 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                              "target_mode": hp.get(f'target_mode_{side}', config.LORA_TARGET_MODE), "last_n_layers": int(hp.get(f'last_n_layers_{side}', 0) or 0), "seed": hp.seed, "incl_sequence_head": bool(hp[f'incl_sequence_head_{side}'])}
         lora_config = {'wt_config': lora('wt'), 'mt_config': lora('mt'), 'seed': hp.seed}
 
-        self.model = MSRModel(lora_config=lora_config, shared_scale_init=SHARED_SCALE_INIT, shared_bias_init=SHARED_BIAS_INIT, model_dtype=torch.float32)
+        self.model = MSRModel(
+            lora_config=lora_config,
+            shared_scale_init=SHARED_SCALE_INIT,
+            shared_bias_init=SHARED_BIAS_INIT,
+            default_plddt_one=bool(hp.get('default_plddt_one', False)),
+            model_dtype=torch.float32,
+        )
 
         # on_save_checkpoint deliberately keeps only the lora / calibration entries, so a
         # checkpoint is missing every frozen base weight. Lightning's default strict load would then refuse
@@ -178,16 +202,34 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         # Regression is the noisy-floor Tobit likelihood on the latent absolute dG. The noise model's constants (--tobit_sigma_y / _mu_f / _sigma_f) and the width of the teacher-forcing
         # prior around the WT head's read (--tf_prior_sd); the defaults are the constants of losses.py.
-        self.tobit_params = dict(sigma_y=float(hp.get('tobit_sigma_y', TOBIT_SIGMA_Y)), mu_f=float(hp.get('tobit_mu_f', TOBIT_MU_F)),
-                                 sigma_f=float(hp.get('tobit_sigma_f', TOBIT_SIGMA_F)))
-        self.tf_post = dict(s=float(hp.get('tf_prior_sd', TF_PRIOR_SD)), **self.tobit_params)
+        # When --learn_tobit_mu_f and/or --learn_tobit_sigma_f are enabled under --reg_nll tobit, those scalars are learned directly through tobit_regression_loss as smooth sigmoid-bounded
+        # parameters (held fixed during --tobit_warmup_steps).
+        self._tobit_sigma_y = float(hp.get('tobit_sigma_y', TOBIT_SIGMA_Y))
+        self._tobit_mu_f_init = float(hp.get('tobit_mu_f', TOBIT_MU_F))
+        self._tobit_sigma_f_init = float(hp.get('tobit_sigma_f', TOBIT_SIGMA_F))
+        self._tf_prior_sd = float(hp.get('tf_prior_sd', TF_PRIOR_SD))
         self.reg_nll = str(hp.get('reg_nll', 'tobit'))
         self.reg_exclude_range = bool(hp.get('reg_exclude_range', False))
         assert self.reg_nll in ('tobit', 'none'), f"--reg_nll must be tobit or none, got {self.reg_nll!r}"
-        logging.info(f"Regression: {'plain MSE on ddG' if self.reg_nll == 'none' else 'noisy-floor Tobit NLL'} {self.tobit_params}{'; range-tagged cells excluded' if (self.reg_exclude_range or self.reg_nll == 'none') else ''}"
-                     + (f"; teacher-forcing prior width {self.tf_post['s']}" if hp.get('tf_label', 'measured') == 'posterior' else ''))
-        # The one link: the Tobit expected reading, applied when validation scores the observed scale (RMSE, naive_rho_comb). Reporting only.
-        self.obs_link = observed_scale_link(hp)
+
+        self._learn_tobit_mu_f = bool(hp.get('learn_tobit_mu_f', False)) and self.reg_nll == 'tobit'
+        self._learn_tobit_sigma_f = bool(hp.get('learn_tobit_sigma_f', False)) and self.reg_nll == 'tobit'
+        self._tobit_mu_f_bounds = tuple(float(x) for x in hp.get('tobit_mu_f_bounds', (-2.0, 1.0)))
+        self._tobit_sigma_f_bounds = tuple(float(x) for x in hp.get('tobit_sigma_f_bounds', (0.10, 2.0)))
+        raw_tw = hp.get('tobit_warmup_steps', None)
+        self._tobit_warmup_steps = int(hp.get('lr_warmup_steps', 0) or 0) if raw_tw is None else int(raw_tw)
+        self.tobit_mu_f_raw = _init_bounded_param(self._tobit_mu_f_init, self._tobit_mu_f_bounds) if self._learn_tobit_mu_f else None
+        self.tobit_sigma_f_raw = _init_bounded_param(self._tobit_sigma_f_init, self._tobit_sigma_f_bounds) if self._learn_tobit_sigma_f else None
+
+        learn_desc = []
+        if self._learn_tobit_mu_f:
+            learn_desc.append(f"mu_f in {self._tobit_mu_f_bounds}")
+        if self._learn_tobit_sigma_f:
+            learn_desc.append(f"sigma_f in {self._tobit_sigma_f_bounds}")
+        logging.info(f"Regression: {'plain MSE on ddG' if self.reg_nll == 'none' else 'noisy-floor Tobit NLL'} {self.tobit_params}"
+                     + (f" [learnable: {', '.join(learn_desc)}; warmup={self._tobit_warmup_steps} steps]" if learn_desc else "")
+                     + ('; range-tagged cells excluded' if (self.reg_exclude_range or self.reg_nll == 'none') else '')
+                     + (f"; teacher-forcing prior width {self._tf_prior_sd}" if hp.get('tf_label', 'measured') == 'posterior' else ''))
         logging.info('Validation observed scale: ' + ('Tobit expected-reading link on the in-distribution libraries (constants of the likelihood), none on the external sets'
                                                       if self.obs_link is not None else 'no link (the run regressed the observed ddG); latent predictions are read as they are'))
 
@@ -365,6 +407,52 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
         return scaled_loss, per_list.detach().mean().item(), num_lists
 
 
+    @property
+    def tobit_params(self) -> dict:
+        """Current Tobit noise/floor parameters as Python floats (reflects learned values when enabled)."""
+        mu_f = float(_eval_bounded_param(self.tobit_mu_f_raw, self._tobit_mu_f_bounds).detach().item()) if getattr(self, 'tobit_mu_f_raw', None) is not None else float(self._tobit_mu_f_init)
+        sigma_f = float(_eval_bounded_param(self.tobit_sigma_f_raw, self._tobit_sigma_f_bounds).detach().item()) if getattr(self, 'tobit_sigma_f_raw', None) is not None else float(self._tobit_sigma_f_init)
+        return dict(sigma_y=float(self._tobit_sigma_y), mu_f=mu_f, sigma_f=sigma_f)
+
+    @property
+    def tf_post(self) -> dict:
+        """Current teacher-forcing posterior constants as Python floats."""
+        return dict(s=float(self._tf_prior_sd), **self.tobit_params)
+
+    @property
+    def obs_link(self):
+        """Current Tobit expected-reading link (or None when --reg_nll != tobit), reflecting learned parameters."""
+        if getattr(self, 'reg_nll', 'tobit') != 'tobit':
+            return None
+        tp = self.tobit_params
+        return val_stats.tobit_link(tp['sigma_y'], tp['mu_f'], tp['sigma_f'])
+
+    def _in_tobit_warmup(self) -> bool:
+        warmup = int(getattr(self, '_tobit_warmup_steps', 0) or 0)
+        if warmup <= 0:
+            return False
+        step = int(self.global_step) if getattr(self, '_trainer', None) is not None else int(getattr(self, '_opt_steps', -1) + 1)
+        return step < warmup
+
+    def _tobit_params_for_loss(self) -> dict:
+        """Tobit parameters passed to ``tobit_regression_loss``; live tensors when learnable and past warmup, detached during warmup."""
+        freeze = self._in_tobit_warmup()
+        if getattr(self, 'tobit_mu_f_raw', None) is not None:
+            mu_f = _eval_bounded_param(self.tobit_mu_f_raw, self._tobit_mu_f_bounds)
+            if freeze:
+                mu_f = mu_f.detach()
+        else:
+            mu_f = float(self._tobit_mu_f_init)
+
+        if getattr(self, 'tobit_sigma_f_raw', None) is not None:
+            sigma_f = _eval_bounded_param(self.tobit_sigma_f_raw, self._tobit_sigma_f_bounds)
+            if freeze:
+                sigma_f = sigma_f.detach()
+        else:
+            sigma_f = float(self._tobit_sigma_f_init)
+
+        return dict(sigma_y=float(self._tobit_sigma_y), mu_f=mu_f, sigma_f=sigma_f)
+
     def _reg_loss(self, pred, target, bound, cens, mask, denom, dgwt):
         """
         The Tobit regression over ``mask``: the noisy-floor mixture on the LATENT absolute dG (``pred`` is the latent ddG, so each item is shifted by its library's ``dgwt``), with the
@@ -384,7 +472,8 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             ok = torch.isfinite(y)
             L = torch.where(ok, (pred[mask].float() - torch.where(ok, y, torch.zeros_like(y)).float()) ** 2, torch.zeros_like(y, dtype=torch.float))
         else:
-            L = tobit_regression_loss(off + pred[mask], off + target[mask], off + bound[mask], cens[mask], **self.tobit_params)
+            tp = self._tobit_params_for_loss() if hasattr(self, '_tobit_params_for_loss') else self.tobit_params
+            L = tobit_regression_loss(off + pred[mask], off + target[mask], off + bound[mask], cens[mask], **tp)
         return L.sum() / denom, float(L.sum().item()), float(L.numel())
 
 
@@ -785,7 +874,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         log_every = int(getattr(self.trainer, 'log_every_n_steps', 25) or 25) if getattr(self, '_trainer', None) is not None else 1
         if batch_idx == 0 or (batch_idx + 1) % log_every == 0:
-            param_id_to_name = {id(p): name for name, p in self.model.named_parameters()}
+            param_id_to_name = {id(p): name for name, p in self.named_parameters()}
             for i, g in enumerate(optim.param_groups):
                 group_name = g.get("name", f"group{i}")
                 named_params = [(param_id_to_name.get(id(p), f"param_{j}"), p) for j, p in enumerate(g["params"])]
@@ -819,6 +908,10 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         self._log_lrs()
         self.log_calibration_head(on_step=True)
+        if getattr(self, '_learn_tobit_mu_f', False) or getattr(self, '_learn_tobit_sigma_f', False):
+            tp = self.tobit_params
+            self.log("train/tobit_mu_f", tp['mu_f'], on_step=True, on_epoch=False, logger=True)
+            self.log("train/tobit_sigma_f", tp['sigma_f'], on_step=True, on_epoch=False, logger=True)
 
         for k, v in logs.items():
             if v > 0.0: self.log(f"train/{k}", v, on_step=True)
@@ -1217,11 +1310,14 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             else: other_params.append(p)
 
         calib_mult = config.CALIB_LR_MULT
+        tobit_mult = float(self.hparams.get('tobit_lr_mult', 5.0))
+        tobit_params_list = [p for p in (getattr(self, 'tobit_mu_f_raw', None), getattr(self, 'tobit_sigma_f_raw', None)) if p is not None]
         main_groups = []
         if lora_wt_params: main_groups.append({"params": lora_wt_params, "lr": base_lr, "weight_decay": wd, "name": "lora_wt"})
         if lora_mt_params: main_groups.append({"params": lora_mt_params, "lr": base_lr, "weight_decay": wd, "name": "lora_mt"})
         if calib_wt_params: main_groups.append({"params": calib_wt_params, "lr": base_lr * calib_mult, "weight_decay": 0.0, "name": "calib_wt"})
         if calib_mt_params: main_groups.append({"params": calib_mt_params, "lr": base_lr * calib_mult, "weight_decay": 0.0, "name": "calib_mt"})
+        if tobit_params_list: main_groups.append({"params": tobit_params_list, "lr": base_lr * tobit_mult, "weight_decay": 0.0, "name": "tobit"})
         if other_params: main_groups.append({"params": other_params, "lr": base_lr, "weight_decay": wd, "name": "other"})
 
         if not main_groups:
@@ -1287,7 +1383,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
 
         filtered_state_dict = {
             k: v for k, v in state_dict.items()
-            if 'lora' in k.lower() or 'calibration' in k.lower()
+            if 'lora' in k.lower() or 'calibration' in k.lower() or 'tobit' in k.lower()
         }
 
         if not filtered_state_dict:

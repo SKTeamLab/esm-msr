@@ -11,10 +11,17 @@ from msr_analysis.external import EXT_MODELS, EXT_ORDER  # noqa: E402
 
 
 def test_order_is_zero_shot_then_transfer_then_supervised_then_megascale():
-    assert M.ORDER[:10] == ['ProSST', 'ProteinMPNN', 'ESM3-small-open', 'ESM-MSR', 'ESM-MSR σ=0.5', 'MutateEverything', 'ThermoMPNN', 'SPURS', 'GeoDDG-3D', 'Rosetta']
+    assert M.ORDER[:10] == ['ProSST', 'ProteinMPNN', 'ESM3-small-open', 'ESM-MSR σ=0.5', 'ESM-MSR', 'MutateEverything', 'ThermoMPNN', 'SPURS', 'GeoDDG-3D', 'Rosetta']
     assert M.ORDER[10] == 'ESM3ΔG'                                  # ESM3ΔG ends the supervised models
     assert [m.group for m in M.ROSTER] == sorted((m.group for m in M.ROSTER), key=M.GROUP_ORDER_INDEX.get)
-    assert EXT_ORDER == M.UNIFIED == [n for n in M.ORDER if n not in ('ESM-MSR σ=0.5', 'ESMtherm', 'IFUM', 'SPURS published*', 'DDGemb', 'DDMut')]
+    assert EXT_ORDER == M.UNIFIED == [n for n in M.ORDER if n not in ('ESM-MSR σ=0.5', 'ESMtherm', 'IFUM', 'DDGemb', 'DDMut')]
+
+
+def test_spurs_published_is_permanently_excluded():
+    assert 'SPURS published*' not in M.BY_NAME
+    assert not [m for m in M.ROSTER if 'spurs' in m.name.lower() and 'pub' in m.name.lower()]
+    assert not [k for k in M.KEY_MODEL if k.startswith('spurspub')]
+    assert not [k for k in registry.MODELS if k.startswith('spurspub')]
 
 
 def test_main_models_have_distinct_colours_and_markers():
