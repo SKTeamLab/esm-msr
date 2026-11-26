@@ -1,0 +1,20 @@
+\begin{table}[H]
+    \centering
+    \caption{\textbf{Computational Complexity of Mutant Inference Strategies}. For full mutational scans, $N = L$ (sequence length). $N$: Positions to scan; $D$: Mutation depth (e.g., 2 for a double mutant screen); $K$: Mutations to assess per position (19); $T_{fwd}$: Amortized forward pass time. Screening times are measured on a single NVIDIA RTX A4500 (20 GB) for a protein of length $L = 256$ (\texttt{CASP3\_HUMAN\_256}) at the optimal batch size ($B = 32$, 14.9 GB peak VRAM, $\approx 36.3$ forward passes/s, i.e., $T_{fwd} \approx 0.028$~s amortized; $B = 1$ WT-view pass is 0.18~s at 5.8 GB VRAM). Bracketed values give 6-core CPU-only WT-LoRA screening times (4.7~s measured for Unmasked at 7.7 GB RAM; 20~min projected as $256 \times 4.66$~s for masked strategies). Forward pass time and memory scale with protein length. All main-text results use the Unmasked strategy.}
+    \label{tab:inference_complexity}
+    \renewcommand{\arraystretch}{1.3}
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{@{}l>{\raggedright\arraybackslash}p{3.0cm}>{\raggedright\arraybackslash}p{3.3cm}>{\raggedright\arraybackslash}p{6.6cm}>{\raggedright\arraybackslash}p{2.4cm}>{\raggedright\arraybackslash}p{2.5cm}@{}}
+        \toprule
+        \textbf{Strategy} & \textbf{Single Mutants / Additive approx. (WT LoRA)} & \textbf{Time to Screen All Singles [CPU time] (L=256)} & \textbf{Multi-mutants / Epistatic approach (Dual-view)} & \textbf{Double Mutant Forward Passes (L=256)} & \textbf{Time to Screen All Doubles (L=256)} \\
+        \midrule
+        \textbf{Unmasked (Default)} & $1 \times T_{fwd}$ & 0.18 s [4.7 s] & $\left(\binom{N}{D} \cdot K^D + 1\right) \cdot T_{fwd}$ & 11,783,041 & 3.8 Days \\
+        \midrule
+        \textbf{Independent Masking} & $N \times T_{fwd}$ & 7 s [20 min] & $\left(N + \binom{N}{D-1} \cdot K^{D-1}(N - D + 1)\right) \cdot T_{fwd}$ & 1,240,576 & 9.4 Hours \\
+        \midrule
+        \textbf{Masked Marginal} & $N \times T_{fwd}$ & 7 s [20 min] & $\left(N + \binom{N}{D}\right) \cdot T_{fwd}$ & 32,896 & 15.1 Minutes \\
+        \bottomrule
+    \end{tabular}
+    }
+    \par\bigskip
+\end{table}
