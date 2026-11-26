@@ -1,5 +1,49 @@
 % Copy-pastable SI LaTeX tables (requires \usepackage{booktabs,longtable,float,graphicx,amsmath})
 
+% ==================== table_S0_dataset_summary.tex ====================
+
+\begin{table}[H]
+    \centering
+    \caption{\textbf{Summary of Training, Validation, and Test Data}. Unique Structures reports total unique parent structures/domains prior to holdout or censoring exclusions, Unique Mutations reports deduplicated $(\text{structure}, \text{mutation})$ pairs, and Retained Mutations per Protein equals $(\text{Unique Mutations} - \text{Excluded Mutations}) / (\text{Unique Structures} - \text{Excluded Structures})$. For MegaScale, parent wild-type structures are counted (destabilized mutant backbones share their parent structure: Homology-Restricted Train/Validation/Test/Excluded contain 173/25/37/169 libraries across 172/23/33/142 parent structures, with 142 structures [132 external homologs, 10 bridge domains] quarantined to enforce global homology bounds; Full Split [\texttt{mega\_splits}] Train/Validation/Test contain 243/31/30 libraries across 239/31/28 parent structures, including two destabilized backbone variants of 2K5H in Test, while 72 of the 370 usable Tsuboyama parent structures are unassigned). $^\dagger$MegaScale Train retains all range-censored variants for Tobit likelihood training (13,792 unique range-censored + 207,546 uncensored on Homology-Restricted; 30,212 + 328,549 on Full Split), whereas Validation and Test exclude range-censored variants from evaluation metrics (leaving 34,957 and 48,740 uncensored variants on Homology-Restricted; 37,610 and 49,048 on Full Split). All 12 external thermostability sets are quarantined from Homology-Restricted Train and Validation (0 exclusions); Unique Structures counts distinct PDB chains (Q3421: 149 chains/148 PDBs; S571: 39/37; S2648: 132/131; S8754: 305/301), and Unique Mutations deduplicates replicate measurements (PTMUL: 912 unique/914 rows; S571: 557/571; S8754: 6,411/8,754; all rows are scored). *For Ssym, each direct and reverse mutation has its own crystal structure (357 structures across 15 wild-type proteins), reducing the apparent mutations per structure (45.60 per wild-type protein). For Domainome, ProteinGym, MGnify, and Rocklin \textit{de novo}, exclusions enforce the four-part sequence/structure holdout rule against Homology-Restricted MegaScale Train (MMseqs2 $E \le 10^{-3}$, shorter-chain identity $>0.40$, Foldseek $E \le 10^{-3}$, or $\mathrm{TM}_{\max} > 0.70$): Domainome counts measured unique variants (450,689 unique retained [451,569 rows] across 436 held-out domains; 86 homologous domains excluded; 36,059 additional unmeasured NaN-label variants are omitted prior to analysis). $^\ddagger$ProteinGym spans 186 unique UniProt/AF2 structures (217 DMS assays); 41 structures (44 assays: 41 homologous + 4 $>1{,}800$-aa length-excluded, 1 overlap) are excluded, retaining 145 structures (173 assays) with 2,231,937 unique $(\text{protein}, \text{mutation})$ pairs (2,351,488 assay-variant measurements out of 2,465,767 total across 217 assays, as 119,551 retained variants appear in multiple assays). MGnify (180,367 scaffolds) excludes 27,687 homologous scaffolds (100,365 variants) plus 11,986 non-homologous all-censored scaffolds and 54,019 off-scale/censored variants on held-out scaffolds, retaining 140,694 scaffolds and 612,406 scored variants. Rocklin \textit{de novo} (1,000 designs) excludes 258 homologous designs (52,642 variants) plus 119 non-homologous all-censored designs and 47,595 off-scale/censored variants on held-out designs, retaining 623 designs and 109,581 scored variants.}
+    \label{tab:complexity_final}
+    \renewcommand{\arraystretch}{1.3}
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{@{}lrrrrr}\toprule
+        Superset & Unique Structures & Excluded Structures & Unique Mutations & Excluded Mutations & Retained Mutations per Protein \\\midrule
+        MegaScale (Homology-Restricted) -- Train$^\dagger$ & 172 & 0 & 221,338 & 0 & 1,286.85 \\
+        MegaScale (Homology-Restricted) -- Validation & 23 & 0 & 35,473 & 516 & 1,519.87 \\
+        MegaScale (Homology-Restricted) -- Test & 33 & 0 & 52,033 & 3,293 & 1,476.97 \\
+        MegaScale (Homology-Restricted) -- Excluded & 142 & 142 & 250,770 & 250,770 & --- \\
+        \midrule
+        MegaScale (Full Split) -- Train$^\dagger$ & 239 & 0 & 358,761 & 0 & 1,501.09 \\
+        MegaScale (Full Split) -- Validation & 31 & 0 & 39,252 & 1,642 & 1,213.23 \\
+        MegaScale (Full Split) -- Test & 28 & 0 & 53,931 & 4,883 & 1,751.71 \\
+        \midrule
+        K2369 & 181 & 0 & 2,369 & 0 & 13.09 \\
+        K3822 & 201 & 0 & 3,822 & 0 & 19.01 \\
+        PTMUL & 90 & 0 & 912 & 0 & 10.13 \\
+        PTMUL-D & 83 & 0 & 536 & 0 & 6.46 \\
+        Q3421 & 149 & 0 & 3,421 & 0 & 22.96 \\
+        S461 & 48 & 0 & 461 & 0 & 9.60 \\
+        S571 & 39 & 0 & 557 & 0 & 14.28 \\
+        S669 & 94 & 0 & 669 & 0 & 7.12 \\
+        S783 & 55 & 0 & 783 & 0 & 14.24 \\
+        S2648 & 132 & 0 & 2,648 & 0 & 20.06 \\
+        S8754 & 305 & 0 & 6,411 & 0 & 21.02 \\
+        Ssym & 357 & 0 & 684 & 0 & 1.92* \\
+        \midrule
+        Domainome & 522 & 86 & 536,145 & 85,456 & 1,033.69 \\
+        ProteinGym$^\ddagger$ & 186 & 41 & 2,339,676 & 107,739 & 15,392.67 \\
+        MGnify & 180,367 & 39,673 & 766,790 & 154,384 & 4.35 \\
+        Rocklin \textit{de novo} & 1,000 & 377 & 209,818 & 100,237 & 175.89 \\
+    \bottomrule
+    \end{tabular}
+    }
+    \par\bigskip
+\end{table}
+
+
+
 % ==================== table_S1a_ablations_in_distribution.tex ====================
 
 \begin{table}[H]

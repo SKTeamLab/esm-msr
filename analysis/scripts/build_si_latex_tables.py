@@ -1904,11 +1904,126 @@ def build_table_s6_screening_and_ndcg(tobit_df: pd.DataFrame) -> tuple[Path, Pat
     return p6a, p6b
 
 
+def build_table_s0_dataset_summary() -> Path:
+    """Table S0 / tab:complexity_final: Verified summary of all training, validation, and test datasets."""
+    # Each tuple: (superset_label, unique_structures, excluded_structures, unique_mutations, excluded_mutations, mut_per_prot_suffix, footnote_mark)
+    # Every count is verified directly from raw Tsuboyama2023 + MegaScaleDatasetPreprocessor,
+    # splits_oct06_capped_library_assignment.csv, mega_splits.pkl, external task spines,
+    # ProteinGym DMS_ProteinGym_substitutions CSVs, Domainome spine, and MGnify/Rocklin caches.
+    blocks = [
+        [
+            ('MegaScale (Homology-Restricted) -- Train', 172, 0, 221338, 0, '', r'$^\dagger$'),
+            ('MegaScale (Homology-Restricted) -- Validation', 23, 0, 35473, 516, '', ''),
+            ('MegaScale (Homology-Restricted) -- Test', 33, 0, 52033, 3293, '', ''),
+            ('MegaScale (Homology-Restricted) -- Excluded', 142, 142, 250770, 250770, '', ''),
+        ],
+        [
+            ('MegaScale (Full Split) -- Train', 239, 0, 358761, 0, '', r'$^\dagger$'),
+            ('MegaScale (Full Split) -- Validation', 31, 0, 39252, 1642, '', ''),
+            ('MegaScale (Full Split) -- Test', 28, 0, 53931, 4883, '', ''),
+        ],
+        [
+            ('K2369', 181, 0, 2369, 0, '', ''),
+            ('K3822', 201, 0, 3822, 0, '', ''),
+            ('PTMUL', 90, 0, 912, 0, '', ''),
+            ('PTMUL-D', 83, 0, 536, 0, '', ''),
+            ('Q3421', 149, 0, 3421, 0, '', ''),
+            ('S461', 48, 0, 461, 0, '', ''),
+            ('S571', 39, 0, 557, 0, '', ''),
+            ('S669', 94, 0, 669, 0, '', ''),
+            ('S783', 55, 0, 783, 0, '', ''),
+            ('S2648', 132, 0, 2648, 0, '', ''),
+            ('S8754', 305, 0, 6411, 0, '', ''),
+            ('Ssym', 357, 0, 684, 0, '*', ''),
+        ],
+        [
+            ('Domainome', 522, 86, 536145, 85456, '', ''),
+            ('ProteinGym', 186, 41, 2339676, 107739, '', r'$^\ddagger$'),
+            ('MGnify', 180367, 39673, 766790, 154384, '', ''),
+            (r'Rocklin \textit{de novo}', 1000, 377, 209818, 100237, '', ''),
+        ],
+    ]
+
+    # Exact consistency assertions for MegaScale Homology-Restricted partition of the 370 Tsuboyama parent structures
+    assert sum(r[1] for r in blocks[0]) == 370
+    assert sum(r[3] for r in blocks[0]) == 559614
+
+    body_lines: list[str] = []
+    for b_idx, block in enumerate(blocks):
+        if b_idx > 0:
+            body_lines.append(r'\midrule')
+        for name, u_str, ex_str, u_mut, ex_mut, mpp_sfx, name_mark in block:
+            ret_str = u_str - ex_str
+            ret_mut = u_mut - ex_mut
+            assert ret_str >= 0 and ret_mut >= 0
+            mpp = '---' if ret_str == 0 else f'{ret_mut / ret_str:,.2f}{mpp_sfx}'
+            body_lines.append(
+                f'{name}{name_mark} & {u_str:,} & {ex_str:,} & {u_mut:,} & {ex_mut:,} & {mpp} \\\\'
+            )
+
+    caption = (
+        r'\textbf{Summary of Training, Validation, and Test Data}. '
+        r'Unique Structures reports total unique parent structures/domains prior to holdout or censoring exclusions, '
+        r'Unique Mutations reports deduplicated $(\text{structure}, \text{mutation})$ pairs, and Retained Mutations per Protein equals '
+        r'$(\text{Unique Mutations} - \text{Excluded Mutations}) / (\text{Unique Structures} - \text{Excluded Structures})$. '
+        r'For MegaScale, parent wild-type structures are counted (destabilized mutant backbones share their parent structure: '
+        r'Homology-Restricted Train/Validation/Test/Excluded contain 173/25/37/169 libraries across 172/23/33/142 parent structures, '
+        r'with 142 structures [132 external homologs, 10 bridge domains] quarantined to enforce global homology bounds; '
+        r'Full Split [\texttt{mega\_splits}] Train/Validation/Test contain 243/31/30 libraries across 239/31/28 parent structures, '
+        r'including two destabilized backbone variants of 2K5H in Test, while 72 of the 370 usable Tsuboyama parent structures are unassigned). '
+        r'$^\dagger$MegaScale Train retains all range-censored variants for Tobit likelihood training '
+        r'(13,792 unique range-censored + 207,546 uncensored on Homology-Restricted; 30,212 + 328,549 on Full Split), '
+        r'whereas Validation and Test exclude range-censored variants from evaluation metrics (leaving 34,957 and 48,740 uncensored variants on Homology-Restricted; '
+        r'37,610 and 49,048 on Full Split). '
+        r'All 12 external thermostability sets are quarantined from Homology-Restricted Train and Validation (0 exclusions); '
+        r'Unique Structures counts distinct PDB chains (Q3421: 149 chains/148 PDBs; S571: 39/37; S2648: 132/131; S8754: 305/301), '
+        r'and Unique Mutations deduplicates replicate measurements (PTMUL: 912 unique/914 rows; S571: 557/571; S8754: 6,411/8,754; all rows are scored). '
+        r'*For Ssym, each direct and reverse mutation has its own crystal structure (357 structures across 15 wild-type proteins), '
+        r'reducing the apparent mutations per structure (45.60 per wild-type protein). '
+        r'For Domainome, ProteinGym, MGnify, and Rocklin \textit{de novo}, exclusions enforce the four-part sequence/structure holdout rule against '
+        r'Homology-Restricted MegaScale Train (MMseqs2 $E \le 10^{-3}$, shorter-chain identity $>0.40$, Foldseek $E \le 10^{-3}$, or $\mathrm{TM}_{\max} > 0.70$): '
+        r'Domainome counts measured unique variants (450,689 unique retained [451,569 rows] across 436 held-out domains; 86 homologous domains excluded; '
+        r'36,059 additional unmeasured NaN-label variants are omitted prior to analysis). '
+        r'$^\ddagger$ProteinGym spans 186 unique UniProt/AF2 structures (217 DMS assays); 41 structures (44 assays: 41 homologous + 4 $>1{,}800$-aa length-excluded, '
+        r'1 overlap) are excluded, retaining 145 structures (173 assays) with 2,231,937 unique $(\text{protein}, \text{mutation})$ pairs '
+        r'(2,351,488 assay-variant measurements out of 2,465,767 total across 217 assays, as 119,551 retained variants appear in multiple assays). '
+        r'MGnify (180,367 scaffolds) excludes 27,687 homologous scaffolds (100,365 variants) plus 11,986 non-homologous all-censored scaffolds '
+        r'and 54,019 off-scale/censored variants on held-out scaffolds, retaining 140,694 scaffolds and 612,406 scored variants. '
+        r'Rocklin \textit{de novo} (1,000 designs) excludes 258 homologous designs (52,642 variants) plus 119 non-homologous all-censored designs '
+        r'and 47,595 off-scale/censored variants on held-out designs, retaining 623 designs and 109,581 scored variants.'
+    )
+
+    lines = [
+        r'\begin{table}[H]',
+        r'    \centering',
+        f'    \\caption{{{caption}}}',
+        r'    \label{tab:complexity_final}',
+        r'    \renewcommand{\arraystretch}{1.3}',
+        r'    \resizebox{\textwidth}{!}{%',
+        r'    \begin{tabular}{@{}lrrrrr}\toprule',
+        r'        Superset & Unique Structures & Excluded Structures & Unique Mutations & Excluded Mutations & Retained Mutations per Protein \\\midrule',
+    ]
+    for row in body_lines:
+        lines.append('        ' + row)
+    lines.extend([
+        r'    \bottomrule',
+        r'    \end{tabular}',
+        r'    }',
+        r'    \par\bigskip',
+        r'\end{table}',
+        '',
+    ])
+    return write_tex('table_S0_dataset_summary.tex', '\n'.join(lines))
+
+
 def main() -> None:
     extra_df = _load_extra_df()
     tobit_df = _load_tobit_df()
     print(f'Loaded {len(extra_df)} extra-model rows from {EXTRA_CSV.name} and {len(tobit_df)} Tobit-linked override rows from {TOBIT_CSV.name}')
     generated: list[Path] = []
+
+    print('[0/6] Building Table S0 (Dataset Summary / tab:complexity_final)...')
+    generated.append(build_table_s0_dataset_summary())
 
     print('[1/6] Building Tables S1a–S1b (Ablations: In-Distribution & OOD)...')
     generated.extend(build_table_s1_ablations())
