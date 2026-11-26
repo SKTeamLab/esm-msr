@@ -138,6 +138,7 @@ def parse_hparams_to_lora_config(hparams_path: str, sigma: float = 1.0) -> dict:
         'mask_native_cond_struct': bool(hparams.get('mask_native_cond_struct', False)),
         'fused_antisymmetric': bool(hparams.get('fused_antisymmetric', False)),
         'default_plddt_one': bool(hparams.get('default_plddt_one', False)),
+        'sequence_only': bool(hparams.get('sequence_only', False)),
     }
 
 
@@ -541,6 +542,9 @@ if __name__ == "__main__":
     parser.add_argument("--default_plddt_one", action=argparse.BooleanOptionalAction, default=None,
                         help="Opt-in: pass per_res_plddt=1.0 for residues with finite coordinates when --use_plddt is unset "
                              "(matches ESM3.logits()). Default: checkpoint hparams (False when missing, matching manuscript FINAL_p0).")
+    parser.add_argument("--sequence_only", action=argparse.BooleanOptionalAction, default=None,
+                        help="Opt-in sequence-only ablation: omit structure_coords, structure_tokens, and per_res_plddt. "
+                             "Default: checkpoint hparams (False when missing).")
     parser.add_argument("--quaternary_mode", type=str, default="single_chain", help="How to handle quaternary structure")
     parser.add_argument("--model_dtype", type=str, default="float32", choices=["float32", "bfloat16", "float16"])
 
@@ -666,6 +670,7 @@ if __name__ == "__main__":
     ckpt_mask_strategy = None
     native_cond_for_mt = False
     ckpt_default_plddt_one = False
+    ckpt_sequence_only = False
 
     if args.lora_config:
         try:
@@ -683,6 +688,7 @@ if __name__ == "__main__":
             mask_native_cond_struct = bool(lora_config.get('mask_native_cond_struct', False))
             fused_antisymmetric = bool(lora_config.get('fused_antisymmetric', False))
             ckpt_default_plddt_one = bool(lora_config.get('default_plddt_one', False))
+            ckpt_sequence_only = bool(lora_config.get('sequence_only', False))
 
             # Apply sigma
             if args.sigma < 0:
@@ -708,12 +714,14 @@ if __name__ == "__main__":
         mask_native_cond_struct = bool(parsed_config.get('mask_native_cond_struct', False))
         fused_antisymmetric = bool(parsed_config.get('fused_antisymmetric', False))
         ckpt_default_plddt_one = bool(parsed_config.get('default_plddt_one', False))
+        ckpt_sequence_only = bool(parsed_config.get('sequence_only', False))
         lora_config = {
             'wt_config': parsed_config['wt_config'],
             'mt_config': parsed_config['mt_config']
         }
 
     eff_default_plddt_one = ckpt_default_plddt_one if args.default_plddt_one is None else bool(args.default_plddt_one)
+    eff_sequence_only = ckpt_sequence_only if args.sequence_only is None else bool(args.sequence_only)
 
     if args.mask_strategy_wt is not None or args.mask_strategy_mt is not None:
         m_wt = None if args.mask_strategy_wt in (None, 'none') else args.mask_strategy_wt
@@ -740,6 +748,7 @@ if __name__ == "__main__":
         log_likelihood=args.log_likelihood,
         use_plddt=args.use_plddt,
         default_plddt_one=eff_default_plddt_one,
+        sequence_only=eff_sequence_only,
         quaternary_mode=args.quaternary_mode,
         model_dtype=model_dtype,
         adapter_mode=adapter_mode,

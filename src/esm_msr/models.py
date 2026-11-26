@@ -43,6 +43,7 @@ class ESM3PredictorBase(nn.Module):
             
         self.register_buffer('canonical_idx_tensor', torch.tensor(self.canonical_aa_token_ids, dtype=torch.long))
         self.default_plddt_one = False
+        self.sequence_only = False
 
     def _get_esm3_outputs(self, sequence_tokens: torch.Tensor, structure_coords: Optional[torch.Tensor] = None, structure_tokens: Optional[torch.Tensor] = None, per_res_plddt: Optional[torch.Tensor] = None, active_model: Optional[nn.Module] = None):
         """Internal helper to run the underlying ESM model's forward pass."""
@@ -58,6 +59,14 @@ class ESM3PredictorBase(nn.Module):
 
         target_model = active_model if active_model is not None else self.model
         seq = _prepare_input(sequence_tokens, 2)
+        if getattr(self, 'sequence_only', False):
+            # Sequence-only ablation: omit structure tokens, coords, and pLDDT; let ESM3 apply its built-in defaults.
+            return target_model.model(
+                sequence_tokens=seq,
+                structure_coords=None,
+                structure_tokens=None,
+                per_res_plddt=None,
+            )
         coords = _prepare_input(structure_coords, 4)
         struct_tok = _prepare_input(structure_tokens, 2)
         if getattr(self, 'use_plddt', False) and per_res_plddt is not None:
@@ -269,7 +278,7 @@ class MSRModel(ESM3PredictorBase):
     def __init__(
             self, lora_config: dict, shared_scale_init: float | None = None,
             shared_bias_init: float | None = None, inference_mode: bool = False, log_likelihood: bool = False,
-            use_plddt: bool = False, default_plddt_one: bool = False, quaternary_mode: str = 'single_chain', model_dtype: torch.dtype = torch.bfloat16, 
+            use_plddt: bool = False, default_plddt_one: bool = False, sequence_only: bool = False, quaternary_mode: str = 'single_chain', model_dtype: torch.dtype = torch.bfloat16, 
             adapter_mode: str = 'dual', lora_mode: str = 'ensemble', strict_loading: bool = True,
             combined_mode: str = 'mean', per_mutation_bias: bool = True, tie_mt_scale: bool = False,
             native_cond_mt_input: bool = False, mask_native_cond_struct: bool = False,
@@ -293,6 +302,7 @@ class MSRModel(ESM3PredictorBase):
         
         self.quaternary_mode, self.log_likelihood, self.use_plddt, self.dtype = quaternary_mode, log_likelihood, use_plddt, model_dtype
         self.default_plddt_one = bool(default_plddt_one)
+        self.sequence_only = bool(sequence_only)
         self.adapter_mode, self.lora_mode = adapter_mode, lora_mode
         self.strict_loading = strict_loading
         
