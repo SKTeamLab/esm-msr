@@ -245,7 +245,8 @@ def compute_thermostability_extras() -> list[dict]:
     extra4 = ['s571', 's669', 'k3822', 'ptmuld']
 
     def model_list(is_multi: bool, include_main: bool) -> list[tuple[str, str]]:
-        extras = [
+        extras = [] if is_multi else [('ESM-MSR Dual-View (incl. singles)', 'msrp0:comb')]
+        extras += [
             ('ESM-MSR σ=0.5', 'msrp0@0.5:comb' if is_multi else 'msrp0@0.5:wt'),
             ('DDGemb', 'ddgemb'),
             ('DDMut', 'ddmut'),
@@ -614,6 +615,7 @@ def compute_domainome_and_pgym_extras() -> list[dict]:
     bad_d = set(heldout_excluded('domainome'))
     m_d = sp_d['use'].to_numpy(bool) & (~sp_d['group'].astype(str).isin(bad_d).to_numpy())
     extra_dom = [
+        ('ESM-MSR Dual-View (incl. singles)', 'msrp0:comb'),
         ('DDGemb', 'ddgemb'),
         ('ESMtherm', 'esmtherm'),
         ('IFUM (WT backbone)', 'ifum_wt'),
@@ -672,6 +674,47 @@ def compute_domainome_and_pgym_extras() -> list[dict]:
             'pearson_r': np.nan,
             'rmse': np.nan,
             'p_one_sided': one_sided_p(reps_msr - reps_c),
+            'p_one_sided_prot': np.nan,
+            'n_units': len(cats),
+            'n_variants': 2351490,
+            'B': B_FAST,
+        })
+
+    # ProteinGym Dual-View (incl. singles): load combined_pred from final_pgym_comb/FINAL_p0/s{1,2,3}
+    assays_pg = list(msr_df.index)
+    M_cb_rho = np.full((len(assays_pg), 3), np.nan, dtype=float)
+    M_cb_r = np.full((len(assays_pg), 3), np.nan, dtype=float)
+    for s_idx, s in enumerate((1, 2, 3)):
+        pg_dir = ROOT / 'final_pgym_comb/FINAL_p0' / f's{s}'
+        if not pg_dir.exists():
+            continue
+        for a_i, assay in enumerate(assays_pg):
+            f_a = pg_dir / f'{assay}.csv'
+            if not f_a.exists():
+                ms = list(pg_dir.glob(f'{assay}*.csv'))
+                f_a = ms[0] if ms else None
+            if f_a is not None and f_a.exists():
+                da = pd.read_csv(f_a, usecols=['DMS_score', 'combined_pred'])
+                yv_a = da['DMS_score'].to_numpy(float)
+                pv_a = da['combined_pred'].to_numpy(float)
+                M_cb_rho[a_i, s_idx] = safe_spearman(pv_a, yv_a)
+                M_cb_r[a_i, s_idx] = safe_pearson(pv_a, yv_a)
+    if np.isfinite(M_cb_rho).all():
+        reps_cb = np.einsum('ba,as,bs->b', cat_weights, M_cb_rho, s_w3)
+        rows.append({
+            'section': 'ood_s5a',
+            'benchmark': 'ProteinGym_heldout_173_assays',
+            'dataset_key': 'proteingym',
+            'subset': 'category_weighted_mean_spearman_rho',
+            'resampling_unit': 'category_stratified_assay_x_seed',
+            'model': 'ESM-MSR Dual-View (incl. singles)',
+            'value_msr': pt_msr,
+            'pearson_r_msr': np.nan,
+            'rmse_msr': np.nan,
+            'value': macro_point(M_cb_rho),
+            'pearson_r': macro_point(M_cb_r),
+            'rmse': np.nan,
+            'p_one_sided': one_sided_p(reps_msr - reps_cb),
             'p_one_sided_prot': np.nan,
             'n_units': len(cats),
             'n_variants': 2351490,
@@ -738,6 +781,277 @@ def compute_mgnify_rocklin_extras() -> list[dict]:
     return rows
 
 
+def compute_thermo_rmse_dualview_extras() -> list[dict]:
+    print('[6/7] Computing Dual-View (incl. singles) raw RMSE & p-values for Table S4c...')
+    rows: list[dict] = []
+    bms = ['ssym', 's461', 'k2369', 's783', 's2648', 'q3421', 's8754', 'ptmul']
+    for idx_b, ds in enumerate(bms):
+        fr = load_frame(ds)
+        sp = fr.spine
+        y = sp['y'].to_numpy(float)
+        wt = np.atleast_2d(fr.preds['msrp0:wt'])
+        cb = np.atleast_2d(fr.preds['msrp0:comb'])
+        ok = np.isfinite(y) & np.isfinite(wt).all(axis=0) & np.isfinite(cb).all(axis=0)
+        yv = y[ok]
+        wt_ok = wt[:, ok]
+        cb_ok = cb[:, ok]
+        n_ok = int(ok.sum())
+        rm_wt = float(np.mean([safe_rmse(wt_ok[s], yv) for s in range(wt_ok.shape[0])]))
+        rm_cb = float(np.mean([safe_rmse(cb_ok[s], yv) for s in range(cb_ok.shape[0])]))
+        if ds == 'ptmul':
+            p_val = np.nan
+        else:
+            # Paired mutation x seed bootstrap testing H1: RMSE_wt < RMSE_comb (lower is better => rep_comb - rep_wt > 0)
+            rng = np.random.default_rng(6000 + idx_b)
+            se_wt = (wt_ok - yv[None, :]) ** 2  # (3, n_ok)
+            se_cb = (cb_ok - yv[None, :]) ** 2
+            sw3 = rng.multinomial(3, np.full(3, 1.0 / 3.0), size=B_FAST).astype(float) / 3.0
+            rep_wt = np.empty(B_FAST, dtype=float)
+            rep_cb = np.empty(B_FAST, dtype=float)
+            chunk = 1000
+            for i0 in range(0, B_FAST, chunk):
+                i1 = min(B_FAST, i0 + chunk)
+                m_w = rng.multinomial(n_ok, np.full(n_ok, 1.0 / n_ok), size=i1 - i0).astype(float) / n_ok
+                r_w = np.sqrt(m_w @ se_wt.T)  # (chunk, 3)
+                r_c = np.sqrt(m_w @ se_cb.T)
+                rep_wt[i0:i1] = np.sum(r_w * sw3[i0:i1], axis=1)
+                rep_cb[i0:i1] = np.sum(r_c * sw3[i0:i1], axis=1)
+            p_val = one_sided_p(rep_cb - rep_wt)
+        rows.append({
+            'section': 'thermo_rmse_s4c_extra',
+            'benchmark': ds,
+            'dataset_key': ds,
+            'subset': 'rmse_raw',
+            'resampling_unit': 'mutation_x_seed',
+            'model': 'ESM-MSR Dual-View (incl. singles)',
+            'value_msr': rm_cb if ds == 'ptmul' else rm_wt,
+            'pearson_r_msr': np.nan,
+            'rmse_msr': rm_cb if ds == 'ptmul' else rm_wt,
+            'value': rm_cb,
+            'pearson_r': np.nan,
+            'rmse': rm_cb,
+            'p_one_sided': p_val,
+            'p_one_sided_prot': np.nan,
+            'n_units': n_ok,
+            'n_variants': n_ok,
+            'B': B_FAST,
+        })
+    return rows
+
+
+def compute_s6_dualview_extras() -> list[dict]:
+    print('[7/7] Computing Dual-View (incl. singles) for Tables S6a (NDCG@96, Property Gain) & S6b (Screening)...')
+    from msr_analysis import screening as scr_core
+    from pipelines import p09_screening as p09
+    from pipelines._tsu_common import ndcg96_rectified, ndcg96_shifted, per_library
+
+    rows: list[dict] = []
+    DV_NAME = 'ESM-MSR Dual-View (incl. singles)'
+
+    def _boot_dom_pair(arr_msr: np.ndarray, arr_dv: np.ndarray, higher_is_better: bool, seed: int) -> tuple[float, float, float]:
+        n_d = arr_msr.shape[0]
+        rng = np.random.default_rng(seed)
+        gw = rng.multinomial(n_d, np.full(n_d, 1.0 / n_d), size=B_FAST).astype(float) / n_d
+        sw3 = rng.multinomial(3, np.full(3, 1.0 / 3.0), size=B_FAST).astype(float) / 3.0
+        rm = np.einsum('bd,ds,bs->b', gw, arr_msr, sw3)
+        rd = np.einsum('bd,ds,bs->b', gw, arr_dv, sw3)
+        diff = (rm - rd) if higher_is_better else (rd - rm)
+        return float(np.mean(arr_msr)), float(np.mean(arr_dv)), one_sided_p(diff)
+
+    # --- 1. Table S6a top: MegaScale NDCG@96 (Shifted & Rectified; Overall / Singles / Doubles) ---
+    fr, _ = load_tsu_test_frame('capped')
+    sp = fr.spine
+    use = sp['use'].to_numpy(bool)
+    n1 = (sp['n_mut'].to_numpy(int) == 1)
+    n2 = (sp['n_mut'].to_numpy(int) == 2)
+    fr.preds['msrp0:dep'] = np.where(n1[None, :], fr.preds['msrp0:wt'], fr.preds['msrp0:comb'])
+
+    for mode_tag, fn in (('shifted', ndcg96_shifted), ('rectified', ndcg96_rectified)):
+        for idx_s, (sub_tag, mask_s, msr_k) in enumerate([
+            ('overall', use, 'msrp0:dep'),
+            ('singles', use & n1, 'msrp0:wt'),
+            ('doubles', use & n2, 'msrp0:comb'),
+        ]):
+            df_m = per_library(fr, msr_k, mask_s, fn, MIN_N)
+            df_d = per_library(fr, 'msrp0:comb', mask_s, fn, MIN_N)
+            common = sorted(set(df_m.index) & set(df_d.index))
+            am = df_m.reindex(common).to_numpy(float)
+            ad = df_d.reindex(common).to_numpy(float)
+            pt_m, pt_d, p_v = _boot_dom_pair(am, ad, True, seed=7100 + idx_s + (10 if mode_tag == 'rectified' else 0))
+            if sub_tag == 'doubles':
+                p_v = np.nan
+            rows.append({
+                'section': 'ndcg96_s6a',
+                'benchmark': 'MegaScale_capped_test',
+                'dataset_key': 'tsu_capped_test',
+                'subset': f'ndcg96_{mode_tag}_{sub_tag}',
+                'resampling_unit': 'domain_cluster_x_seed',
+                'model': DV_NAME,
+                'value_msr': pt_m,
+                'pearson_r_msr': np.nan,
+                'rmse_msr': np.nan,
+                'value': pt_d,
+                'pearson_r': np.nan,
+                'rmse': np.nan,
+                'p_one_sided': p_v,
+                'p_one_sided_prot': np.nan,
+                'n_units': len(common),
+                'n_variants': int((mask_s & np.isfinite(sp['y'].to_numpy(float))).sum()),
+                'B': B_FAST,
+            })
+
+    # --- 2. Table S6a bottom: Property Gain @ k=96 (Total + 4 ASA x hydrophobicity quadrants) ---
+    feat = p09._load_tsu_features(sp['id'].tolist())
+    asa = feat['rel_ASA'].to_numpy()
+    dh = feat['d_hydrophobicity'].to_numpy()
+    single = use & n1
+    pool = single & np.isfinite(asa) & np.isfinite(dh)
+    cat = np.nan_to_num(np.asarray(2 * (dh > 0) + (asa > 0.5), float)).astype(int)
+    group_arr = sp['group'].to_numpy()
+    libs = sorted(np.unique(group_arr[single]))
+    dom_idx = [d for d in (np.flatnonzero(pool & (group_arr == lib)) for lib in libs) if len(d)]
+    y_arr = sp['y'].to_numpy(float)
+    st_pg = p09._model_cat_stats(
+        fr,
+        [{'name': 'ESM-MSR', 'key': 'msrp0:wt'}, {'name': DV_NAME, 'key': 'msrp0:comb'}],
+        y_arr, cat, len(p09.ASA_HYDRO_LABELS), dom_idx, 96, positive_only=False,
+    )
+    G_wt = st_pg['ESM-MSR'][0]  # (3, n_dom, 4)
+    G_cb = st_pg[DV_NAME][0]
+    for c_i, c_lbl in list(enumerate(p09.ASA_HYDRO_LABELS)) + [(-1, 'Total rectified gain @ k=96 (sum over 4 quadrants)')]:
+        am = (G_wt.sum(axis=2) if c_i == -1 else G_wt[:, :, c_i]).T
+        ad = (G_cb.sum(axis=2) if c_i == -1 else G_cb[:, :, c_i]).T
+        pt_m, pt_d, p_v = _boot_dom_pair(am, ad, True, seed=7200 + c_i + 2)
+        rows.append({
+            'section': 'property_gain_s6a',
+            'benchmark': 'MegaScale_capped_test_singles_k96',
+            'dataset_key': 'tsu_capped_test',
+            'subset': c_lbl,
+            'resampling_unit': 'domain_cluster_x_seed',
+            'model': DV_NAME,
+            'value_msr': pt_m,
+            'pearson_r_msr': np.nan,
+            'rmse_msr': np.nan,
+            'value': pt_d,
+            'pearson_r': np.nan,
+            'rmse': np.nan,
+            'p_one_sided': p_v,
+            'p_one_sided_prot': np.nan,
+            'n_units': len(dom_idx),
+            'n_variants': int(pool.sum()),
+            'B': B_FAST,
+        })
+
+    # --- 3. Table S6b: All 4 Practical Library Screening Benchmarks ---
+    def _screen_pair_rows(
+        bm_key: str, ds_key: str, fr_s: Frame, keep_mask: np.ndarray, tau: float,
+        ks_list: list[int], metrics_spec: list[tuple[str, str, bool]], unit_name: str,
+        has_rmse: bool, seed_base: int,
+    ) -> list[dict]:
+        sp_s = fr_s.spine
+        wt_p = np.atleast_2d(fr_s.preds['msrp0:wt'])
+        cb_p = np.atleast_2d(fr_s.preds['msrp0:comb'])
+        ok = sp_s['use'].to_numpy(bool) & keep_mask & np.isfinite(wt_p).all(axis=0) & np.isfinite(cb_p).all(axis=0)
+        y_ok = sp_s['y'].to_numpy(float)[ok]
+        g_ok = sp_s['group'].to_numpy()[ok]
+        # Match enrich_tables_r_rmse_n.py: per-domain / per-assay mean Pearson r & RMSE,
+        # using +z_sd (un-negated y) for PGym Activity where _label_frame used sign=-1 for harm.
+        y_corr = (-y_ok) if bm_key.startswith('Figure4d_PGym') else y_ok
+        grp_rs, grp_rms = [], []
+        for grp in sorted(np.unique(g_ok)):
+            mg = (g_ok == grp)
+            if mg.sum() >= MIN_N:
+                grp_rs.append(float(np.mean([safe_pearson(cb_p[s, ok][mg], y_corr[mg]) for s in range(cb_p.shape[0])])))
+                if has_rmse:
+                    grp_rms.append(float(np.mean([safe_rmse(cb_p[s, ok][mg], y_corr[mg]) for s in range(cb_p.shape[0])])))
+        r_cb_pool = float(np.nanmean(grp_rs)) if grp_rs else np.nan
+        rm_cb_pool = float(np.nanmean(grp_rms)) if (has_rmse and grp_rms) else np.nan
+        out_r = []
+        for K in ks_list:
+            tabs_wt = [scr_core.per_protein_table(g_ok, wt_p[s, ok], y_ok, K, tau).set_index('group') for s in range(wt_p.shape[0])]
+            tabs_cb = [scr_core.per_protein_table(g_ok, cb_p[s, ok], y_ok, K, tau).set_index('group') for s in range(cb_p.shape[0])]
+            g_comm = sorted(set.intersection(*(set(t.index) for t in tabs_wt + tabs_cb)))
+            for col_k, met_lbl, hib in metrics_spec:
+                am = np.column_stack([t.reindex(g_comm)[col_k].to_numpy(float) for t in tabs_wt])
+                ad = np.column_stack([t.reindex(g_comm)[col_k].to_numpy(float) for t in tabs_cb])
+                fin = np.isfinite(am).all(axis=1) & np.isfinite(ad).all(axis=1)
+                am, ad = am[fin], ad[fin]
+                pt_m, pt_d, p_v = _boot_dom_pair(am, ad, hib, seed=seed_base + K)
+                out_r.append({
+                    'section': 'screening_s6b_extra',
+                    'benchmark': bm_key,
+                    'dataset_key': ds_key,
+                    'subset': f'{met_lbl}@K={K}',
+                    'resampling_unit': unit_name,
+                    'model': DV_NAME,
+                    'value_msr': pt_m,
+                    'pearson_r_msr': np.nan,
+                    'rmse_msr': np.nan,
+                    'value': pt_d,
+                    'pearson_r': r_cb_pool,
+                    'rmse': rm_cb_pool,
+                    'p_one_sided': p_v,
+                    'p_one_sided_prot': np.nan,
+                    'n_units': int(fin.sum()),
+                    'n_variants': int(ok.sum()),
+                    'B': B_FAST,
+                })
+        return out_r
+
+    # 3a. MegaScale Singles (no-Cys)
+    to_cys = np.array([any(part.endswith('C') for part in str(m).split(':')) for m in sp['mut']], dtype=bool)
+    rows.extend(_screen_pair_rows(
+        'Figure4b_MegaScale_singles_nocys', 'tsu_capped_test', fr, n1 & (~to_cys), 0.5,
+        [1, 10, 50], [('hit', 'hit_rate_gt_0.5', True), ('rec', 'P_at_least_one_hit', True)],
+        'domain_cluster_x_seed', True, 7300,
+    ))
+
+    # 3b. Domainome Held-Out (436 domains)
+    fr_dom = load_frame('domainome')
+    hom_dom = heldout_excluded('domainome')
+    keep_d = (~fr_dom.spine['group'].astype(str).isin(hom_dom).to_numpy()) & (fr_dom.spine['n_mut'].to_numpy(int) == 1)
+    rows.extend(_screen_pair_rows(
+        'Figure4c_Domainome_heldout_singles', 'domainome_heldout', fr_dom, keep_d, 0.0,
+        [1, 10, 50], [('hit', 'hit_rate_gt_WT', True), ('rec', 'P_at_least_one_hit', True)],
+        'domain_cluster_x_seed', True, 7400,
+    ))
+
+    # 3c/d. ProteinGym Activity (38 assays & 16 enzymes) — attach 3-seed combined_pred from final_pgym_comb/FINAL_p0
+    pg_fr, pg_info = p09.load_pg_activity_assays()
+    pg_sp = pg_fr.spine
+    cb_pg = np.full((3, len(pg_sp)), np.nan, dtype=float)
+    grp_series = pg_sp['group'].astype(str).to_numpy()
+    mut_series = pg_sp['mut'].astype(str).to_numpy()
+    for assay in sorted(pg_info.index):
+        idx_a = np.flatnonzero(grp_series == assay)
+        if len(idx_a) == 0:
+            continue
+        m_a = mut_series[idx_a]
+        for s_i, s in enumerate((1, 2, 3)):
+            pg_dir = ROOT / 'final_pgym_comb/FINAL_p0' / f's{s}'
+            f_a = pg_dir / f'{assay}.csv'
+            if not f_a.exists():
+                ms = list(pg_dir.glob(f'{assay}*.csv'))
+                f_a = ms[0] if ms else None
+            if f_a is not None and f_a.exists():
+                da = pd.read_csv(f_a, usecols=['mutant', 'combined_pred'])
+                lut = dict(zip(da['mutant'].astype(str), da['combined_pred'].to_numpy(float)))
+                cb_pg[s_i, idx_a] = np.array([lut.get(m, np.nan) for m in m_a], dtype=float)
+    pg_fr.preds['msrp0:comb'] = cb_pg
+    for set_tag, gs, sb in (
+        ('Figure4d_PGym_Activity_all_38', set(pg_info.index), 7500),
+        ('Figure4d_PGym_Activity_enzymes_16', p09.PG_ENZYME, 7600),
+    ):
+        g_list = [d for d in pg_info.index if d in gs]
+        lf = p09._label_frame(pg_fr, g_list, 'z_sd', -1, 'use_wt')
+        rows.extend(_screen_pair_rows(
+            set_tag, 'proteingym_heldout', lf, np.ones(len(lf.spine), dtype=bool), 0.5,
+            [1, 10, 20, 50, 100], [('hit', 'harm_rate_lt_WT_minus_0.5SD', False)],
+            'assay_x_seed', False, sb,
+        ))
+    return rows
+
+
 def main() -> None:
     all_rows: list[dict] = []
     all_rows.extend(compute_thermostability_extras())
@@ -745,6 +1059,8 @@ def main() -> None:
     all_rows.extend(compute_epistasis_extras())
     all_rows.extend(compute_domainome_and_pgym_extras())
     all_rows.extend(compute_mgnify_rocklin_extras())
+    all_rows.extend(compute_thermo_rmse_dualview_extras())
+    all_rows.extend(compute_s6_dualview_extras())
 
     df = pd.DataFrame(all_rows)
     df.to_csv(OUT_CSV, index=False)

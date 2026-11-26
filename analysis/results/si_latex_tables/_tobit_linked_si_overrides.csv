@@ -1,6 +1,7 @@
 section,benchmark,subset,model,value,pearson_r,rmse,p_one_sided,B,is_unlinked
 megascale_s2a,MegaScale_capped_test,per_domain_mean_spearman_overall,ESM-MSR,0.8315725611212855,0.8376289225267033,0.548327165263388,,10000,False
 megascale_s2a,MegaScale_capped_test,per_domain_mean_spearman_overall,ESM-MSR (unlinked),,,0.6417383406004685,,10000,True
+megascale_s2a,MegaScale_capped_test,per_domain_mean_spearman_overall,ESM-MSR Dual-View (incl. singles),0.8449135922418028,0.8498981650423872,0.5449126617009696,1.0,10000,False
 megascale_s2a,MegaScale_capped_test,per_domain_mean_spearman_overall,ESM-MSR σ=0.5,0.771989942121726,0.778059836792188,0.658037685044178,9.999000099990002e-05,10000,False
 megascale_s2a,MegaScale_capped_test,per_domain_mean_spearman_overall,SPURS,0.8008216989853097,0.811328637860913,0.6103278244097835,0.0031996800319968005,10000,False
 megascale_s2a,MegaScale_capped_test,per_domain_mean_spearman_overall,MutateEverything,0.7699000500316687,0.7837337694076386,0.6266749520971029,9.999000099990002e-05,10000,False
@@ -16,6 +17,7 @@ megascale_s2a,MegaScale_capped_test,per_domain_mean_spearman_overall,ProteinMPNN
 megascale_s2a,MegaScale_capped_test,per_domain_mean_spearman_overall,ProSST,0.5964857619638142,0.623287837578471,6.692605104945963,9.999000099990002e-05,10000,False
 megascale_s2a,MegaScale_capped_test,per_domain_mean_spearman_stabilizing,ESM-MSR,0.2929417948323931,0.2741826177757694,0.48161257127272006,,10000,False
 megascale_s2a,MegaScale_capped_test,per_domain_mean_spearman_stabilizing,ESM-MSR (unlinked),,,0.48837995663832784,,10000,True
+megascale_s2a,MegaScale_capped_test,per_domain_mean_spearman_stabilizing,ESM-MSR Dual-View (incl. singles),0.34623727192953513,0.33540593883024084,0.44638998170661986,1.0,10000,False
 megascale_s2a,MegaScale_capped_test,per_domain_mean_spearman_stabilizing,ESM-MSR σ=0.5,0.14561332342021038,0.14052602718946305,0.7409603397289222,9.999000099990002e-05,10000,False
 megascale_s2a,MegaScale_capped_test,per_domain_mean_spearman_stabilizing,SPURS,0.25709346226341734,0.249464812591456,0.5543010510852661,0.0660933906609339,10000,False
 megascale_s2a,MegaScale_capped_test,per_domain_mean_spearman_stabilizing,MutateEverything,0.1584419101850725,0.13047307507987016,0.5383197519191396,9.999000099990002e-05,10000,False
@@ -31,6 +33,7 @@ megascale_s2a,MegaScale_capped_test,per_domain_mean_spearman_stabilizing,Protein
 megascale_s2a,MegaScale_capped_test,per_domain_mean_spearman_stabilizing,ProSST,0.04871855039509945,0.05928944304254772,4.6097464337907,9.999000099990002e-05,10000,False
 megascale_s2a,MegaScale_capped_test,per_domain_mean_spearman_destabilizing,ESM-MSR,0.8101938933995715,0.8135755136342171,0.5478705842002423,,10000,False
 megascale_s2a,MegaScale_capped_test,per_domain_mean_spearman_destabilizing,ESM-MSR (unlinked),,,0.6657832051498235,,10000,True
+megascale_s2a,MegaScale_capped_test,per_domain_mean_spearman_destabilizing,ESM-MSR Dual-View (incl. singles),0.8203449712905935,0.8211710990142854,0.5515355065278393,1.0,10000,False
 megascale_s2a,MegaScale_capped_test,per_domain_mean_spearman_destabilizing,ESM-MSR σ=0.5,0.7586423164185797,0.759257355296334,0.6246756811973343,9.999000099990002e-05,10000,False
 megascale_s2a,MegaScale_capped_test,per_domain_mean_spearman_destabilizing,SPURS,0.7789990516059161,0.7919918026001441,0.6108682184473175,0.0029997000299970002,10000,False
 megascale_s2a,MegaScale_capped_test,per_domain_mean_spearman_destabilizing,MutateEverything,0.7545849661030065,0.771228865499749,0.6313484274079083,9.999000099990002e-05,10000,False
@@ -74,6 +77,7 @@ megascale_s2b,MegaScale_capped_test_doubles,per_domain_mean_spearman_additive,ES
 megascale_s2b,MegaScale_capped_test_doubles,per_domain_mean_spearman_additive,ProteinMPNN,0.3484489201219655,0.39193341954985456,5.645609431272929,9.999000099990002e-05,10000,False
 megascale_s2d,MegaScale_capped_test_backbone,per_code_mean_spearman_native,ESM-MSR,0.8266256888228117,0.8347334648475808,0.5663581571171932,,10000,False
 megascale_s2d,MegaScale_capped_test_backbone,per_code_mean_spearman_native,ESM-MSR (unlinked),,,0.6398631472443891,,10000,True
+megascale_s2d,MegaScale_capped_test_backbone,per_code_mean_spearman_native,ESM-MSR Dual-View (incl. singles),0.8394606160564478,0.8458111467484914,0.564927319119943,1.0,10000,False
 megascale_s2d,MegaScale_capped_test_backbone,per_code_mean_spearman_native,ESM-MSR σ=0.5,0.7676322240852004,0.7759824705492591,0.6721221553495482,9.999000099990002e-05,10000,False
 megascale_s2d,MegaScale_capped_test_backbone,per_code_mean_spearman_native,SPURS,0.7963293591898467,0.809412006986011,0.6128175757647082,0.0047995200479952005,10000,False
 megascale_s2d,MegaScale_capped_test_backbone,per_code_mean_spearman_native,MutateEverything,0.7612711583174693,0.7816087426714938,0.6289499345764,9.999000099990002e-05,10000,False
@@ -89,6 +93,7 @@ megascale_s2d,MegaScale_capped_test_backbone,per_code_mean_spearman_native,Prote
 megascale_s2d,MegaScale_capped_test_backbone,per_code_mean_spearman_native,ProSST,0.5918355664147782,0.6257991532879043,6.678975735428574,9.999000099990002e-05,10000,False
 megascale_s2d,MegaScale_capped_test_backbone,per_code_mean_spearman_destabilized,ESM-MSR,0.8786329485494925,0.8727834137901441,0.4708309322779597,,10000,False
 megascale_s2d,MegaScale_capped_test_backbone,per_code_mean_spearman_destabilized,ESM-MSR (unlinked),,,0.6750961278278087,,10000,True
+megascale_s2d,MegaScale_capped_test_backbone,per_code_mean_spearman_destabilized,ESM-MSR Dual-View (incl. singles),0.8897363260154302,0.8871123363042844,0.45693143469205744,0.9852014798520148,10000,False
 megascale_s2d,MegaScale_capped_test_backbone,per_code_mean_spearman_destabilized,ESM-MSR σ=0.5,0.8346780462565624,0.822959335564947,0.6071733353014477,9.999000099990002e-05,10000,False
 megascale_s2d,MegaScale_capped_test_backbone,per_code_mean_spearman_destabilized,SPURS,0.8446532943927145,0.834017766638797,0.6317953727109151,9.999000099990002e-05,10000,False
 megascale_s2d,MegaScale_capped_test_backbone,per_code_mean_spearman_destabilized,MutateEverything,0.8493496317073628,0.8298995376932868,0.6241716669895058,9.999000099990002e-05,10000,False
@@ -104,6 +109,7 @@ megascale_s2d,MegaScale_capped_test_backbone,per_code_mean_spearman_destabilized
 megascale_s2d,MegaScale_capped_test_backbone,per_code_mean_spearman_destabilized,ProSST,0.703264495408437,0.679373152296365,6.643443893336488,9.999000099990002e-05,10000,False
 megascale_s2d,MegaScale_capped_test_origin,per_group_mean_spearman_natural,ESM-MSR,0.8448101027174092,0.8500657784310054,0.5713543827357241,,10000,False
 megascale_s2d,MegaScale_capped_test_origin,per_group_mean_spearman_natural,ESM-MSR (unlinked),,,0.6753987470623475,,10000,True
+megascale_s2d,MegaScale_capped_test_origin,per_group_mean_spearman_natural,ESM-MSR Dual-View (incl. singles),0.8544181913212134,0.8581410164074494,0.5703328710596807,1.0,10000,False
 megascale_s2d,MegaScale_capped_test_origin,per_group_mean_spearman_natural,ESM-MSR σ=0.5,0.8029043349069761,0.8041004514469678,0.675357076241286,9.999000099990002e-05,10000,False
 megascale_s2d,MegaScale_capped_test_origin,per_group_mean_spearman_natural,SPURS,0.8208264401615178,0.8227620489229895,0.6480425173840968,0.0402959704029597,10000,False
 megascale_s2d,MegaScale_capped_test_origin,per_group_mean_spearman_natural,MutateEverything,0.8020775634709028,0.8054981050197391,0.6655248175760458,0.0017998200179982,10000,False
@@ -119,6 +125,7 @@ megascale_s2d,MegaScale_capped_test_origin,per_group_mean_spearman_natural,Prote
 megascale_s2d,MegaScale_capped_test_origin,per_group_mean_spearman_natural,ProSST,0.6626029733933744,0.6734484999447211,7.329526466100897,9.999000099990002e-05,10000,False
 megascale_s2d,MegaScale_capped_test_origin,per_group_mean_spearman_synthetic,ESM-MSR,0.8112071125118645,0.8184952980585465,0.5129006768444097,,10000,False
 megascale_s2d,MegaScale_capped_test_origin,per_group_mean_spearman_synthetic,ESM-MSR (unlinked),,,0.5899530998898855,,10000,True
+megascale_s2d,MegaScale_capped_test_origin,per_group_mean_spearman_synthetic,ESM-MSR Dual-View (incl. singles),0.8302911321196325,0.8372168552499838,0.5058046473029525,1.0,10000,False
 megascale_s2d,MegaScale_capped_test_origin,per_group_mean_spearman_synthetic,ESM-MSR σ=0.5,0.7244293378367258,0.7379973527079117,0.6313924678178581,9.999000099990002e-05,10000,False
 megascale_s2d,MegaScale_capped_test_origin,per_group_mean_spearman_synthetic,SPURS,0.7700451740988358,0.7937387746884876,0.5523052198339168,0.0006999300069993001,10000,False
 megascale_s2d,MegaScale_capped_test_origin,per_group_mean_spearman_synthetic,MutateEverything,0.7203961832020779,0.7502501761582535,0.5669059282833447,9.999000099990002e-05,10000,False
@@ -134,6 +141,7 @@ megascale_s2d,MegaScale_capped_test_origin,per_group_mean_spearman_synthetic,Pro
 megascale_s2d,MegaScale_capped_test_origin,per_group_mean_spearman_synthetic,ProSST,0.4947669751491066,0.5461175877842398,5.712726087784527,9.999000099990002e-05,10000,False
 megascale_s2c,MegaScale_mega_splits_test,per_domain_mean_spearman_overall,ESM-MSR,0.8199774337140517,0.8344164150042327,0.6976611028756172,,10000,False
 megascale_s2c,MegaScale_mega_splits_test,per_domain_mean_spearman_overall,ESM-MSR (unlinked),,,0.9280196817098434,,10000,True
+megascale_s2c,MegaScale_mega_splits_test,per_domain_mean_spearman_overall,ESM-MSR Dual-View (incl. singles),0.8272175094730481,0.8395457498329757,0.6964977458726463,1.0,10000,False
 megascale_s2c,MegaScale_mega_splits_test,per_domain_mean_spearman_overall,SPURS,0.8008762496238526,0.823075195672146,0.7543600191733281,0.030996900309969003,10000,False
 megascale_s2c,MegaScale_mega_splits_test,per_domain_mean_spearman_overall,SPURS published,0.8032019622026664,0.8229454126762148,0.7610673005478195,0.08589141085891411,10000,False
 megascale_s2c,MegaScale_mega_splits_test,per_domain_mean_spearman_overall,MutateEverything,0.7750052282774288,0.8047130758807272,0.778914646473307,0.00039996000399960006,10000,False
@@ -145,6 +153,7 @@ megascale_s2c,MegaScale_mega_splits_test,per_domain_mean_spearman_overall,Protei
 megascale_s2c,MegaScale_mega_splits_test,per_domain_mean_spearman_overall,ProSST,0.642198754965799,0.6735763535612233,7.834794691316074,9.999000099990002e-05,10000,False
 megascale_s2c,MegaScale_mega_splits_test,per_domain_mean_spearman_stabilizing,ESM-MSR,0.2890248419216034,0.2755867902328083,0.5960774258124554,,10000,False
 megascale_s2c,MegaScale_mega_splits_test,per_domain_mean_spearman_stabilizing,ESM-MSR (unlinked),,,0.6253426599085712,,10000,True
+megascale_s2c,MegaScale_mega_splits_test,per_domain_mean_spearman_stabilizing,ESM-MSR Dual-View (incl. singles),0.33441347066146365,0.32299458604269027,0.5703458324959269,1.0,10000,False
 megascale_s2c,MegaScale_mega_splits_test,per_domain_mean_spearman_stabilizing,SPURS,0.2988281644661291,0.28767479349908603,0.6070841374464625,0.6922307769223077,10000,False
 megascale_s2c,MegaScale_mega_splits_test,per_domain_mean_spearman_stabilizing,SPURS published,0.2742084354883635,0.2712477856922498,0.621078492101371,0.22727727227277272,10000,False
 megascale_s2c,MegaScale_mega_splits_test,per_domain_mean_spearman_stabilizing,MutateEverything,0.22140364927170353,0.21186707262650514,0.5763492780588726,0.0014998500149985001,10000,False
@@ -156,6 +165,7 @@ megascale_s2c,MegaScale_mega_splits_test,per_domain_mean_spearman_stabilizing,Pr
 megascale_s2c,MegaScale_mega_splits_test,per_domain_mean_spearman_stabilizing,ProSST,0.04076212033060684,0.030891930183915152,5.070319562488059,9.999000099990002e-05,10000,False
 megascale_s2c,MegaScale_mega_splits_test,per_domain_mean_spearman_destabilizing,ESM-MSR,0.8032875173004906,0.8053684585012185,0.7003563478136928,,10000,False
 megascale_s2c,MegaScale_mega_splits_test,per_domain_mean_spearman_destabilizing,ESM-MSR (unlinked),,,0.9818769073919319,,10000,True
+megascale_s2c,MegaScale_mega_splits_test,per_domain_mean_spearman_destabilizing,ESM-MSR Dual-View (incl. singles),0.8067629052285268,0.8084602867224836,0.7053826592234639,0.9775022497750225,10000,False
 megascale_s2c,MegaScale_mega_splits_test,per_domain_mean_spearman_destabilizing,SPURS,0.7774541040521049,0.789737283490087,0.77230877973475,0.011198880111988802,10000,False
 megascale_s2c,MegaScale_mega_splits_test,per_domain_mean_spearman_destabilizing,SPURS published,0.7800934097270058,0.7906347025337206,0.7819680586157572,0.04709529047095291,10000,False
 megascale_s2c,MegaScale_mega_splits_test,per_domain_mean_spearman_destabilizing,MutateEverything,0.7570535185490501,0.7760584176689376,0.8076233162697343,9.999000099990002e-05,10000,False
@@ -229,6 +239,7 @@ epistasis_s3b_mcc,MegaScale_capped_test_epistasis,epistasis_sign_MCC_raw_dddG_gt
 epistasis_s3b_mcc,MegaScale_capped_test_epistasis,epistasis_sign_MCC_raw_dddG_gt0,ProteinMPNN,,,,0.3003699630036996,10000,False
 thermo_rmse_s4c,tsuboyama_capped_test,rmse_raw,ESM-MSR,0.7300748782637315,,0.7300748782637315,,10000,False
 thermo_rmse_s4c,tsuboyama_capped_test,rmse_raw,ESM-MSR (unlinked),,,0.7984990238798123,,10000,True
+thermo_rmse_s4c,tsuboyama_capped_test,rmse_raw,ESM-MSR Dual-View (incl. singles),0.7308777158477681,,0.7308777158477681,0.4223577642235776,10000,False
 thermo_rmse_s4c,tsuboyama_capped_test,rmse_raw,SPURS,0.7168051352238992,,0.7168051352238992,0.523047695230477,10000,False
 thermo_rmse_s4c,tsuboyama_capped_test,rmse_raw,MutateEverything,0.7443365593853756,,0.7443365593853756,0.37266273372662734,10000,False
 thermo_rmse_s4c,tsuboyama_capped_test,rmse_raw,ThermoMPNN,0.7550630554810044,,0.7550630554810044,0.29987001299870014,10000,False
@@ -239,3 +250,4 @@ ood_s5a_unlinked,MGnify_heldout_pooled,pooled_spearman_rho,ESM-MSR (unlinked),,,
 ood_s5a_unlinked,Rocklin_designs_heldout_pooled,pooled_spearman_rho,ESM-MSR (unlinked),,,1.247991333381253,,10000,True
 screening_s6b,Figure4b_MegaScale_singles_nocys,pool,ESM-MSR,,0.8369296090429948,0.5370480219695978,,10000,False
 screening_s6b,Figure4b_MegaScale_singles_nocys,pool,ESM-MSR (unlinked),,,0.6318304010763334,,10000,True
+screening_s6b,Figure4b_MegaScale_singles_nocys,pool,ESM-MSR Dual-View (incl. singles),,0.8340817642245618,0.5393619096624754,,10000,False

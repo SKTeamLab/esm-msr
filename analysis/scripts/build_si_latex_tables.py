@@ -229,7 +229,7 @@ class HomologyLookup:
     def inventory_for(self, model: str, multi: bool = False) -> str:
         m = model.strip()
         if m in (
-            'ESM-MSR', 'ESM-MSR (Dual-view)', 'ESM-MSR (σ=1)', 'ESM-MSR WT-view',
+            'ESM-MSR', 'ESM-MSR (Dual-view)', 'ESM-MSR Dual-View (incl. singles)', 'ESM-MSR (σ=1)', 'ESM-MSR WT-view',
             'ESM-MSR (WT-view)', 'ESM-MSR σ=0.5', 'ESM-MSR ctx ctrl',
             'SPURS', 'SPURS-multi', 'MutateEverything', 'MutateEverything Stage 2',
             'MutateEverything Stage 1', 'ThermoMPNN', 'ThermoMPNN-D',
@@ -346,6 +346,7 @@ CANONICAL_MODEL_ORDER = [
     'ESM-MSR WT-view',
     'ESM-MSR (WT-view)',
     'ESM-MSR (unlinked)',
+    'ESM-MSR Dual-View (incl. singles)',
     'ESM-MSR σ=0.5',
     'ESM-MSR ctx ctrl',
     'SPURS',
@@ -645,6 +646,7 @@ def build_table_s1_ablations() -> list[Path]:
 
     row_specs = [
         ('FINAL_p0', 'Dual-View (Reference)', 'cl_primary'),
+        ('FINAL_p0_comb', 'Dual-View (incl. singles)', 'cl_comb'),
         ('FINAL_p0_WT', 'WT-View only', 'cl_wt'),
         ('FINAL_p0_MT', 'MT-View only', 'cl_mt'),
         ('FINAL_p0_s05', r'$\sigma=0.5$', 'extra_s05'),
@@ -681,6 +683,13 @@ def build_table_s1_ablations() -> list[Path]:
             rec['ext_multi'] = get_cl(key, 'ptmul', 'primary')
             rec['domainome'] = get_cl(key, 'domainome|lowid', 'primary')
             rec['pgym'] = get_cl(key, 'pg|avg_lowid', 'wt')
+        elif mode == 'cl_comb':
+            for ck in ['tsu_overall', 'tsu_singles', 'tsu_doubles', 'tsu_beyond', 'tsu_cellmag']:
+                rec[ck] = (np.nan, np.nan)
+            rec['ext_singles'] = get_cl_ext7('FINAL_p0', 'comb')
+            rec['ext_multi'] = get_cl('FINAL_p0', 'ptmul', 'comb')
+            rec['domainome'] = get_cl('FINAL_p0', 'domainome|lowid', 'comb')
+            rec['pgym'] = get_cl('FINAL_p0', 'pg|avg_lowid', 'comb')
         elif mode == 'cl_wt':
             rec['tsu_overall'] = get_cl('FINAL_p0', 'tsuboyama_capped_test', 'wt')
             rec['tsu_singles'] = get_cl('FINAL_p0', 'tsuboyama_capped_test|singles', 'wt')
@@ -740,6 +749,8 @@ def build_table_s1_ablations() -> list[Path]:
 
     rows_id = []
     for rec in records:
+        if rec['key'] == 'FINAL_p0_comb':
+            continue
         cells = [rec['label']]
         for ck in id_cols:
             m, sd = rec[ck]
@@ -751,7 +762,7 @@ def build_table_s1_ablations() -> list[Path]:
         caption_title='Summary of ESM-MSR Ablations and Variations: In-Distribution Proteolysis Stability Benchmarks',
         caption_body=(
             r"Spearman's $\rho$ (mean $\pm$ SD across 3 independent training seeds) on proteolysis stability benchmarks "
-            r"under the Dual-View readout (except WT-View only and MT-View only). Models marked (Ret.) are retrained with modifications on the Homology-Restricted "
+            r"under the Dual-View readout including singles (except WT-View only and MT-View only). Models marked (Ret.) are retrained with modifications on the Homology-Restricted "
             r"MegaScale split, while those without use the exact same weights as Dual-View (Reference). "
             r"MegaScale test columns report per-domain mean $\rho$ (Overall and Singles: 33 domains; Doubles: 13 domains) and epistasis metrics "
             r"(Beyond $\rho$: Spearman above global saturation curve; Cell mag.: double-centred complete-block residual correlation). "
@@ -785,13 +796,14 @@ def build_table_s1_ablations() -> list[Path]:
         caption_title='Summary of ESM-MSR Ablations and Variations: Out-of-Distribution Benchmarks',
         caption_body=(
             r"Spearman's $\rho$ (mean $\pm$ SD across 3 independent training seeds) on out-of-distribution benchmarks "
-            r"under the deployed readout (WT-View on single-mutant thermostability sets, Domainome, and ProteinGym; Dual-View on PTMUL; except WT-View only and MT-View only). "
+            r"under the deployed readout (WT-View on single-mutant thermostability sets, Domainome, and ProteinGym; Dual-View on PTMUL; except Dual-View (incl. singles), WT-View only, and MT-View only). "
+            r"Dual-View (incl. singles) applies the dual-view readout to every mutation including single mutants (using the exact same weights as Dual-View Reference). "
             r"Models marked (Ret.) are retrained with modifications on the Homology-Restricted MegaScale split, "
             r"while those without use the exact same weights as Dual-View (Reference). "
             r"Thermostability columns match the 8 main-text benchmarks: Singles (7) averages pooled $\rho$ across Ssym, S461, K2369, S783, S2648, Q3421, and S8754; "
             r"PTMUL reports pooled $\rho$ on the multi-mutant thermostability set ($n=914$). "
             r"Held-out DMS columns strictly use the 4-part homology-held-out sets defined against Homology-Restricted MegaScale train: Domainome reports mean per-domain $\rho$ across 436 held-out domains ($n=451{,}569$) "
-            r"and ProteinGym reports equal-category-weighted macro-average $\rho$ across 173 held-out assays (WT-View except MT-View only; Dual-View for reference and p1 differs by $<0.001$). "
+            r"and ProteinGym reports equal-category-weighted macro-average $\rho$ across 173 held-out assays (WT-View except Dual-View [incl. singles] and MT-View only; deployed Dual-View for reference and p1 differs from WT-View by $<0.001$). "
             r"Highest performing Homology-Restricted models in each column are indicated in bold; Dual-View (Reference) is also bolded if its mean $\pm$ SD range overlaps the highest average performance. "
             r"$^\dagger$Trained on the full MegaScale split (\texttt{mega\_splits}) and evaluated on the identical OOD sets; excluded from bolding in all columns."
         ),
@@ -857,9 +869,23 @@ def _apply_tobit_overrides(
 
         target_key = msr_name if m == 'ESM-MSR' else m
         if target_key not in panel:
+            if target_key == 'ESM-MSR Dual-View (incl. singles)':
+                ref_d = panel.get(msr_name, {})
+                panel[target_key] = {
+                    'val': v_val,
+                    'spearman': np.nan if primary_val_is_rmse else v_val,
+                    'pearson': v_r,
+                    'rmse': v_rm,
+                    'p': v_p,
+                    'p_prot': np.nan,
+                    'B': v_B,
+                    'overlap': ref_d.get('overlap', False),
+                    'internal': False,
+                    'hom_note': ref_d.get('hom_note', '---'),
+                }
             continue
         d = panel[target_key]
-        if target_key in (msr_name, 'ESM-MSR σ=0.5'):
+        if target_key in (msr_name, 'ESM-MSR σ=0.5', 'ESM-MSR Dual-View (incl. singles)'):
             if math.isfinite(v_val):
                 d['val'] = v_val
                 if not primary_val_is_rmse:
@@ -1535,7 +1561,10 @@ def build_table_s4_thermostability_longtable(extra_df: pd.DataFrame, tobit_df: p
     ]
     panels_raw, all_mr, msr_r = [], set(), None
     for bk, label_b, ds_k, is_m in bms_r:
-        prw, msr, _, _, B = _extract_model_panel(df_rmse, bk, 'rmse_raw', primary_val_is_rmse=True, dataset_key=ds_k, multi=is_m)
+        prw, msr, _, _, B = _extract_model_panel(
+            df_rmse, bk, 'rmse_raw', primary_val_is_rmse=True, dataset_key=ds_k, multi=is_m,
+            extra_df=extra_df, extra_section='thermo_rmse_s4c_extra',
+        )
         if bk == 'tsuboyama_capped_test':
             _apply_tobit_overrides(prw, msr, tobit_df, 'thermo_rmse_s4c', bk, 'rmse_raw', primary_val_is_rmse=True)
         msr_r = msr
@@ -1757,7 +1786,7 @@ def build_table_s5_heldout_ood(extra_df: pd.DataFrame, tobit_df: pd.DataFrame) -
     return p5a, p5b
 
 
-def build_table_s6_screening_and_ndcg(tobit_df: pd.DataFrame) -> tuple[Path, Path]:
+def build_table_s6_screening_and_ndcg(extra_df: pd.DataFrame, tobit_df: pd.DataFrame) -> tuple[Path, Path]:
     df_n = pd.read_csv(SUPP_PVAL / '_ndcg96_singles_doubles_pvalues.csv')
     specs_n = [
         ('ndcg96_shifted_overall', 'Shifted Overall'), ('ndcg96_shifted_singles', 'Shifted Singles'),
@@ -1766,7 +1795,10 @@ def build_table_s6_screening_and_ndcg(tobit_df: pd.DataFrame) -> tuple[Path, Pat
     ]
     panels_n, all_mn, msr_n = [], set(), None
     for met, title in specs_n:
-        pan, msr, _, _, B = _extract_model_panel(df_n, 'MegaScale_capped_test', met, dataset_key='tsu_capped_test')
+        pan, msr, _, _, B = _extract_model_panel(
+            df_n, 'MegaScale_capped_test', met, dataset_key='tsu_capped_test',
+            extra_df=extra_df, extra_section='ndcg96_s6a',
+        )
         msr_n = msr
         panels_n.append((title, pan, B))
         all_mn.update(pan.keys())
@@ -1808,7 +1840,10 @@ def build_table_s6_screening_and_ndcg(tobit_df: pd.DataFrame) -> tuple[Path, Pat
     ]
     panels_4a, all_m4a, msr_4a = [], set(), None
     for met, title in specs_4a:
-        pan, msr, _, _, B = _extract_model_panel(df_4a, 'MegaScale_capped_test_singles_k96', met, dataset_key='tsu_capped_test')
+        pan, msr, _, _, B = _extract_model_panel(
+            df_4a, 'MegaScale_capped_test_singles_k96', met, dataset_key='tsu_capped_test',
+            extra_df=extra_df, extra_section='property_gain_s6a',
+        )
         msr_4a = msr
         panels_4a.append((title, pan, B))
         all_m4a.update(pan.keys())
@@ -1869,7 +1904,10 @@ def build_table_s6_screening_and_ndcg(tobit_df: pd.DataFrame) -> tuple[Path, Pat
     for bm_key, ds_k, bm_title, met_list, has_rmse, metric_desc in bm_cfgs:
         panels_s, all_ms, msr_s = [], set(), None
         for met, label_m, hib in met_list:
-            pan, msr, _, _, B = _extract_model_panel(df_4b, bm_key, met, dataset_key=ds_k)
+            pan, msr, _, _, B = _extract_model_panel(
+                df_4b, bm_key, met, dataset_key=ds_k,
+                extra_df=extra_df, extra_section='screening_s6b_extra',
+            )
             msr_s = msr
             panels_s.append((label_m, pan, B, hib))
             all_ms.update(pan.keys())
@@ -2403,7 +2441,7 @@ def main() -> None:
     generated.extend(build_table_s5_heldout_ood(extra_df, tobit_df))
 
     print('[6/7] Building Tables S6a–S6b (NDCG@96, Property Gain & Practical Screening + Tobit Link + Homology Notes)...')
-    generated.extend(build_table_s6_screening_and_ndcg(tobit_df))
+    generated.extend(build_table_s6_screening_and_ndcg(extra_df, tobit_df))
 
     print('[7/7] Building Table S7 (Full Leakage Audit Summary Matrix + Code & Inventory Key)...')
     generated.append(build_table_s7_leakage_audit_summary())
