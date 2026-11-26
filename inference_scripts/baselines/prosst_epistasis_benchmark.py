@@ -269,13 +269,14 @@ def main() -> None:
             )
             ds.create_training_splits(str(paths.DATA_DIR / f'{args.split}.pkl'), -1)
             df = ds.split_dfs['test'].copy()
-            # Normalize mut_type sorting and ensure ddG_ML numeric
+            # Normalize mut_structure (fill NaN with '-') so WT-background libraries are never dropped by groupby
+            df['mut_structure'] = df['mut_structure'].fillna('-').astype(str)
             df['ddG_ML'] = pd.to_numeric(df['ddG_ML'], errors='coerce')
             parts = []
             timing = {m: [0, 0, 0.0] for m in modes}
-            n_groups = df.groupby(['code_wt', 'mut_structure']).ngroups
+            n_groups = df.groupby(['code_wt', 'mut_structure'], dropna=False).ngroups
             print(f'[MegaScale test] Scoring {len(df)} rows across {n_groups} (code_wt, mut_structure) groups...', flush=True)
-            for k, ((code_wt, mut_struct), g) in enumerate(df.groupby(['code_wt', 'mut_structure'], sort=False), 1):
+            for k, ((code_wt, mut_struct), g) in enumerate(df.groupby(['code_wt', 'mut_structure'], sort=False, dropna=False), 1):
                 seq, pdb_path = library_sequence(g, mut_struct)
                 pdb_path = paths.fix_pdb_column(pd.Series([pdb_path])).iloc[0]
                 _, st = get_sst(pdb_path, 'A', tmp_dir)
