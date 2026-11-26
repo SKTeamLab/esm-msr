@@ -1,6 +1,6 @@
 \begin{table}[H]
 \centering
-\caption{\textbf{Practical Library Screening Performance on MegaScale Singles (33 domains, no-Cys)}. Top-$K$ stabilizing hit rate ($\Delta\Delta G>0.5$ kcal/mol) and probability of at least one hit $P(\ge 1)$ across library budgets $K$, alongside full-pool Pearson's $r$ and raw RMSE (kcal/mol). One-sided $p$-values test ESM-MSR (WT-view) superiority via paired cluster/assay $\times$ seed bootstrap ($B=10{,}000$; uncorrected). Homology / overlap codes (fraction of benchmark rows affected, e.g.\ M.50 = 50\%, M1 = 100\%): M = exact mutation in training set (\#: test set equals training set; M?: protein-level ceiling); m = constituent single mutation of a multi-mutant in training set; P = same protein ($\ge 95\%$ identity); H = close homolog ($E\le 10^{-3}$ or TM $>0.70$); h = distant homolog ($E\le 10^{-2}$ or $\ge 30\%$ identity); V = validation/calibration set; D = training set includes reverse mutations; --- = no detected overlap. Models with M/m/P/H/\# training overlap (or trained on the unfiltered benchmark source) are marked $^*$ and excluded from clean bolding.}
+\caption{\textbf{Practical Library Screening Performance on MegaScale Singles (33 domains, no-Cys)}. Top-$K$ stabilizing hit rate ($\Delta\Delta G>0.5$ kcal/mol) and probability of at least one hit $P(\ge 1)$ across library budgets $K$, alongside full-pool Pearson's $r$ and raw RMSE (kcal/mol). ESM-MSR uses the Tobit observation link for full-pool $r$ and RMSE; ESM-MSR (unlinked) reports raw latent RMSE only. One-sided $p$-values test ESM-MSR (WT-view) superiority via paired cluster/assay $\times$ seed bootstrap ($B=10{,}000$; uncorrected). Homology / overlap codes (fraction of benchmark rows affected, e.g.\ M.50 = 50\%, M1 = 100\%): M = exact mutation in training set (\#: test set equals training set; M?: protein-level ceiling); m = constituent single mutation of a multi-mutant in training set; P = same protein ($\ge 95\%$ identity); H = close homolog ($E\le 10^{-3}$ or TM $>0.70$); h = distant homolog ($E\le 10^{-2}$ or $\ge 30\%$ identity); V = validation/calibration set; D = training set includes reverse mutations; --- = no detected overlap. Models with M/m/P/H/\# training overlap (or trained on the unfiltered benchmark source) are marked $^*$ and excluded from clean bolding.}
 \label{tab:si_screening_figure4b_megascale_singles_nocys}
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{lccccccccccccl}
@@ -9,8 +9,9 @@
 \cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9} \cmidrule(lr){10-11} \cmidrule(lr){12-13}
 ID & Rate & $p$ & Rate & $p$ & Rate & $p$ & Rate & $p$ & Rate & $p$ & $r$ & RMSE & Homology / Overlap \\
 \midrule
-ESM-MSR (WT-view) & \textbf{0.586} & --- & \textbf{0.446} & --- & \textbf{0.270} & --- & \textbf{0.879} & --- & 0.909 & --- & \textbf{0.846} & 0.587 & h.16 \\
-SPURS & 0.414 & 0.020 & 0.405 & 0.058 & 0.247 & 0.015 & 0.869 & 0.552 & \textbf{0.929} & 0.710 & 0.826 & \textbf{0.566} & h.16 \\
+ESM-MSR (WT-view) & \textbf{0.586} & --- & \textbf{0.446} & --- & \textbf{0.270} & --- & \textbf{0.879} & --- & 0.909 & --- & \textbf{0.837} & \textbf{0.537} & h.16 \\
+ESM-MSR (unlinked) & --- & --- & --- & --- & --- & --- & --- & --- & --- & --- & --- & 0.632 & --- \\
+SPURS & 0.414 & 0.020 & 0.405 & 0.058 & 0.247 & 0.015 & 0.869 & 0.552 & \textbf{0.929} & 0.710 & 0.826 & 0.566 & h.16 \\
 Mutate Everything (Stage 1) & 0.323 & 0.009 & 0.259 & $<10^{-4}$ & 0.184 & $<10^{-4}$ & 0.717 & 0.002 & 0.909 & 0.539 & 0.799 & 0.580 & h.16 \\
 ThermoMPNN & 0.434 & 0.017 & 0.352 & 0.0006 & 0.230 & 0.0002 & 0.727 & 0.002 & 0.879 & 0.214 & 0.800 & 0.583 & h.16 \\
 GeoDDG-3D & 0.364 & 0.008 & 0.264 & 0.0003 & 0.155 & $<10^{-4}$ & 0.758 & 0.012 & 0.879 & 0.214 & 0.621 & 0.857 & h.07 \\

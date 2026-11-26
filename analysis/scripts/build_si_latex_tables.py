@@ -41,6 +41,7 @@ ABL_DIR = WT_TOBIT / 'analysis/results/09_ablation'
 OUT_DIR = WT_SI / 'analysis/results/si_latex_tables'
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 EXTRA_CSV = OUT_DIR / '_extra_models_pvalues.csv'
+TOBIT_CSV = OUT_DIR / '_tobit_linked_si_overrides.csv'
 
 for _p in (str(WT_DDDG / 'src'), str(WT_DDDG / 'analysis')):
     if _p not in sys.path:
@@ -344,6 +345,7 @@ CANONICAL_MODEL_ORDER = [
     'ESM-MSR (σ=1)',
     'ESM-MSR WT-view',
     'ESM-MSR (WT-view)',
+    'ESM-MSR (unlinked)',
     'ESM-MSR σ=0.5',
     'ESM-MSR ctx ctrl',
     'SPURS',
@@ -410,7 +412,7 @@ def clean_model_display(name: str, overlap: bool = False) -> str:
 
 
 def _is_internal_model(name: str) -> bool:
-    return name in ('ESM-MSR σ=0.5', 'ESM-MSR ctx ctrl', 'Top 96 per Domain', '−dG_add (floor ceiling)')
+    return name in ('ESM-MSR (unlinked)', 'ESM-MSR σ=0.5', 'ESM-MSR ctx ctrl', 'Top 96 per Domain', '−dG_add (floor ceiling)')
 
 
 # --------------------------------------------------------------------------------------
@@ -786,6 +788,66 @@ def _load_extra_df() -> pd.DataFrame:
     return pd.DataFrame()
 
 
+def _load_tobit_df() -> pd.DataFrame:
+    if TOBIT_CSV.exists():
+        return pd.read_csv(TOBIT_CSV)
+    return pd.DataFrame()
+
+
+def _apply_tobit_overrides(
+    panel: dict[str, dict],
+    msr_name: str,
+    tobit_df: pd.DataFrame | None,
+    section: str,
+    benchmark: str,
+    subset: str,
+    primary_val_is_rmse: bool = False,
+) -> None:
+    """Apply Tobit-linked ESM-MSR stats, updated p-values, and ESM-MSR (unlinked) RMSE-only row."""
+    if tobit_df is None or len(tobit_df) == 0:
+        return
+    sub = tobit_df[(tobit_df['section'] == section) & (tobit_df['benchmark'] == benchmark) & (tobit_df['subset'] == subset)]
+    if len(sub) == 0:
+        return
+    for _, r in sub.iterrows():
+        m = str(r['model'])
+        is_un = bool(r.get('is_unlinked', False))
+        v_val = float(r['value']) if pd.notna(r.get('value')) else np.nan
+        v_r = float(r['pearson_r']) if pd.notna(r.get('pearson_r')) else np.nan
+        v_rm = float(r['rmse']) if pd.notna(r.get('rmse')) else np.nan
+        v_p = float(r['p_one_sided']) if pd.notna(r.get('p_one_sided')) else np.nan
+        v_B = int(r['B']) if pd.notna(r.get('B')) else 10000
+
+        if is_un or m == 'ESM-MSR (unlinked)':
+            panel['ESM-MSR (unlinked)'] = {
+                'val': np.nan, 'spearman': np.nan, 'pearson': np.nan,
+                'rmse': v_rm, 'p': np.nan, 'p_prot': np.nan,
+                'B': v_B, 'overlap': False, 'internal': True, 'hom_note': '---',
+            }
+            continue
+
+        target_key = msr_name if m == 'ESM-MSR' else m
+        if target_key not in panel:
+            continue
+        d = panel[target_key]
+        if target_key in (msr_name, 'ESM-MSR σ=0.5'):
+            if math.isfinite(v_val):
+                d['val'] = v_val
+                if not primary_val_is_rmse:
+                    d['spearman'] = v_val
+            if math.isfinite(v_r):
+                d['pearson'] = v_r
+            if math.isfinite(v_rm):
+                d['rmse'] = v_rm
+            if target_key != msr_name and math.isfinite(v_p):
+                d['p'] = v_p
+                d['B'] = v_B
+        else:
+            if math.isfinite(v_p):
+                d['p'] = v_p
+                d['B'] = v_B
+
+
 def _extract_model_panel(
     df: pd.DataFrame,
     benchmark: str,
@@ -893,7 +955,7 @@ def _best_clean_set(panel: dict[str, dict], field: str, higher_is_better: bool =
     return {m for v, m in vals if round(v, 3) == round(best, 3)}
 
 
-def build_table_s2a_megascale_overall(extra_df: pd.DataFrame) -> Path:
+def build_table_s2a_megascale_overall(extra_df: pd.DataFrame, tobit_df: pd.DataFrame) -> Path:
     df = pd.read_csv(MAIN_PVAL / 'figure1b_megascale_stab_destab_pvalues.csv')
     specs = [
         ('MegaScale_capped_test', 'per_domain_mean_spearman_overall', r'Overall ($n$=48,740)'),
@@ -905,6 +967,7 @@ def build_table_s2a_megascale_overall(extra_df: pd.DataFrame) -> Path:
         pan, msr, _, _, B = _extract_model_panel(
             df, bm, met, dataset_key='tsu_capped_test', extra_df=extra_df, extra_section='megascale_s2a'
         )
+        _apply_tobit_overrides(pan, msr, tobit_df, 'megascale_s2a', bm, met)
         msr_name = msr
         panels.append((title, pan, B))
         all_models.update(pan.keys())
@@ -921,7 +984,7 @@ def build_table_s2a_megascale_overall(extra_df: pd.DataFrame) -> Path:
     ]
     body_rows = []
     for m in models:
-        note, ov = HOM.note_and_overlap(m, 'tsu_capped_test', multi=False)
+        note, ov = ('---', False) if m == 'ESM-MSR (unlinked)' else HOM.note_and_overlap(m, 'tsu_capped_test', multi=False)
         cells = [clean_model_display(m, overlap=ov)]
         for (_, pan, B), (b_rho, b_r, b_rm) in zip(panels, bests):
             d = pan.get(m)
@@ -931,7 +994,7 @@ def build_table_s2a_megascale_overall(extra_df: pd.DataFrame) -> Path:
                 cells.append(fmt_num(d['val'], 3, bold=(m in b_rho)))
                 cells.append(fmt_num(d['pearson'], 3, bold=(m in b_r)))
                 cells.append(fmt_num(d['rmse'], 3, bold=(m in b_rm)))
-                cells.append('---' if m == msr_name else fmt_p(d['p'], B))
+                cells.append('---' if m in (msr_name, 'ESM-MSR (unlinked)') else fmt_p(d['p'], B))
         cells.append(note)
         body_rows.append(' & '.join(cells) + r' \\')
 
@@ -940,6 +1003,8 @@ def build_table_s2a_megascale_overall(extra_df: pd.DataFrame) -> Path:
         caption_body=(
             r"Mean per-domain Spearman's $\rho$, Pearson's $r$, and raw RMSE (kcal/mol) across the 33 held-out MegaScale test domains "
             r"for all models with available predictions (3-seed mean for retrained models). "
+            r"ESM-MSR (and ESM-MSR $\sigma=0.5$) uses the Tobit observation link $h(\Delta G_{\mathrm{wt}} + \widehat{\Delta\Delta G}) - \Delta G_{\mathrm{wt}}$; "
+            r"ESM-MSR (unlinked) reports raw latent RMSE only (excluded from bolding). "
             r"One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). "
             + HOMOLOGY_LEGEND
         ),
@@ -951,7 +1016,7 @@ def build_table_s2a_megascale_overall(extra_df: pd.DataFrame) -> Path:
     return write_tex('table_S2a_megascale_overall_stab_destab.tex', tex)
 
 
-def build_table_s2b_megascale_doubles(extra_df: pd.DataFrame) -> Path:
+def build_table_s2b_megascale_doubles(extra_df: pd.DataFrame, tobit_df: pd.DataFrame) -> Path:
     df = pd.read_csv(MAIN_PVAL / 'figure1c_doubles_add_vs_epi_pvalues.csv')
     specs = [
         ('MegaScale_capped_test_doubles', 'per_domain_mean_spearman_epistatic', r'Epistatic Readout ($n$=13,319)'),
@@ -962,6 +1027,7 @@ def build_table_s2b_megascale_doubles(extra_df: pd.DataFrame) -> Path:
         pan, msr, _, _, B = _extract_model_panel(
             df, bm, met, dataset_key='tsu_capped_test', multi=True, extra_df=extra_df, extra_section='megascale_s2b'
         )
+        _apply_tobit_overrides(pan, msr, tobit_df, 'megascale_s2b', bm, met)
         msr_name = msr
         panels.append((title, pan, B))
         all_models.update(pan.keys())
@@ -973,7 +1039,7 @@ def build_table_s2b_megascale_doubles(extra_df: pd.DataFrame) -> Path:
     ]
     body_rows = []
     for m in models:
-        note, ov = HOM.note_and_overlap(m, 'tsu_capped_test', multi=True)
+        note, ov = ('---', False) if m == 'ESM-MSR (unlinked)' else HOM.note_and_overlap(m, 'tsu_capped_test', multi=True)
         cells = [clean_model_display(m, overlap=ov)]
         for (_, pan, B), (b_rho, b_r, b_rm) in zip(panels, bests):
             d = pan.get(m)
@@ -983,7 +1049,7 @@ def build_table_s2b_megascale_doubles(extra_df: pd.DataFrame) -> Path:
                 cells.append(fmt_num(d['val'], 3, bold=(m in b_rho)))
                 cells.append(fmt_num(d['pearson'], 3, bold=(m in b_r)))
                 cells.append(fmt_num(d['rmse'], 3, bold=(m in b_rm)))
-                cells.append('---' if m == msr_name else fmt_p(d['p'], B))
+                cells.append('---' if m in (msr_name, 'ESM-MSR (unlinked)') else fmt_p(d['p'], B))
         cells.append(note)
         body_rows.append(' & '.join(cells) + r' \\')
 
@@ -992,6 +1058,7 @@ def build_table_s2b_megascale_doubles(extra_df: pd.DataFrame) -> Path:
         caption_body=(
             r"Mean per-domain Spearman's $\rho$, Pearson's $r$, and raw RMSE (kcal/mol) across the 13 held-out MegaScale double-mutant domains "
             r"($n=13{,}319$ double mutants; 3-seed mean for retrained models). "
+            r"ESM-MSR (and ESM-MSR $\sigma=0.5$) uses the Tobit observation link; ESM-MSR (unlinked) reports raw latent RMSE only. "
             r"One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ within each readout via paired domain-cluster $\times$ seed bootstrap "
             r"($B=10{,}000$; uncorrected). "
             + HOMOLOGY_LEGEND
@@ -1008,7 +1075,7 @@ def build_table_s2b_megascale_doubles(extra_df: pd.DataFrame) -> Path:
     return write_tex('table_S2b_megascale_doubles.tex', tex)
 
 
-def build_table_s2c_megasplits(extra_df: pd.DataFrame) -> Path:
+def build_table_s2c_megasplits(extra_df: pd.DataFrame, tobit_df: pd.DataFrame) -> Path:
     df_a = pd.read_csv(SUPP_PVAL / '_mega_splits_fig1a_stab_destab_pvalues.csv')
     df_b = pd.read_csv(SUPP_PVAL / '_mega_splits_fig1b_doubles_pvalues.csv')
 
@@ -1022,6 +1089,7 @@ def build_table_s2c_megasplits(extra_df: pd.DataFrame) -> Path:
         pan, msr, _, _, B = _extract_model_panel(
             df_a, bm, met, dataset_key='tsuboyama_mega_test', extra_df=extra_df, extra_section='megascale_s2c'
         )
+        _apply_tobit_overrides(pan, msr, tobit_df, 'megascale_s2c', bm, met)
         msr_a = msr
         panels_a.append((title, pan, B))
         models_a.update(pan.keys())
@@ -1029,7 +1097,7 @@ def build_table_s2c_megasplits(extra_df: pd.DataFrame) -> Path:
     bests_a = [(_best_clean_set(p, 'val', True), _best_clean_set(p, 'pearson', True), _best_clean_set(p, 'rmse', False)) for _, p, _ in panels_a]
     rows_a = []
     for m in models_a:
-        note, ov = HOM.note_and_overlap(m, 'tsuboyama_mega_test')
+        note, ov = ('---', False) if m == 'ESM-MSR (unlinked)' else HOM.note_and_overlap(m, 'tsuboyama_mega_test')
         cells = [clean_model_display(m, overlap=ov)]
         for (_, pan, B), (b_rho, b_r, b_rm) in zip(panels_a, bests_a):
             d = pan.get(m)
@@ -1037,7 +1105,7 @@ def build_table_s2c_megasplits(extra_df: pd.DataFrame) -> Path:
                 fmt_num(d['val'], 3, bold=(m in b_rho)),
                 fmt_num(d['pearson'], 3, bold=(m in b_r)),
                 fmt_num(d['rmse'], 3, bold=(m in b_rm)),
-                '---' if m == msr_a else fmt_p(d['p'], B),
+                '---' if m in (msr_a, 'ESM-MSR (unlinked)') else fmt_p(d['p'], B),
             ]
         cells.append(note)
         rows_a.append(' & '.join(cells) + r' \\')
@@ -1047,6 +1115,7 @@ def build_table_s2c_megasplits(extra_df: pd.DataFrame) -> Path:
         caption_body=(
             r"Mean per-domain Spearman's $\rho$, Pearson's $r$, and raw RMSE (kcal/mol) across the 28 test domains of the full MegaScale split (\texttt{mega\_splits}; "
             r"16/28 test domains have sequence/structural homology to train/val). "
+            r"ESM-MSR uses the Tobit observation link; ESM-MSR (unlinked) reports raw latent RMSE only. "
             r"One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). "
             r"Published SPURS and ThermoMPNN checkpoints (both trained on the identical \texttt{mega\_splits} split, verified by MD5) appear consecutively after their retrained counterparts."
         ),
@@ -1069,6 +1138,7 @@ def build_table_s2c_megasplits(extra_df: pd.DataFrame) -> Path:
         pan, msr, _, _, B = _extract_model_panel(
             df_b, bm, met, dataset_key='tsuboyama_mega_test', multi=True, extra_df=extra_df, extra_section='megascale_s2c'
         )
+        _apply_tobit_overrides(pan, msr, tobit_df, 'megascale_s2c', bm, met)
         msr_b = msr
         panels_b.append((title, pan, B))
         models_b.update(pan.keys())
@@ -1076,7 +1146,7 @@ def build_table_s2c_megasplits(extra_df: pd.DataFrame) -> Path:
     bests_b = [(_best_clean_set(p, 'val', True), _best_clean_set(p, 'pearson', True), _best_clean_set(p, 'rmse', False)) for _, p, _ in panels_b]
     rows_b = []
     for m in models_b:
-        note, ov = HOM.note_and_overlap(m, 'tsuboyama_mega_test', multi=True)
+        note, ov = ('---', False) if m == 'ESM-MSR (unlinked)' else HOM.note_and_overlap(m, 'tsuboyama_mega_test', multi=True)
         cells = [clean_model_display(m, overlap=ov)]
         for (_, pan, B), (b_rho, b_r, b_rm) in zip(panels_b, bests_b):
             d = pan.get(m)
@@ -1084,7 +1154,7 @@ def build_table_s2c_megasplits(extra_df: pd.DataFrame) -> Path:
                 fmt_num(d['val'], 3, bold=(m in b_rho)),
                 fmt_num(d['pearson'], 3, bold=(m in b_r)),
                 fmt_num(d['rmse'], 3, bold=(m in b_rm)),
-                '---' if m == msr_b else fmt_p(d['p'], B),
+                '---' if m in (msr_b, 'ESM-MSR (unlinked)') else fmt_p(d['p'], B),
             ]
         cells.append(note)
         rows_b.append(' & '.join(cells) + r' \\')
@@ -1093,6 +1163,7 @@ def build_table_s2c_megasplits(extra_df: pd.DataFrame) -> Path:
         caption_title='All-Model Comparison on Full MegaScale Split Test Set: Double Mutants (Epistatic vs. Additive Readout)',
         caption_body=(
             r"Mean per-domain Spearman's $\rho$, Pearson's $r$, and raw RMSE (kcal/mol) across the 20 double-mutant test domains of \texttt{mega\_splits} ($n=18{,}574$ doubles). "
+            r"ESM-MSR uses the Tobit observation link; ESM-MSR (unlinked) reports raw latent RMSE only. "
             r"One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected)."
         ),
         label='tab:si_megasplits_doubles',
@@ -1107,7 +1178,7 @@ def build_table_s2c_megasplits(extra_df: pd.DataFrame) -> Path:
     return write_tex('table_S2c_megascale_megasplits.tex', tex_a + '\n' + tex_b)
 
 
-def build_table_s2d_backbone_origin(extra_df: pd.DataFrame) -> Path:
+def build_table_s2d_backbone_origin(extra_df: pd.DataFrame, tobit_df: pd.DataFrame) -> Path:
     df = pd.read_csv(SUPP_PVAL / '_backbone_and_origin_pvalues.csv')
     specs = [
         ('MegaScale_capped_test_backbone', 'per_code_mean_spearman_native', 'Native Backbone'),
@@ -1120,6 +1191,7 @@ def build_table_s2d_backbone_origin(extra_df: pd.DataFrame) -> Path:
         pan, msr, _, n_v, B = _extract_model_panel(
             df, bm, met, dataset_key='tsu_capped_test', extra_df=extra_df, extra_section='megascale_s2d'
         )
+        _apply_tobit_overrides(pan, msr, tobit_df, 'megascale_s2d', bm, met)
         msr_name = msr
         panels.append((f'{title} ($n$={n_v:,})', pan, B))
         all_models.update(pan.keys())
@@ -1128,7 +1200,7 @@ def build_table_s2d_backbone_origin(extra_df: pd.DataFrame) -> Path:
 
     body_rows = []
     for m in models:
-        note, ov = HOM.note_and_overlap(m, 'tsu_capped_test')
+        note, ov = ('---', False) if m == 'ESM-MSR (unlinked)' else HOM.note_and_overlap(m, 'tsu_capped_test')
         cells = [clean_model_display(m, overlap=ov)]
         for (_, pan, B), (b_rho, b_r, b_rm) in zip(panels, bests):
             d = pan.get(m)
@@ -1136,7 +1208,7 @@ def build_table_s2d_backbone_origin(extra_df: pd.DataFrame) -> Path:
                 fmt_num(d['val'], 3, bold=(m in b_rho)),
                 fmt_num(d['pearson'], 3, bold=(m in b_r)),
                 fmt_num(d['rmse'], 3, bold=(m in b_rm)),
-                '---' if m == msr_name else fmt_p(d['p'], B),
+                '---' if m in (msr_name, 'ESM-MSR (unlinked)') else fmt_p(d['p'], B),
             ]
         cells.append(note)
         body_rows.append(' & '.join(cells) + r' \\')
@@ -1146,6 +1218,7 @@ def build_table_s2d_backbone_origin(extra_df: pd.DataFrame) -> Path:
         caption_body=(
             r"Mean per-library Spearman's $\rho$, Pearson's $r$, and raw RMSE (kcal/mol) stratified by wild-type backbone type "
             r"(native vs.\ pre-destabilized) and protein origin (natural vs.\ de novo synthetic domains). "
+            r"ESM-MSR (and ESM-MSR $\sigma=0.5$) uses the Tobit observation link; ESM-MSR (unlinked) reports raw latent RMSE only. "
             r"One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). "
             + HOMOLOGY_LEGEND
         ),
@@ -1161,7 +1234,7 @@ def build_table_s2d_backbone_origin(extra_df: pd.DataFrame) -> Path:
     return write_tex('table_S2d_megascale_backbone_origin.tex', tex)
 
 
-def build_table_s3_epistasis(extra_df: pd.DataFrame) -> tuple[Path, Path]:
+def build_table_s3_epistasis(extra_df: pd.DataFrame, tobit_df: pd.DataFrame) -> tuple[Path, Path]:
     df = pd.read_csv(MAIN_PVAL / 'figure2e_epistasis_hierarchy_pvalues.csv')
     specs = [
         ('naive_rho (all_doubles)', r'Naive $\rho$'),
@@ -1177,6 +1250,7 @@ def build_table_s3_epistasis(extra_df: pd.DataFrame) -> tuple[Path, Path]:
             df, 'MegaScale_epistasis_5level_hierarchy', met,
             dataset_key='tsu_capped_test', multi=True, extra_df=extra_df, extra_section='epistasis_s3a'
         )
+        _apply_tobit_overrides(pan, msr, tobit_df, 'epistasis_s3a', 'MegaScale_epistasis_5level_hierarchy', met)
         msr_name = msr
         panels.append((title, pan, B))
         all_models.update(pan.keys())
@@ -1189,7 +1263,7 @@ def build_table_s3_epistasis(extra_df: pd.DataFrame) -> tuple[Path, Path]:
 
     rows_3a = []
     for m in models:
-        note, ov = HOM.note_and_overlap(m, 'tsu_capped_test', multi=True)
+        note, ov = ('---', False) if m == 'ESM-MSR (unlinked)' else HOM.note_and_overlap(m, 'tsu_capped_test', multi=True)
         cells = [clean_model_display(m, overlap=ov)]
         for (_, pan, B), b_set in zip(panels, bests):
             d = pan.get(m)
@@ -1197,7 +1271,7 @@ def build_table_s3_epistasis(extra_df: pd.DataFrame) -> tuple[Path, Path]:
                 cells += ['---', '---']
             else:
                 cells.append(fmt_num(d['val'], 3, bold=(m in b_set)))
-                cells.append('---' if m == msr_name else fmt_p(d['p'], B))
+                cells.append('---' if m in (msr_name, 'ESM-MSR (unlinked)') else fmt_p(d['p'], B))
         dn = pan_naive.get(m, {})
         cells.append(fmt_num(dn.get('pearson'), 3, bold=(m in b_r_naive)))
         cells.append(fmt_num(dn.get('rmse'), 3, bold=(m in b_rm_naive)))
@@ -1209,6 +1283,7 @@ def build_table_s3_epistasis(extra_df: pd.DataFrame) -> tuple[Path, Path]:
         caption_body=(
             r"Evaluation of predicted epistasis ($\widehat{\Delta\Delta\Delta G} = \hat{y}_{AB} - \hat{y}_A - \hat{y}_B$) on the 12,455 "
             r"MegaScale test doubles with both constituent singles measured across 13 domains (7,405 doubles with $\Delta G_{\mathrm{add}}>0$). "
+            r"ESM-MSR (and ESM-MSR $\sigma=0.5$) uses the Tobit observation link; ESM-MSR (unlinked) reports raw latent $\Delta\Delta\Delta G$ RMSE only. "
             r"One-sided $p$-values test $H_1\colon \text{ESM-MSR} > \text{model}$ via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected; "
             r"point metrics shown for supplementary external comparators without paired bootstrap runs). "
             + HOMOLOGY_LEGEND
@@ -1230,10 +1305,12 @@ def build_table_s3_epistasis(extra_df: pd.DataFrame) -> tuple[Path, Path]:
         df_rm, 'MegaScale_capped_test_epistasis_RMSE', 'all_doubles', primary_val_is_rmse=True,
         dataset_key='tsu_capped_test', multi=True, extra_df=extra_df, extra_section='epistasis_s3b_rmse'
     )
+    _apply_tobit_overrides(p_rm_all, msr_rm, tobit_df, 'epistasis_s3b_rmse', 'MegaScale_capped_test_epistasis_RMSE', 'all_doubles', primary_val_is_rmse=True)
     p_rm_gt0, _, _, _, _ = _extract_model_panel(
         df_rm, 'MegaScale_capped_test_epistasis_RMSE', 'dG_add_gt0', primary_val_is_rmse=True,
         dataset_key='tsu_capped_test', multi=True, extra_df=extra_df, extra_section='epistasis_s3b_rmse'
     )
+    _apply_tobit_overrides(p_rm_gt0, msr_rm, tobit_df, 'epistasis_s3b_rmse', 'MegaScale_capped_test_epistasis_RMSE', 'dG_add_gt0', primary_val_is_rmse=True)
     p_mc_raw, msr_mc, _, _, B_mc = _extract_model_panel(
         df_mc, 'MegaScale_capped_test_epistasis', 'epistasis_sign_MCC_raw_dddG_gt0', dataset_key='tsu_capped_test', multi=True
     )
@@ -1246,6 +1323,7 @@ def build_table_s3_epistasis(extra_df: pd.DataFrame) -> tuple[Path, Path]:
         for _old, _new in _mc_alias.items():
             if _old in _pan and _new not in _pan:
                 _pan[_new] = _pan.pop(_old)
+    _apply_tobit_overrides(p_mc_raw, msr_mc, tobit_df, 'epistasis_s3b_mcc', 'MegaScale_capped_test_epistasis', 'epistasis_sign_MCC_raw_dddG_gt0')
 
     all_m3b = sort_models(list(set(p_rm_all) | set(p_rm_gt0) | set(p_mc_raw) | set(p_mc_sat)), msr_first=msr_rm)
     b_rm1, b_r1 = _best_clean_set(p_rm_all, 'rmse', False), _best_clean_set(p_rm_all, 'pearson', True)
@@ -1254,18 +1332,18 @@ def build_table_s3_epistasis(extra_df: pd.DataFrame) -> tuple[Path, Path]:
 
     rows_3b = []
     for m in all_m3b:
-        note, ov = HOM.note_and_overlap(m, 'tsu_capped_test', multi=True)
+        note, ov = ('---', False) if m == 'ESM-MSR (unlinked)' else HOM.note_and_overlap(m, 'tsu_capped_test', multi=True)
         cells = [clean_model_display(m, overlap=ov)]
         for pan, b_r, b_rm in ((p_rm_all, b_r1, b_rm1), (p_rm_gt0, b_r2, b_rm2)):
             d = pan.get(m)
             cells += ['---'] * 3 if not d else [
                 fmt_num(d['rmse'], 3, bold=(m in b_rm)),
                 fmt_num(d['pearson'], 3, bold=(m in b_r)),
-                '---' if m == msr_rm else fmt_p(d['p'], B_rm),
+                '---' if m in (msr_rm, 'ESM-MSR (unlinked)') else fmt_p(d['p'], B_rm),
             ]
         for pan, b_mc in ((p_mc_raw, b_m1), (p_mc_sat, b_m2)):
             d = pan.get(m)
-            cells += ['---'] * 2 if not d else [
+            cells += ['---'] * 2 if (not d or m == 'ESM-MSR (unlinked)') else [
                 fmt_num(d['val'], 3, bold=(m in b_mc)),
                 '---' if m == msr_mc else fmt_p(d['p'], B_mc),
             ]
@@ -1277,6 +1355,7 @@ def build_table_s3_epistasis(extra_df: pd.DataFrame) -> tuple[Path, Path]:
         caption_body=(
             r"Epistasis calibration RMSE (kcal/mol, lower is better) and Pearson's $r$ on all 12,455 test doubles and 7,405 unsaturated doubles ($\Delta G_{\mathrm{add}}>0$), "
             r"alongside Matthews Correlation Coefficient (MCC) for classifying epistasis sign on raw $\Delta\Delta\Delta G>0$ and saturation-corrected residuals $r>0$. "
+            r"ESM-MSR (and ESM-MSR $\sigma=0.5$) uses the Tobit observation link; ESM-MSR (unlinked) reports raw latent RMSE only. "
             r"One-sided $p$-values test ESM-MSR superiority via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). "
             + HOMOLOGY_LEGEND
         ),
@@ -1293,7 +1372,7 @@ def build_table_s3_epistasis(extra_df: pd.DataFrame) -> tuple[Path, Path]:
     return p3a, p3b
 
 
-def build_table_s4_thermostability_longtable(extra_df: pd.DataFrame) -> tuple[Path, Path]:
+def build_table_s4_thermostability_longtable(extra_df: pd.DataFrame, tobit_df: pd.DataFrame) -> tuple[Path, Path]:
     """Build ONE massive vertical multi-page longtable stacking ALL 12 external thermostability sets."""
     df_3a = pd.read_csv(MAIN_PVAL / 'figure3a_thermostability_pvalues.csv')
 
@@ -1432,6 +1511,8 @@ def build_table_s4_thermostability_longtable(extra_df: pd.DataFrame) -> tuple[Pa
     panels_raw, all_mr, msr_r = [], set(), None
     for bk, label_b, ds_k, is_m in bms_r:
         prw, msr, _, _, B = _extract_model_panel(df_rmse, bk, 'rmse_raw', primary_val_is_rmse=True, dataset_key=ds_k, multi=is_m)
+        if bk == 'tsuboyama_capped_test':
+            _apply_tobit_overrides(prw, msr, tobit_df, 'thermo_rmse_s4c', bk, 'rmse_raw', primary_val_is_rmse=True)
         msr_r = msr
         panels_raw.append((label_b, prw, B))
         all_mr.update(prw.keys())
@@ -1447,13 +1528,14 @@ def build_table_s4_thermostability_longtable(extra_df: pd.DataFrame) -> tuple[Pa
             else:
                 sfx = r'$^*$' if d.get('overlap') else ''
                 cells.append(fmt_num(d['rmse'], 3, bold=(m in b_set), suffix=sfx))
-                cells.append('---' if m == msr_r else fmt_p(d['p'], B))
+                cells.append('---' if m in (msr_r, 'ESM-MSR (unlinked)') else fmt_p(d['p'], B))
         rows_r.append(' & '.join(cells) + r' \\')
     cmids = ' '.join(f'\\cmidrule(lr){{{2 + 2*i}-{3 + 2*i}}}' for i in range(len(panels_raw)))
     tex_raw = render_table(
         caption_title='Raw Calibration RMSE Comparison Across MegaScale and 8 External Thermostability Benchmarks',
         caption_body=(
             r"Raw (unrecalibrated) RMSE (kcal/mol, lower is better) across Homology-Restricted MegaScale test (33 domains) and 8 external thermostability sets. "
+            r"On MegaScale, ESM-MSR uses the Tobit observation link; ESM-MSR (unlinked) reports raw latent RMSE on MegaScale only (external thermostability sets have no cDNA proteolysis $\Delta G_{\mathrm{wt}}$). "
             r"One-sided $p$-values test $H_1\colon \text{RMSE}_{\text{ESM-MSR}} < \text{RMSE}_{\text{model}}$ via paired bootstrap "
             r"(domain-cluster $\times$ seed on MegaScale; mutation $\times$ seed on external sets; $B=10{,}000$; uncorrected). "
             r"Lowest clean (non-overlapping) RMSE per column is bolded. $^*$Documented training overlap (see Table~\ref{tab:si_thermostability_all} for full overlap codes)."
@@ -1513,7 +1595,7 @@ def build_table_s4_thermostability_longtable(extra_df: pd.DataFrame) -> tuple[Pa
     return p4_all, p4c
 
 
-def build_table_s5_heldout_ood(extra_df: pd.DataFrame) -> tuple[Path, Path]:
+def build_table_s5_heldout_ood(extra_df: pd.DataFrame, tobit_df: pd.DataFrame) -> tuple[Path, Path]:
     """Vertical multi-section longtable for all 4 Held-Out OOD benchmarks with ALL models & per-dataset homology notes."""
     df = pd.read_csv(MAIN_PVAL / 'figure3b_heldout_benchmarks_pvalues.csv')
     specs = [
@@ -1531,6 +1613,8 @@ def build_table_s5_heldout_ood(extra_df: pd.DataFrame) -> tuple[Path, Path]:
         if msr != 'ESM-MSR':
             pan['ESM-MSR'] = pan.pop(msr)
             msr = 'ESM-MSR'
+        if bm in ('MGnify_heldout_pooled', 'Rocklin_designs_heldout_pooled'):
+            _apply_tobit_overrides(pan, msr, tobit_df, 'ood_s5a_unlinked', bm, met)
         models = sort_models(list(pan.keys()), msr_first=msr)
         b_rho = _best_clean_set(pan, 'val', True)
         b_r = _best_clean_set(pan, 'pearson', True)
@@ -1547,7 +1631,7 @@ def build_table_s5_heldout_ood(extra_df: pd.DataFrame) -> tuple[Path, Path]:
                 fmt_num(d['val'], 3, bold=(m in b_rho)),
                 fmt_num(d['pearson'], 3, bold=(m in b_r)),
                 fmt_num(d['rmse'], 3, bold=(m in b_rm)) if has_rmse else '---',
-                '---' if m == msr else fmt_p(d['p'], d['B']),
+                '---' if m in (msr, 'ESM-MSR (unlinked)') else fmt_p(d['p'], d['B']),
                 d['hom_note'],
             ]
             body_rows.append(' & '.join(cells) + r' \\')
@@ -1558,6 +1642,7 @@ def build_table_s5_heldout_ood(extra_df: pd.DataFrame) -> tuple[Path, Path]:
             r"Comparison of all models with available predictions across the four 4-part homology-held-out benchmarks "
             r"(ProteinGym 173 assays, Domainome 436 domains, MGnify pooled, and Rocklin de novo designs pooled). "
             r"RMSE is omitted on ProteinGym because assays span heterogeneous fitness scales. "
+            r"On MGnify and Rocklin, ESM-MSR uses the Tobit observation link; ESM-MSR (unlinked) reports raw latent RMSE only. "
             r"One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired assay/domain/scaffold $\times$ seed bootstrap "
             r"($B=10{,}000$ on ProteinGym and Domainome; $B=1{,}000$ on MGnify and Rocklin; uncorrected). "
             r"Internal variant ESM-MSR ($\sigma=0.5$) is excluded from bolding of external comparators. "
@@ -1647,7 +1732,7 @@ def build_table_s5_heldout_ood(extra_df: pd.DataFrame) -> tuple[Path, Path]:
     return p5a, p5b
 
 
-def build_table_s6_screening_and_ndcg() -> tuple[Path, Path]:
+def build_table_s6_screening_and_ndcg(tobit_df: pd.DataFrame) -> tuple[Path, Path]:
     df_n = pd.read_csv(SUPP_PVAL / '_ndcg96_singles_doubles_pvalues.csv')
     specs_n = [
         ('ndcg96_shifted_overall', 'Shifted Overall'), ('ndcg96_shifted_singles', 'Shifted Singles'),
@@ -1763,20 +1848,23 @@ def build_table_s6_screening_and_ndcg() -> tuple[Path, Path]:
             msr_s = msr
             panels_s.append((label_m, pan, B, hib))
             all_ms.update(pan.keys())
+        pan0 = panels_s[0][1]
+        if bm_key == 'Figure4b_MegaScale_singles_nocys':
+            _apply_tobit_overrides(pan0, msr_s, tobit_df, 'screening_s6b', bm_key, 'pool')
+            all_ms.update(pan0.keys())
         models_s = sort_models(list(all_ms), msr_first=msr_s)
         bests_s = [_best_clean_set(p, 'val', hib) for _, p, _, hib in panels_s]
-        pan0 = panels_s[0][1]
         b_pr = _best_clean_set(pan0, 'pearson', True)
         b_rm = _best_clean_set(pan0, 'rmse', False) if has_rmse else set()
 
         rows_s = []
         for m in models_s:
             d0 = pan0.get(m, {})
-            note, ov = HOM.note_and_overlap(m, ds_k)
+            note, ov = ('---', False) if m == 'ESM-MSR (unlinked)' else HOM.note_and_overlap(m, ds_k)
             cells = [clean_model_display(m, overlap=ov)]
             for (_, pan, B, _), b_set in zip(panels_s, bests_s):
                 d = pan.get(m)
-                cells += ['---', '---'] if not d else [fmt_num(d['val'], 3, bold=(m in b_set)), '---' if m == msr_s else fmt_p(d['p'], B)]
+                cells += ['---', '---'] if (not d or m == 'ESM-MSR (unlinked)') else [fmt_num(d['val'], 3, bold=(m in b_set)), '---' if m == msr_s else fmt_p(d['p'], B)]
             cells.append(fmt_num(d0.get('pearson'), 3, bold=(m in b_pr)))
             if has_rmse:
                 cells.append(fmt_num(d0.get('rmse'), 3, bold=(m in b_rm)))
@@ -1788,13 +1876,18 @@ def build_table_s6_screening_and_ndcg() -> tuple[Path, Path]:
         extra_sub = r' & $r$ & RMSE & Homology / Overlap' if has_rmse else r' & $r$ & Homology / Overlap'
         ncols_total = 10 + (2 if has_rmse else 1)
         cmids = ' '.join(f'\\cmidrule(lr){{{2 + 2*i}-{3 + 2*i}}}' for i in range(5)) + extra_cmid
+        tobit_note = (
+            r" ESM-MSR uses the Tobit observation link for full-pool $r$ and RMSE; ESM-MSR (unlinked) reports raw latent RMSE only."
+            if bm_key == 'Figure4b_MegaScale_singles_nocys' else ""
+        )
         subtables_6b.append(
             render_table(
                 caption_title=f'Practical Library Screening Performance on {bm_title}',
                 caption_body=(
                     f"{metric_desc} across library budgets $K$, alongside full-pool Pearson's $r$"
                     + (r" and raw RMSE (kcal/mol)" if has_rmse else "")
-                    + r". One-sided $p$-values test ESM-MSR (WT-view) superiority via paired cluster/assay $\times$ seed bootstrap ($B=10{,}000$; uncorrected). "
+                    + "." + tobit_note
+                    + r" One-sided $p$-values test ESM-MSR (WT-view) superiority via paired cluster/assay $\times$ seed bootstrap ($B=10{,}000$; uncorrected). "
                     + HOMOLOGY_LEGEND
                 ),
                 label=f'tab:si_screening_{bm_key.lower()}',
@@ -1813,29 +1906,30 @@ def build_table_s6_screening_and_ndcg() -> tuple[Path, Path]:
 
 def main() -> None:
     extra_df = _load_extra_df()
-    print(f'Loaded {len(extra_df)} extra-model rows from {EXTRA_CSV.name}')
+    tobit_df = _load_tobit_df()
+    print(f'Loaded {len(extra_df)} extra-model rows from {EXTRA_CSV.name} and {len(tobit_df)} Tobit-linked override rows from {TOBIT_CSV.name}')
     generated: list[Path] = []
 
     print('[1/6] Building Tables S1a–S1b (Ablations: In-Distribution & OOD)...')
     generated.extend(build_table_s1_ablations())
 
-    print('[2/6] Building Tables S2a–S2d (MegaScale All Models + Homology Notes)...')
-    generated.append(build_table_s2a_megascale_overall(extra_df))
-    generated.append(build_table_s2b_megascale_doubles(extra_df))
-    generated.append(build_table_s2c_megasplits(extra_df))
-    generated.append(build_table_s2d_backbone_origin(extra_df))
+    print('[2/6] Building Tables S2a–S2d (MegaScale All Models + Tobit Link + Homology Notes)...')
+    generated.append(build_table_s2a_megascale_overall(extra_df, tobit_df))
+    generated.append(build_table_s2b_megascale_doubles(extra_df, tobit_df))
+    generated.append(build_table_s2c_megasplits(extra_df, tobit_df))
+    generated.append(build_table_s2d_backbone_origin(extra_df, tobit_df))
 
-    print('[3/6] Building Tables S3a–S3b (Epistasis Hierarchy & Calibration All Models + Homology Notes)...')
-    generated.extend(build_table_s3_epistasis(extra_df))
+    print('[3/6] Building Tables S3a–S3b (Epistasis Hierarchy & Calibration All Models + Tobit Link + Homology Notes)...')
+    generated.extend(build_table_s3_epistasis(extra_df, tobit_df))
 
     print('[4/6] Building Table S4 (Vertical Multi-Page Thermostability Longtable: All 12 Sets x All 19 Models) & S4c...')
-    generated.extend(build_table_s4_thermostability_longtable(extra_df))
+    generated.extend(build_table_s4_thermostability_longtable(extra_df, tobit_df))
 
     print('[5/6] Building Tables S5a–S5b (Held-Out OOD All Models Longtable & ProteinGym Sigma)...')
-    generated.extend(build_table_s5_heldout_ood(extra_df))
+    generated.extend(build_table_s5_heldout_ood(extra_df, tobit_df))
 
-    print('[6/6] Building Tables S6a–S6b (NDCG@96, Property Gain & Practical Screening + Homology Notes)...')
-    generated.extend(build_table_s6_screening_and_ndcg())
+    print('[6/6] Building Tables S6a–S6b (NDCG@96, Property Gain & Practical Screening + Tobit Link + Homology Notes)...')
+    generated.extend(build_table_s6_screening_and_ndcg(tobit_df))
 
     # Remove superseded horizontal thermostability files if present
     for old_f in ('table_S4a_thermostability_part1.tex', 'table_S4b_thermostability_part2.tex', 'table_S1_ablations_summary.tex'):

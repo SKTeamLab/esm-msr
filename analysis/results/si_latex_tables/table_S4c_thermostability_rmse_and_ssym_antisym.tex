@@ -1,6 +1,6 @@
 \begin{table}[H]
 \centering
-\caption{\textbf{Raw Calibration RMSE Comparison Across MegaScale and 8 External Thermostability Benchmarks}. Raw (unrecalibrated) RMSE (kcal/mol, lower is better) across Homology-Restricted MegaScale test (33 domains) and 8 external thermostability sets. One-sided $p$-values test $H_1\colon \text{RMSE}_{\text{ESM-MSR}} < \text{RMSE}_{\text{model}}$ via paired bootstrap (domain-cluster $\times$ seed on MegaScale; mutation $\times$ seed on external sets; $B=10{,}000$; uncorrected). Lowest clean (non-overlapping) RMSE per column is bolded. $^*$Documented training overlap (see Table~\ref{tab:si_thermostability_all} for full overlap codes).}
+\caption{\textbf{Raw Calibration RMSE Comparison Across MegaScale and 8 External Thermostability Benchmarks}. Raw (unrecalibrated) RMSE (kcal/mol, lower is better) across Homology-Restricted MegaScale test (33 domains) and 8 external thermostability sets. On MegaScale, ESM-MSR uses the Tobit observation link; ESM-MSR (unlinked) reports raw latent RMSE on MegaScale only (external thermostability sets have no cDNA proteolysis $\Delta G_{\mathrm{wt}}$). One-sided $p$-values test $H_1\colon \text{RMSE}_{\text{ESM-MSR}} < \text{RMSE}_{\text{model}}$ via paired bootstrap (domain-cluster $\times$ seed on MegaScale; mutation $\times$ seed on external sets; $B=10{,}000$; uncorrected). Lowest clean (non-overlapping) RMSE per column is bolded. $^*$Documented training overlap (see Table~\ref{tab:si_thermostability_all} for full overlap codes).}
 \label{tab:si_thermo_rmse_raw}
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{lcccccccccccccccccc}
@@ -9,11 +9,12 @@
 \cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9} \cmidrule(lr){10-11} \cmidrule(lr){12-13} \cmidrule(lr){14-15} \cmidrule(lr){16-17} \cmidrule(lr){18-19}
 ID & RMSE & $p$ & RMSE & $p$ & RMSE & $p$ & RMSE & $p$ & RMSE & $p$ & RMSE & $p$ & RMSE & $p$ & RMSE & $p$ & RMSE & $p$ \\
 \midrule
-ESM-MSR & 0.798 & --- & \textbf{1.156} & --- & \textbf{0.839} & --- & \textbf{1.062} & --- & \textbf{1.375} & --- & 1.148 & --- & \textbf{1.662} & --- & \textbf{1.593} & --- & \textbf{1.888} & --- \\
-SPURS & \textbf{0.717} & 0.837 & 1.274 & 0.0003 & 1.101 & $<10^{-4}$ & 1.217 & $<10^{-4}$ & 1.562 & $<10^{-4}$ & 1.184 & 0.033 & 1.719 & 0.003 & 1.698 & $<10^{-4}$ & 2.211 & $<10^{-4}$ \\
-Mutate Everything & 0.744 & 0.766 & 1.428 & $<10^{-4}$ & 0.942 & 0.0003 & 1.173 & $<10^{-4}$ & 1.530 & $<10^{-4}$ & \textbf{1.116} & 0.963 & 1.691 & 0.047 & 1.665 & $<10^{-4}$ & 2.062 & $<10^{-4}$ \\
-ThermoMPNN & 0.755 & 0.768 & 1.389 & $<10^{-4}$ & 1.126 & $<10^{-4}$ & 1.227 & $<10^{-4}$ & 1.636 & $<10^{-4}$ & 1.215 & 0.0006 & 1.752 & $<10^{-4}$ & 1.705 & $<10^{-4}$ & 2.130 & $<10^{-4}$ \\
-GeoDDG-3D & 1.007 & 0.072 & 0.908$^*$ & 1.000 & 1.015$^*$ & $<10^{-4}$ & 0.855$^*$ & 1.000 & 1.132$^*$ & 1.000 & 0.776$^*$ & 1.000 & 1.380$^*$ & 1.000 & 1.267$^*$ & 1.000 & 1.810$^*$ & 0.932 \\
+ESM-MSR & 0.730 & --- & \textbf{1.156} & --- & \textbf{0.839} & --- & \textbf{1.062} & --- & \textbf{1.375} & --- & 1.148 & --- & \textbf{1.662} & --- & \textbf{1.593} & --- & \textbf{1.888} & --- \\
+ESM-MSR (unlinked) & 0.798 & --- & --- & --- & --- & --- & --- & --- & --- & --- & --- & --- & --- & --- & --- & --- & --- & --- \\
+SPURS & \textbf{0.717} & 0.523 & 1.274 & 0.0003 & 1.101 & $<10^{-4}$ & 1.217 & $<10^{-4}$ & 1.562 & $<10^{-4}$ & 1.184 & 0.033 & 1.719 & 0.003 & 1.698 & $<10^{-4}$ & 2.211 & $<10^{-4}$ \\
+Mutate Everything & 0.744 & 0.373 & 1.428 & $<10^{-4}$ & 0.942 & 0.0003 & 1.173 & $<10^{-4}$ & 1.530 & $<10^{-4}$ & \textbf{1.116} & 0.963 & 1.691 & 0.047 & 1.665 & $<10^{-4}$ & 2.062 & $<10^{-4}$ \\
+ThermoMPNN & 0.755 & 0.300 & 1.389 & $<10^{-4}$ & 1.126 & $<10^{-4}$ & 1.227 & $<10^{-4}$ & 1.636 & $<10^{-4}$ & 1.215 & 0.0006 & 1.752 & $<10^{-4}$ & 1.705 & $<10^{-4}$ & 2.130 & $<10^{-4}$ \\
+GeoDDG-3D & 1.007 & 0.034 & 0.908$^*$ & 1.000 & 1.015$^*$ & $<10^{-4}$ & 0.855$^*$ & 1.000 & 1.132$^*$ & 1.000 & 0.776$^*$ & 1.000 & 1.380$^*$ & 1.000 & 1.267$^*$ & 1.000 & 1.810$^*$ & 0.932 \\
 ESM3$\Delta G$ & --- & --- & 1.605 & $<10^{-4}$ & 1.348 & $<10^{-4}$ & 1.425$^*$ & $<10^{-4}$ & 2.010 & $<10^{-4}$ & 1.511$^*$ & $<10^{-4}$ & 2.003$^*$ & $<10^{-4}$ & 1.939$^*$ & $<10^{-4}$ & 2.264$^*$ & $<10^{-4}$ \\
 Rosetta & 2.098 & $<10^{-4}$ & 1.812 & $<10^{-4}$ & 1.301 & $<10^{-4}$ & 1.785 & $<10^{-4}$ & 1.730 & $<10^{-4}$ & 1.411 & $<10^{-4}$ & 1.917 & $<10^{-4}$ & 1.950 & $<10^{-4}$ & 2.356 & $<10^{-4}$ \\
 ESM3-small-open & 1.209 & $<10^{-4}$ & 1.546 & $<10^{-4}$ & 1.232 & $<10^{-4}$ & 1.553 & $<10^{-4}$ & 1.682 & $<10^{-4}$ & 1.492 & $<10^{-4}$ & 1.931 & $<10^{-4}$ & 1.926 & $<10^{-4}$ & 2.484 & $<10^{-4}$ \\
