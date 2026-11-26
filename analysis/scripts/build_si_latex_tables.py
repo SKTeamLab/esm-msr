@@ -2043,11 +2043,13 @@ def build_table_s7_leakage_audit_summary() -> Path:
             rc = '---'
         inv_ds_code[('rosetta_beta_nov16', ds)] = rc
 
-    invs = [
+    invs_main = [
         ('esm_msr_capped', 'Capped Retrains'),
         ('rosetta_beta_nov16', 'Rosetta'),
         ('geoddg_s8754', 'GeoDDG-3D'),
         ('esm3dg_mgnify', r'ESM3$\Delta$G'),
+    ]
+    invs_supp = [
         ('esmtherm', 'ESMtherm'),
         ('ifum', 'IFUM'),
         ('ddgemb_s2450', 'DDGemb'),
@@ -2150,51 +2152,128 @@ def build_table_s7_leakage_audit_summary() -> Path:
             return raw
         return tex_escape(raw)
 
-    body_a: list[str] = []
-    for b_idx, blk in enumerate(row_blocks):
-        if b_idx > 0:
-            body_a.append(r'\midrule')
-        for label, ds_key, ovr in blk:
-            cells = [label]
-            for inv_key, _ in invs:
-                if inv_key in ovr:
-                    val = ovr[inv_key]
-                else:
-                    val = inv_ds_code.get((inv_key, ds_key), 'n.a.')
-                cells.append(_fmt_cell(val))
-            body_a.append(' & '.join(cells) + r' \\')
+    def _render_matrix_table(invs_sub: list[tuple[str, str]], cap: str, lbl: str) -> list[str]:
+        body: list[str] = []
+        for b_idx, blk in enumerate(row_blocks):
+            if b_idx > 0:
+                body.append(r'\midrule')
+            for label, ds_key, ovr in blk:
+                cells = [label]
+                for inv_key, _ in invs_sub:
+                    val = ovr[inv_key] if inv_key in ovr else inv_ds_code.get((inv_key, ds_key), 'n.a.')
+                    cells.append(_fmt_cell(val))
+                body.append(' & '.join(cells) + r' \\')
+        out_lines = [
+            r'\begin{table}[H]',
+            r'    \centering',
+            f'    \\caption{{{cap}}}',
+            f'    \\label{{{lbl}}}',
+            r'    \renewcommand{\arraystretch}{1.3}',
+            r'    \resizebox{\textwidth}{!}{%',
+            r'    \begin{tabular}{@{}l' + 'l' * len(invs_sub) + r'}\toprule',
+            '        Dataset & ' + ' & '.join(hdr for _, hdr in invs_sub) + r' \\\midrule',
+        ]
+        for r in body:
+            out_lines.append('        ' + r)
+        out_lines.extend([
+            r'    \bottomrule',
+            r'    \end{tabular}',
+            r'    }',
+            r'    \par\bigskip',
+            r'\end{table}',
+            '',
+        ])
+        return out_lines
 
-    cap_a = (
-        r'\textbf{Summary of Data-Leakage Audit Across All Benchmarks and Audited Model Training Inventories}. '
+    cap_main = (
+        r'\textbf{Summary of Data-Leakage Audit: Main-Text Models}. '
         r'Each cell lists every detected overlap class and its fraction of audited benchmark rows, most severe first '
         r'(e.g.\ M.50 = 50\%, M1 = 100\%, M$<$.001 = $<0.1\%$ but $\ge 1$ row); see Table~\ref{tab:si_leakage_code_definitions} '
-        r'for exact definitions, mathematical thresholds, superscript precedence, and training inventory provenance of every code '
-        r'(M, M?, m, P, H, h, D, V, V?, \#, ---, n.a.). '
-        r'Zero-shot models (ProSST, ProteinMPNN, ESM3-small-open [$\sigma=0$], and ESM3-small/medium/large) use unsupervised pretraining only and have no supervised overlap (--- across all rows; omitted as a column). '
+        r'for definitions of every code and Table~\ref{tab:si_leakage_inventories} for training inventories and evidence tiers. '
+        r'Zero-shot models (ProSST, ProteinMPNN, ESM3-small-open [$\sigma=0$], and ESM3-small/medium/large) use unsupervised pretraining only and have no supervised overlap (--- across all rows; omitted). '
         r'Capped Retrains covers ESM-MSR (all heads/$\sigma$), SPURS/SPURS-multi, MutateEverything Stage~1/2, and ThermoMPNN/ThermoMPNN-D, '
         r'all trained on subsets of the same 172 Homology-Restricted MegaScale train domains (zero M/m/P/H overlap across all 12 external thermostability sets and MegaScale val/test). '
         r'Rosetta values report global calibration overlap (\texttt{beta\_nov16\_cart} 20 reference energies and 1/2.94 scale factor tuned with Kellogg-2011 ProTherm and Rocklin-2017 design stability). '
         r'$^\dagger$Canonical four-part sequence+structure holdout rows (Domainome 436 domains, ProteinGym 173 assays, MGnify 140,694 scored scaffolds, Rocklin \textit{de novo} 623 scored designs) '
         r'remove every protein matching any of the 172 capped-train libraries at MMseqs2 $E \le 10^{-3}$, BLOSUM62 shorter-chain identity $>0.40$, Foldseek $E \le 10^{-3}$, or $\mathrm{TM}_{\max} > 0.70$, '
         r'yielding zero overlap (---) for Capped Retrains (removing 27,687/180,367 MGnify scaffolds [100,365/766,790 rows; H/h.13] and 258/1,000 Rocklin designs [52,642/209,818 rows; H/h.25]). '
-        r'Third-party models were audited on the full benchmark rows immediately above; n.a.\ denotes pairs not separately re-audited on the held-out subset. '
-        r'$^\ddagger$GeoDDG-3D was not scored on ProteinGym; its GeoFitness encoder was pretrained on 74 DMS fitness assays overlapping ProteinGym at the protein level (P). '
+        r'$^\ddagger$GeoDDG-3D was not scored on ProteinGym; its GeoFitness encoder was pretrained on 74 DMS fitness assays overlapping ProteinGym at the protein level (P).'
+    )
+
+    cap_supp = (
+        r'\textbf{Summary of Data-Leakage Audit: Supplementary-Only Models}. '
+        r'Same notation and benchmark rows as Table~\ref{tab:si_leakage_audit_main} for models included only in supplementary comparisons '
+        r'(ESMtherm, IFUM, DDGemb, and DDMut); see Table~\ref{tab:si_leakage_code_definitions} for leak-code definitions and '
+        r'Table~\ref{tab:si_leakage_inventories} for training inventories and evidence tiers. '
+        r'$^\dagger$Third-party models were audited on the full benchmark rows immediately above; n.a.\ denotes pairs not evaluated or not separately re-audited on the capped-train held-out subset. '
         r'$^\S$ESMtherm and IFUM were trained on unfiltered MegaScale splits and were not separately row-audited against MGnify/Rocklin.'
     )
 
-    lines_a = [
+    lines_main = _render_matrix_table(invs_main, cap_main, 'tab:si_leakage_audit_main')
+    lines_supp = _render_matrix_table(invs_supp, cap_supp, 'tab:si_leakage_audit_supp')
+
+    # Table S7c: Leak Code Definitions (3 columns; Code/Meaning on 2 lines, Audit Criterion wraps freely, Precedence then Bolding on 2 lines)
+    code_rows = [
+        (r'\textbf{M}\newline Identical variant in training',
+         r'Same protein family and identical mutation set (construct-aligned and reverse structures); verified row-by-row.',
+         r'Rank~2\newline Excludes bold ($\ge 0.5\%$)'),
+        (r'\textbf{M?}\newline Mutation-level ceiling',
+         r'Test row matches a public Dataset2 variant of a training domain (IFUM), where per-row filters are undisclosed.',
+         r'Rank~2\newline Excludes bold ($\ge 0.5\%$)'),
+        (r'\textbf{m}\newline Constituent single mutation',
+         r'Every constituent single mutation of a multi-mutant row appears in training for the same protein, not the pair.',
+         r'Rank~3\newline Excludes bold ($\ge 0.5\%$)'),
+        (r'\textbf{P}\newline Same protein in training',
+         r'No mutation match, but $\ge 95\%$ identity over $\ge 90\%$ shorter-sequence coverage ($\text{len\_ratio}\ge 0.80$) or MMseqs2 $\ge 90\%$ identity over $\ge 50\%$ of test protein.',
+         r'Rank~4\newline Excludes bold ($\ge 0.5\%$)'),
+        (r'\textbf{H}\newline Strong homolog in training',
+         r'MMseqs2 $E \le 10^{-3}$ over $\ge 50\%$ of test protein; on Domainome and ProteinGym, also Foldseek $E \le 10^{-3}$ or $\mathrm{qTM} > 0.70$ over $\ge 50\%$.',
+         r'Rank~5\newline Excludes bold ($\ge 0.5\%$)'),
+        (r'\textbf{h}\newline Weak / twilight homolog',
+         r'MMseqs2 $E \le 10^{-2}$ or $\ge 30\%$ identity over $\ge 30\%$ of test protein; or Foldseek $E \le 10^{-2}$ over $\ge 30\%$.',
+         r'Rank~6\newline Retains bold'),
+        (r'\textbf{D}\newline Documented derivation',
+         r'Training set is documented in the original publication as derived from the benchmark (e.g.\ S2450/S9028 from S2648).',
+         r'Fallback flag\newline Excludes bold'),
+        (r'\textbf{V}\newline Validation / calibration set',
+         r'Rows used for checkpoint selection (capped val) or global parameter calibration (Rosetta \texttt{beta\_nov16}: Kellogg-2011 / Rocklin-2017).',
+         r'Rank~7\newline Retains bold'),
+        (r'\textbf{V?}\newline Val / test block ceiling',
+         r"Rows belonging to IFUM's merged 86-domain validation/test block (exact validation vs.\ test assignment unpublished).",
+         r'Rank~7\newline Retains bold'),
+        (r'\textbf{\#}\newline Test equals training set',
+         r"Benchmark is identical to or sourced from the model's training set (e.g.\ GeoDDG-3D on S8754; ESM3$\Delta$G on MGnify).",
+         r'Rank~1 (always wins)\newline Not a test result'),
+        (r'\textbf{---}\newline No supervised overlap',
+         r'Zero benchmark rows trigger any overlap class (M/m/P/H/h/V/D/\#) under the row-level and homology audit.',
+         r'Clean\newline Retains bold'),
+        (r'\textbf{n.a.}\newline Not audited / evaluated',
+         r'Model was not evaluated on this benchmark or no separate leakage audit was run on this subset.',
+         r'---'),
+    ]
+
+    cap_codes = (
+        r'\textbf{Leakage Audit Code Definitions and Bolding Rules}. '
+        r'Exact criteria, verification basis, and precedence for every leak code reported in '
+        r'Tables~\ref{tab:si_leakage_audit_main}--\ref{tab:si_leakage_audit_supp} and in the Homology / Overlap columns of Tables S2--S6. '
+        r'Fraction suffixes denote the proportion of audited benchmark rows in each class (e.g.\ .50 = 50\%, 1 = 100\%, $<$.001 = $<0.1\%$ with $\ge 1$ row). '
+        r'Models with M, M?, m, P, H, D, or \# at $\ge 0.5\%$ of rows are marked $^*$ and excluded from clean bolding in comparison tables, '
+        r'whereas distant homology (h) and validation/calibration flags (V, V?) remain eligible.'
+    )
+
+    lines_codes = [
         r'\begin{table}[H]',
         r'    \centering',
-        f'    \\caption{{{cap_a}}}',
-        r'    \label{tab:si_leakage_audit_summary}',
+        f'    \\caption{{{cap_codes}}}',
+        r'    \label{tab:si_leakage_code_definitions}',
         r'    \renewcommand{\arraystretch}{1.3}',
         r'    \resizebox{\textwidth}{!}{%',
-        r'    \begin{tabular}{@{}l' + 'l' * len(invs) + r'}\toprule',
-        '        Dataset & ' + ' & '.join(hdr for _, hdr in invs) + r' \\\midrule',
+        r'    \begin{tabular}{@{}p{4.6cm}p{7.5cm}p{3.9cm}}\toprule',
+        r'        Code / Meaning & Audit Criterion & Precedence / Bolding \tabularnewline\midrule',
     ]
-    for r in body_a:
-        lines_a.append('        ' + r)
-    lines_a.extend([
+    for cm, crit, prec in code_rows:
+        lines_codes.append(f'        \\raggedright {cm} & \\raggedright {crit} & \\raggedright {prec} \\tabularnewline')
+    lines_codes.extend([
         r'    \bottomrule',
         r'    \end{tabular}',
         r'    }',
@@ -2203,48 +2282,8 @@ def build_table_s7_leakage_audit_summary() -> Path:
         '',
     ])
 
-    # Companion Table S7b: Explicit definitions of EVERY leak code + audited model training inventories
-    # Uses two-line wrapped p{...} columns so natural width matches \textwidth and font stays large and readable.
-    code_rows = [
-        (r'\textbf{M}', 'Identical variant in training',
-         r'Same protein family and identical mutation set (construct-aligned and reverse structures); verified row-by-row.',
-         r'Excludes bold ($\ge 0.5\%$); rank~2'),
-        (r'\textbf{M?}', 'Mutation-level ceiling (unverified)',
-         r'Test row matches a public Dataset2 variant of a training domain (IFUM), where per-row filters are undisclosed.',
-         r'Excludes bold ($\ge 0.5\%$); rank~2'),
-        (r'\textbf{m}', 'Constituent single mutation',
-         r'Every constituent single mutation of a multi-mutant row appears in training for the same protein, not the pair.',
-         r'Excludes bold ($\ge 0.5\%$); rank~3'),
-        (r'\textbf{P}', 'Same protein in training',
-         r'No mutation match, but $\ge 95\%$ id over $\ge 90\%$ shorter cov.\ ($\text{len\_ratio}\ge 0.80$) or MMseqs2 $\ge 90\%$ id over $\ge 50\%$ test.',
-         r'Excludes bold ($\ge 0.5\%$); rank~4'),
-        (r'\textbf{H}', 'Strong homolog in training',
-         r'MMseqs2 $E \le 10^{-3}$ over $\ge 50\%$ of test protein; on Domainome/ProteinGym also Foldseek $E \le 10^{-3}$ or $\mathrm{qTM} > 0.70$.',
-         r'Excludes bold ($\ge 0.5\%$); rank~5'),
-        (r'\textbf{h}', 'Weak / twilight-zone homolog',
-         r'MMseqs2 $E \le 10^{-2}$ or $\ge 30\%$ identity over $\ge 30\%$ of test protein; or Foldseek $E \le 10^{-2}$ over $\ge 30\%$.',
-         r'Retains bold; rank~6'),
-        (r'\textbf{D}', 'Documented derivation',
-         r'Training set is documented in the original publication as derived from the benchmark (e.g.\ S2450/S9028 from S2648).',
-         r'Excludes bold; fallback flag'),
-        (r'\textbf{V}', 'Validation / calibration set',
-         r'Rows used for checkpoint selection (capped val) or global calibration (Rosetta \texttt{beta\_nov16}: Kellogg-2011 / Rocklin-2017).',
-         r'Retains bold; rank~7'),
-        (r'\textbf{V?}', 'Val / test block ceiling',
-         r"Rows in IFUM's merged 86-domain validation/test block (exact validation vs.\ test assignment unpublished).",
-         r'Retains bold; rank~7'),
-        (r'\textbf{\#}', 'Test equals training set',
-         r"Benchmark is identical to or sourced from the model's training set (e.g.\ GeoDDG-3D on S8754; ESM3$\Delta$G on MGnify).",
-         r'Always wins (rank~1); not a test'),
-        (r'\textbf{---}', 'No supervised overlap',
-         r'Zero benchmark rows trigger any overlap class (M/m/P/H/h/V/D/\#) under the row-level and homology audit.',
-         r'Clean; retains bold'),
-        (r'\textbf{n.a.}', 'Not audited / not evaluated',
-         r'Model was not evaluated on this benchmark or no separate leakage audit was run on this subset.',
-         r'---'),
-    ]
-
-    inv_rows = [
+    # Table S7d: Audited Model Training Inventories and Evidence Tiers (split into Main-Text & Supplementary-Only blocks)
+    inv_main_rows = [
         ('Capped Retrains', 'ESM-MSR, SPURS, MutateEverything, ThermoMPNN (all heads/stages)',
          r'172 Homology-Restricted MegaScale train domains (221,338 unique variants); validated on 23 capped-val domains.',
          'Row-level verified'),
@@ -2253,16 +2292,18 @@ def build_table_s7_leakage_audit_summary() -> Path:
          'Calibration (V)'),
         ('GeoDDG-3D', 'GeoDDG-3D (FASPR)',
          r'Fine-tuned on S8754 (8,754 $\Delta\Delta G$ rows); encoder pretrained as GeoFitness on 74 DMS assays.',
-         'Row-level (S8754); protein-level (DMS)'),
+         r'Row-level (S8754);\newline protein-level (DMS)'),
         (r'ESM3$\Delta$G', r'ESM3$\Delta$G (MGnify fine-tune)',
          '960,216 MGnify Stability training sequences (60--80 aa; 0 identical sequences in external/MegaScale tests).',
          'Row-level verified'),
+    ]
+    inv_supp_rows = [
         ('ESMtherm', 'ESMtherm',
          r'MegaScale \texttt{K50\_dG} Dataset1+2 (527,785 seqs; 414 domains split 80/10/10 per seq + 47 test domains).',
          'Row-level verified'),
-        ('IFUM', 'IFUM (WT backbone \& ESMFold)',
+        ('IFUM', r'IFUM (WT backbone \& ESMFold)',
          r'MegaScale Dataset2 MMseqs2-30\% split: 322 train + 86 merged val/test domains (no public row list).',
-         'Protein-level ceiling (M?, V?)'),
+         r'Protein-level ceiling\newline (M?, V?)'),
         ('DDGemb', 'DDGemb',
          'S2450 = S2648 minus 198 S669-homologous mutations, doubled with reverse variants (4,900 rows).',
          'Row-level verified'),
@@ -2271,35 +2312,29 @@ def build_table_s7_leakage_audit_summary() -> Path:
          'Row-level verified'),
     ]
 
-    cap_b = (
-        r'\textbf{Leakage Audit Code Definitions and Audited Model Training Inventories}. '
-        r'Top: exact criteria, verification basis, and precedence for every leak code reported in Table~\ref{tab:si_leakage_audit_summary} '
-        r'and in the Homology / Overlap columns of Tables S2--S6. Fraction suffixes denote the proportion of audited benchmark rows in each class '
-        r'(e.g.\ .50 = 50\%, 1 = 100\%, $<$.001 = $<0.1\%$ with $\ge 1$ row); models with M, M?, m, P, H, D, or \# at $\ge 0.5\%$ of rows are marked $^*$ '
-        r'and excluded from clean bolding in comparison tables, whereas distant homology (h) and calibration/validation flags (V, V?) remain eligible. '
-        r'Bottom: training inventories, dataset sizes, and evidence tiers audited for each model column (zero-shot models have unsupervised pretraining only).'
+    cap_inv = (
+        r'\textbf{Audited Model Training Inventories and Evidence Tiers}. '
+        r'Training data sources, dataset sizes, and verification tiers underlying Tables~\ref{tab:si_leakage_audit_main}--\ref{tab:si_leakage_audit_supp}, '
+        r'grouped into main-text models (top) and supplementary-only models (bottom). '
+        r'Zero-shot models (ProSST, ProteinMPNN, ESM3-small-open [$\sigma=0$], and ESM3-small/medium/large) use unsupervised pretraining corpora only and carry no supervised overlap.'
     )
 
-    lines_b = [
+    lines_inv = [
         r'\begin{table}[H]',
         r'    \centering',
-        f'    \\caption{{{cap_b}}}',
-        r'    \label{tab:si_leakage_code_definitions}',
-        r'    \renewcommand{\arraystretch}{1.25}',
+        f'    \\caption{{{cap_inv}}}',
+        r'    \label{tab:si_leakage_inventories}',
+        r'    \renewcommand{\arraystretch}{1.3}',
         r'    \resizebox{\textwidth}{!}{%',
-        r'    \begin{tabular}{@{}p{2.3cm}p{3.6cm}p{7.8cm}p{3.3cm}}\toprule',
-        r'        Code & Meaning & Audit Criterion & Precedence / Bolding \\\midrule',
+        r'    \begin{tabular}{@{}p{2.7cm}p{3.9cm}p{6.2cm}p{3.4cm}}\toprule',
+        r'        Column & Models Covered & Training / Calibration Inventory & Evidence Tier \tabularnewline\midrule',
     ]
-    for c, mean, crit, prec in code_rows:
-        lines_b.append(f'        {c} & {mean} & {crit} & {prec} \\\\')
-    lines_b.extend([
-        r'        \midrule',
-        r'        \multicolumn{4}{@{}l}{\textbf{Audited Model Training Inventories and Evidence Tiers}} \\\midrule',
-        r'        Column & Models Covered & Training / Calibration Inventory & Evidence Tier \\\midrule',
-    ])
-    for col, mods, inv_desc, ev in inv_rows:
-        lines_b.append(f'        {col} & {mods} & {inv_desc} & {ev} \\\\')
-    lines_b.extend([
+    for col, mods, inv_desc, ev in inv_main_rows:
+        lines_inv.append(f'        \\raggedright {col} & \\raggedright {mods} & \\raggedright {inv_desc} & \\raggedright {ev} \\tabularnewline')
+    lines_inv.append(r'        \midrule')
+    for col, mods, inv_desc, ev in inv_supp_rows:
+        lines_inv.append(f'        \\raggedright {col} & \\raggedright {mods} & \\raggedright {inv_desc} & \\raggedright {ev} \\tabularnewline')
+    lines_inv.extend([
         r'    \bottomrule',
         r'    \end{tabular}',
         r'    }',
@@ -2308,7 +2343,7 @@ def build_table_s7_leakage_audit_summary() -> Path:
         '',
     ])
 
-    return write_tex('table_S7_leakage_audit_summary.tex', '\n'.join(lines_a + lines_b))
+    return write_tex('table_S7_leakage_audit_summary.tex', '\n'.join(lines_main + lines_supp + lines_codes + lines_inv))
 
 
 def main() -> None:
