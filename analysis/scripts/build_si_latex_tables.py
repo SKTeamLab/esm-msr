@@ -38,7 +38,7 @@ SUPP_PVAL = WT_DDDG / 'analysis/results/00_supplementary_figs/pvalues'
 REF_DIR = WT_DDDG / 'analysis/reference'
 ABL_DIR = WT_TOBIT / 'analysis/results/09_ablation'
 
-OUT_DIR = WT_SI / 'analysis/results/si_latex_tables'
+OUT_DIR = WT_SI / 'analysis/results/00_supplementary_figs/tables'
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 EXTRA_CSV = OUT_DIR / '_extra_models_pvalues.csv'
 TOBIT_CSV = OUT_DIR / '_tobit_linked_si_overrides.csv'
@@ -229,7 +229,7 @@ class HomologyLookup:
     def inventory_for(self, model: str, multi: bool = False) -> str:
         m = model.strip()
         if m in (
-            'ESM-MSR', 'ESM-MSR (Dual-view)', 'ESM-MSR (σ=1)', 'ESM-MSR WT-view',
+            'ESM-MSR', 'ESM-MSR (Dual-view)', 'ESM-MSR Dual-View (incl. singles)', 'ESM-MSR (σ=1)', 'ESM-MSR WT-view',
             'ESM-MSR (WT-view)', 'ESM-MSR σ=0.5', 'ESM-MSR ctx ctrl',
             'SPURS', 'SPURS-multi', 'MutateEverything', 'MutateEverything Stage 2',
             'MutateEverything Stage 1', 'ThermoMPNN', 'ThermoMPNN-D',
@@ -346,6 +346,7 @@ CANONICAL_MODEL_ORDER = [
     'ESM-MSR WT-view',
     'ESM-MSR (WT-view)',
     'ESM-MSR (unlinked)',
+    'ESM-MSR Dual-View (incl. singles)',
     'ESM-MSR σ=0.5',
     'ESM-MSR ctx ctrl',
     'SPURS',
@@ -592,11 +593,41 @@ def _compute_extra_ablation_row_stats(row_key: str) -> dict[str, tuple[float, fl
     }
 
 
+def _compute_pgym_mt_p0() -> tuple[float, float]:
+    f3c = pd.read_csv(MAIN_SRC / 'figure3_panel_c_proteingym_sigma_sourcedata.csv')
+    pg_held = f3c[(~f3c['leaked']) & (~f3c['dropped_large'])][['assay', 'category']].copy()
+    vals: list[float] = []
+    for s in (1, 2, 3):
+        pg_dir = ROOT / 'final_pgym_comb/FINAL_p0' / f's{s}'
+        if not pg_dir.exists():
+            continue
+        cat_vals: dict[str, list[float]] = {}
+        for _, row in pg_held.iterrows():
+            assay, cat = row['assay'], row['category']
+            f_a = pg_dir / f'{assay}.csv'
+            if not f_a.exists():
+                matches = list(pg_dir.glob(f'{assay}*.csv'))
+                f_a = matches[0] if matches else None
+            if f_a is not None and f_a.exists():
+                da = pd.read_csv(f_a, usecols=['DMS_score', 'mt_lora_pred'])
+                ok = np.isfinite(da['DMS_score']) & np.isfinite(da['mt_lora_pred'])
+                if ok.sum() >= 3:
+                    cat_vals.setdefault(cat, []).append(
+                        float(spearmanr(da.loc[ok, 'mt_lora_pred'], da.loc[ok, 'DMS_score']).statistic)
+                    )
+        if len(cat_vals) == 5:
+            vals.append(float(np.mean([np.mean(v) for v in cat_vals.values()])))
+    if not vals:
+        return (np.nan, np.nan)
+    return (float(np.mean(vals)), float(np.std(vals, ddof=1)) if len(vals) > 1 else np.nan)
+
+
 def build_table_s1_ablations() -> list[Path]:
     cl = pd.read_csv(ABL_DIR / 'cells_long.csv')
     cl_mega = pd.read_csv(ABL_DIR / 'cells_long_mega_own_split.csv')
     mg_map = _load_mgnify_rocklin_ablations()
     extra_s05 = _compute_extra_ablation_row_stats('FINAL_p0_s05')
+    pgym_mt_p0 = _compute_pgym_mt_p0()
     mega_beyond, mega_cellmag = _compute_epi_beyond_cellmag('mega_splits-test', 'FINAL_p0_mega', 'sigma1.0_unmasked', (1, 2, 3))
 
     def get_cl(fam: str, col: str, head: str = 'primary', df_src: pd.DataFrame = cl) -> tuple[float, float]:
@@ -615,6 +646,7 @@ def build_table_s1_ablations() -> list[Path]:
 
     row_specs = [
         ('FINAL_p0', 'Dual-View (Reference)', 'cl_primary'),
+        ('FINAL_p0_comb', 'Dual-View (incl. singles)', 'cl_comb'),
         ('FINAL_p0_WT', 'WT-View only', 'cl_wt'),
         ('FINAL_p0_MT', 'MT-View only', 'cl_mt'),
         ('FINAL_p0_s05', r'$\sigma=0.5$', 'extra_s05'),
@@ -651,6 +683,13 @@ def build_table_s1_ablations() -> list[Path]:
             rec['ext_multi'] = get_cl(key, 'ptmul', 'primary')
             rec['domainome'] = get_cl(key, 'domainome|lowid', 'primary')
             rec['pgym'] = get_cl(key, 'pg|avg_lowid', 'wt')
+        elif mode == 'cl_comb':
+            for ck in ['tsu_overall', 'tsu_singles', 'tsu_doubles', 'tsu_beyond', 'tsu_cellmag']:
+                rec[ck] = (np.nan, np.nan)
+            rec['ext_singles'] = get_cl_ext7('FINAL_p0', 'comb')
+            rec['ext_multi'] = get_cl('FINAL_p0', 'ptmul', 'comb')
+            rec['domainome'] = get_cl('FINAL_p0', 'domainome|lowid', 'comb')
+            rec['pgym'] = get_cl('FINAL_p0', 'pg|avg_lowid', 'comb')
         elif mode == 'cl_wt':
             rec['tsu_overall'] = get_cl('FINAL_p0', 'tsuboyama_capped_test', 'wt')
             rec['tsu_singles'] = get_cl('FINAL_p0', 'tsuboyama_capped_test|singles', 'wt')
@@ -670,7 +709,7 @@ def build_table_s1_ablations() -> list[Path]:
             rec['ext_singles'] = get_cl_ext7('FINAL_p0', 'mt')
             rec['ext_multi'] = get_cl('FINAL_p0', 'ptmul', 'mt')
             rec['domainome'] = get_cl('FINAL_p0', 'domainome|lowid', 'mt')
-            rec['pgym'] = (np.nan, np.nan)
+            rec['pgym'] = pgym_mt_p0
         elif mode == 'extra_s05':
             for ck in ['tsu_overall', 'tsu_singles', 'tsu_doubles', 'tsu_beyond', 'tsu_cellmag', 'ext_singles', 'ext_multi', 'domainome', 'pgym']:
                 rec[ck] = extra_s05.get(ck, (np.nan, np.nan))
@@ -710,6 +749,8 @@ def build_table_s1_ablations() -> list[Path]:
 
     rows_id = []
     for rec in records:
+        if rec['key'] == 'FINAL_p0_comb':
+            continue
         cells = [rec['label']]
         for ck in id_cols:
             m, sd = rec[ck]
@@ -721,7 +762,7 @@ def build_table_s1_ablations() -> list[Path]:
         caption_title='Summary of ESM-MSR Ablations and Variations: In-Distribution Proteolysis Stability Benchmarks',
         caption_body=(
             r"Spearman's $\rho$ (mean $\pm$ SD across 3 independent training seeds) on proteolysis stability benchmarks "
-            r"under the Dual-View readout (except WT-View only and MT-View only). Models marked (Ret.) are retrained with modifications on the Homology-Restricted "
+            r"under the Dual-View readout including singles (except WT-View only and MT-View only). Models marked (Ret.) are retrained with modifications on the Homology-Restricted "
             r"MegaScale split, while those without use the exact same weights as Dual-View (Reference). "
             r"MegaScale test columns report per-domain mean $\rho$ (Overall and Singles: 33 domains; Doubles: 13 domains) and epistasis metrics "
             r"(Beyond $\rho$: Spearman above global saturation curve; Cell mag.: double-centred complete-block residual correlation). "
@@ -755,16 +796,16 @@ def build_table_s1_ablations() -> list[Path]:
         caption_title='Summary of ESM-MSR Ablations and Variations: Out-of-Distribution Benchmarks',
         caption_body=(
             r"Spearman's $\rho$ (mean $\pm$ SD across 3 independent training seeds) on out-of-distribution benchmarks "
-            r"under the deployed readout (WT-View on single-mutant thermostability sets, Domainome, and ProteinGym; Dual-View on PTMUL). "
+            r"under the deployed readout (WT-View on single-mutant thermostability sets, Domainome, and ProteinGym; Dual-View on PTMUL; except Dual-View (incl. singles), WT-View only, and MT-View only). "
+            r"Dual-View (incl. singles) applies the dual-view readout to every mutation including single mutants (using the exact same weights as Dual-View Reference). "
             r"Models marked (Ret.) are retrained with modifications on the Homology-Restricted MegaScale split, "
             r"while those without use the exact same weights as Dual-View (Reference). "
             r"Thermostability columns match the 8 main-text benchmarks: Singles (7) averages pooled $\rho$ across Ssym, S461, K2369, S783, S2648, Q3421, and S8754; "
             r"PTMUL reports pooled $\rho$ on the multi-mutant thermostability set ($n=914$). "
             r"Held-out DMS columns strictly use the 4-part homology-held-out sets defined against Homology-Restricted MegaScale train: Domainome reports mean per-domain $\rho$ across 436 held-out domains ($n=451{,}569$) "
-            r"and ProteinGym reports equal-category-weighted macro-average $\rho$ across 173 held-out assays (WT-View; Dual-View for reference and p1 differs by $<0.001$). "
+            r"and ProteinGym reports equal-category-weighted macro-average $\rho$ across 173 held-out assays (WT-View except Dual-View [incl. singles] and MT-View only; deployed Dual-View for reference and p1 differs from WT-View by $<0.001$). "
             r"Highest performing Homology-Restricted models in each column are indicated in bold; Dual-View (Reference) is also bolded if its mean $\pm$ SD range overlaps the highest average performance. "
-            r"$^\dagger$Trained on the full MegaScale split (\texttt{mega\_splits}) and evaluated on the identical OOD sets; excluded from bolding in all columns. "
-            r"--- indicates not applicable or not evaluated."
+            r"$^\dagger$Trained on the full MegaScale split (\texttt{mega\_splits}) and evaluated on the identical OOD sets; excluded from bolding in all columns."
         ),
         label='tab:si_ablations_ood',
         col_spec='l' + 'c' * len(ood_cols),
@@ -828,9 +869,23 @@ def _apply_tobit_overrides(
 
         target_key = msr_name if m == 'ESM-MSR' else m
         if target_key not in panel:
+            if target_key == 'ESM-MSR Dual-View (incl. singles)':
+                ref_d = panel.get(msr_name, {})
+                panel[target_key] = {
+                    'val': v_val,
+                    'spearman': np.nan if primary_val_is_rmse else v_val,
+                    'pearson': v_r,
+                    'rmse': v_rm,
+                    'p': v_p,
+                    'p_prot': np.nan,
+                    'B': v_B,
+                    'overlap': ref_d.get('overlap', False),
+                    'internal': False,
+                    'hom_note': ref_d.get('hom_note', '---'),
+                }
             continue
         d = panel[target_key]
-        if target_key in (msr_name, 'ESM-MSR σ=0.5'):
+        if target_key in (msr_name, 'ESM-MSR σ=0.5', 'ESM-MSR Dual-View (incl. singles)'):
             if math.isfinite(v_val):
                 d['val'] = v_val
                 if not primary_val_is_rmse:
@@ -1506,7 +1561,10 @@ def build_table_s4_thermostability_longtable(extra_df: pd.DataFrame, tobit_df: p
     ]
     panels_raw, all_mr, msr_r = [], set(), None
     for bk, label_b, ds_k, is_m in bms_r:
-        prw, msr, _, _, B = _extract_model_panel(df_rmse, bk, 'rmse_raw', primary_val_is_rmse=True, dataset_key=ds_k, multi=is_m)
+        prw, msr, _, _, B = _extract_model_panel(
+            df_rmse, bk, 'rmse_raw', primary_val_is_rmse=True, dataset_key=ds_k, multi=is_m,
+            extra_df=extra_df, extra_section='thermo_rmse_s4c_extra',
+        )
         if bk == 'tsuboyama_capped_test':
             _apply_tobit_overrides(prw, msr, tobit_df, 'thermo_rmse_s4c', bk, 'rmse_raw', primary_val_is_rmse=True)
         msr_r = msr
@@ -1728,7 +1786,7 @@ def build_table_s5_heldout_ood(extra_df: pd.DataFrame, tobit_df: pd.DataFrame) -
     return p5a, p5b
 
 
-def build_table_s6_screening_and_ndcg(tobit_df: pd.DataFrame) -> tuple[Path, Path]:
+def build_table_s6_screening_and_ndcg(extra_df: pd.DataFrame, tobit_df: pd.DataFrame) -> tuple[Path, Path]:
     df_n = pd.read_csv(SUPP_PVAL / '_ndcg96_singles_doubles_pvalues.csv')
     specs_n = [
         ('ndcg96_shifted_overall', 'Shifted Overall'), ('ndcg96_shifted_singles', 'Shifted Singles'),
@@ -1737,7 +1795,10 @@ def build_table_s6_screening_and_ndcg(tobit_df: pd.DataFrame) -> tuple[Path, Pat
     ]
     panels_n, all_mn, msr_n = [], set(), None
     for met, title in specs_n:
-        pan, msr, _, _, B = _extract_model_panel(df_n, 'MegaScale_capped_test', met, dataset_key='tsu_capped_test')
+        pan, msr, _, _, B = _extract_model_panel(
+            df_n, 'MegaScale_capped_test', met, dataset_key='tsu_capped_test',
+            extra_df=extra_df, extra_section='ndcg96_s6a',
+        )
         msr_n = msr
         panels_n.append((title, pan, B))
         all_mn.update(pan.keys())
@@ -1779,7 +1840,10 @@ def build_table_s6_screening_and_ndcg(tobit_df: pd.DataFrame) -> tuple[Path, Pat
     ]
     panels_4a, all_m4a, msr_4a = [], set(), None
     for met, title in specs_4a:
-        pan, msr, _, _, B = _extract_model_panel(df_4a, 'MegaScale_capped_test_singles_k96', met, dataset_key='tsu_capped_test')
+        pan, msr, _, _, B = _extract_model_panel(
+            df_4a, 'MegaScale_capped_test_singles_k96', met, dataset_key='tsu_capped_test',
+            extra_df=extra_df, extra_section='property_gain_s6a',
+        )
         msr_4a = msr
         panels_4a.append((title, pan, B))
         all_m4a.update(pan.keys())
@@ -1840,7 +1904,10 @@ def build_table_s6_screening_and_ndcg(tobit_df: pd.DataFrame) -> tuple[Path, Pat
     for bm_key, ds_k, bm_title, met_list, has_rmse, metric_desc in bm_cfgs:
         panels_s, all_ms, msr_s = [], set(), None
         for met, label_m, hib in met_list:
-            pan, msr, _, _, B = _extract_model_panel(df_4b, bm_key, met, dataset_key=ds_k)
+            pan, msr, _, _, B = _extract_model_panel(
+                df_4b, bm_key, met, dataset_key=ds_k,
+                extra_df=extra_df, extra_section='screening_s6b_extra',
+            )
             msr_s = msr
             panels_s.append((label_m, pan, B, hib))
             all_ms.update(pan.keys())
@@ -2012,35 +2079,372 @@ def build_table_s0_dataset_summary() -> Path:
     return write_tex('table_S0_dataset_summary.tex', '\n'.join(lines))
 
 
+def build_table_s7_leakage_audit_summary() -> Path:
+    """Table S7 (tab:si_leakage_audit_summary & tab:si_leakage_code_definitions):
+    Full leakage audit summary matrix across all audited benchmarks and model training inventories,
+    plus complete structured definitions of every leak code and audited training inventory.
+    """
+    lam = pd.read_csv(WT_SI / 'analysis/reference/leak_audit_matrix.csv')
+    ros = pd.read_csv(WT_SI / 'docs/benchmarks/leak_audit_rosetta.csv')
+
+    inv_ds_code: dict[tuple[str, str], str] = {}
+    for _, r in lam.iterrows():
+        inv = str(r['inventory'])
+        ds = str(r['dataset'])
+        code = '' if pd.isna(r['code']) else str(r['code']).strip()
+        if code in ('–', '-', 'nan', ''):
+            code = '---'
+        inv_ds_code[(inv, ds)] = code
+
+    # Populate Rosetta calibration fractions for all 15 datasets from leak_audit_rosetta.csv
+    for _, r in ros.iterrows():
+        ds = 'PG avg' if str(r['dataset']) == 'proteingym' else str(r['dataset'])
+        f = float(r['frac_tuned'])
+        if f >= 0.01:
+            rc = f'V.{round(f * 100):02d}'
+        elif f >= 0.001:
+            rc = f'V.{round(f * 1000):03d}'
+        elif f > 0.0:
+            rc = 'V<.001'
+        else:
+            rc = '---'
+        inv_ds_code[('rosetta_beta_nov16', ds)] = rc
+
+    invs_main = [
+        ('esm_msr_capped', 'Capped Retrains'),
+        ('rosetta_beta_nov16', 'Rosetta'),
+        ('geoddg_s8754', 'GeoDDG-3D'),
+        ('esm3dg_mgnify', r'ESM3$\Delta$G'),
+    ]
+    invs_supp = [
+        ('esmtherm', 'ESMtherm'),
+        ('ifum', 'IFUM'),
+        ('ddgemb_s2450', 'DDGemb'),
+        ('ddmut', 'DDMut'),
+    ]
+
+    # Row specs: (display_label, audit_dataset_key, overrides_by_inv)
+    row_blocks = [
+        [
+            ('MegaScale -- Validation ($n$=35,473)', 'tsu_capped_val', {}),
+            ('MegaScale -- Test ($n$=52,071)', 'tsu_capped_test', {}),
+        ],
+        [
+            ('K2369 ($n$=2,369)', 'k2369', {}),
+            ('K3822 ($n$=3,822)', 'k3822', {}),
+            ('PTMUL ($n$=914)', 'ptmul', {}),
+            ('PTMUL-D ($n$=536)', 'ptmuld', {}),
+            ('Q3421 ($n$=3,421)', 'q3421', {}),
+            ('S461 ($n$=461)', 's461', {}),
+            ('S571 ($n$=571)', 's571', {}),
+            ('S669 ($n$=669)', 's669', {}),
+            ('S783 ($n$=783)', 's783', {}),
+            ('S2648 ($n$=2,648)', 's2648', {}),
+            ('S8754 ($n$=8,754)', 's8754', {}),
+            ('Ssym ($n$=684)', 'ssym', {}),
+        ],
+        [
+            ('Domainome (all 522; $n$=534,385)', 'domainome', {'rosetta_beta_nov16': 'n.a.', 'ddmut': 'n.a.'}),
+            (r'Domainome (held-out 436; $n$=451,569)$^\dagger$', '__dom_ho__', {
+                'esm_msr_capped': '---',
+                'rosetta_beta_nov16': 'n.a.',
+                'geoddg_s8754': 'n.a.',
+                'esm3dg_mgnify': 'n.a.',
+                'esmtherm': 'n.a.',
+                'ifum': 'n.a.',
+                'ddgemb_s2450': 'n.a.',
+                'ddmut': 'n.a.',
+            }),
+            ('ProteinGym (all 217; $n$=2,465,767)', 'PG avg', {
+                'geoddg_s8754': r'P (74 DMS)$^\ddagger$',
+                'ifum': 'n.a.',
+                'ddgemb_s2450': 'n.a.',
+                'ddmut': 'n.a.',
+            }),
+            (r'ProteinGym (held-out 173; $n$=2,351,488)$^\dagger$', '__pg_ho__', {
+                'esm_msr_capped': '---',
+                'rosetta_beta_nov16': r'V$\le$.002',
+                'geoddg_s8754': r'P (GeoFit.)$^\ddagger$',
+                'esm3dg_mgnify': 'n.a.',
+                'esmtherm': 'n.a.',
+                'ifum': 'n.a.',
+                'ddgemb_s2450': 'n.a.',
+                'ddmut': 'n.a.',
+            }),
+            ('MGnify (all 180,367; $n$=766,790)', '__mgnify_all__', {
+                'esm_msr_capped': 'H/h.13',
+                'rosetta_beta_nov16': 'n.a.',
+                'geoddg_s8754': 'n.a.',
+                'esm3dg_mgnify': r'\# (train src)',
+                'esmtherm': r'n.a.$^\S$',
+                'ifum': r'n.a.$^\S$',
+                'ddgemb_s2450': 'n.a.',
+                'ddmut': 'n.a.',
+            }),
+            (r'MGnify (held-out 140,694; $n$=612,406)$^\dagger$', '__mgnify_ho__', {
+                'esm_msr_capped': '---',
+                'rosetta_beta_nov16': 'n.a.',
+                'geoddg_s8754': 'n.a.',
+                'esm3dg_mgnify': r'\# (train src)',
+                'esmtherm': r'n.a.$^\S$',
+                'ifum': r'n.a.$^\S$',
+                'ddgemb_s2450': 'n.a.',
+                'ddmut': 'n.a.',
+            }),
+            (r'Rocklin \textit{de novo} (all 1,000; $n$=209,818)', '__rocklin_all__', {
+                'esm_msr_capped': 'H/h.25',
+                'rosetta_beta_nov16': 'n.a.',
+                'geoddg_s8754': 'n.a.',
+                'esm3dg_mgnify': r'\# (same src)',
+                'esmtherm': r'n.a.$^\S$',
+                'ifum': r'n.a.$^\S$',
+                'ddgemb_s2450': 'n.a.',
+                'ddmut': 'n.a.',
+            }),
+            (r'Rocklin \textit{de novo} (held-out 623; $n$=109,581)$^\dagger$', '__rocklin_ho__', {
+                'esm_msr_capped': '---',
+                'rosetta_beta_nov16': 'n.a.',
+                'geoddg_s8754': 'n.a.',
+                'esm3dg_mgnify': r'\# (same src)',
+                'esmtherm': r'n.a.$^\S$',
+                'ifum': r'n.a.$^\S$',
+                'ddgemb_s2450': 'n.a.',
+                'ddmut': 'n.a.',
+            }),
+        ],
+    ]
+
+    def _fmt_cell(raw: str) -> str:
+        if raw in ('---', 'n.a.') or raw.startswith(('P (', r'\#', r'n.a.$', r'V$\le$')):
+            return raw
+        return tex_escape(raw)
+
+    def _render_matrix_table(invs_sub: list[tuple[str, str]], cap: str, lbl: str) -> list[str]:
+        body: list[str] = []
+        for b_idx, blk in enumerate(row_blocks):
+            if b_idx > 0:
+                body.append(r'\midrule')
+            for label, ds_key, ovr in blk:
+                cells = [label]
+                for inv_key, _ in invs_sub:
+                    val = ovr[inv_key] if inv_key in ovr else inv_ds_code.get((inv_key, ds_key), 'n.a.')
+                    cells.append(_fmt_cell(val))
+                body.append(' & '.join(cells) + r' \\')
+        out_lines = [
+            r'\begin{table}[H]',
+            r'    \centering',
+            f'    \\caption{{{cap}}}',
+            f'    \\label{{{lbl}}}',
+            r'    \renewcommand{\arraystretch}{1.3}',
+            r'    \resizebox{\textwidth}{!}{%',
+            r'    \begin{tabular}{@{}l' + 'l' * len(invs_sub) + r'}\toprule',
+            '        Dataset & ' + ' & '.join(hdr for _, hdr in invs_sub) + r' \\\midrule',
+        ]
+        for r in body:
+            out_lines.append('        ' + r)
+        out_lines.extend([
+            r'    \bottomrule',
+            r'    \end{tabular}',
+            r'    }',
+            r'    \par\bigskip',
+            r'\end{table}',
+            '',
+        ])
+        return out_lines
+
+    cap_main = (
+        r'\textbf{Summary of Data-Leakage Audit: Main-Text Models}. '
+        r'Each cell lists every detected overlap class and its fraction of audited benchmark rows, most severe first '
+        r'(e.g.\ M.50 = 50\%, M1 = 100\%, M$<$.001 = $<0.1\%$ but $\ge 1$ row); see Table~\ref{tab:si_leakage_code_definitions} '
+        r'for definitions of every code and Table~\ref{tab:si_leakage_inventories} for training inventories and evidence tiers. '
+        r'Zero-shot models (ProSST, ProteinMPNN, ESM3-small-open [$\sigma=0$], and ESM3-small/medium/large) use unsupervised pretraining only and have no supervised overlap (--- across all rows; omitted). '
+        r'Capped Retrains covers ESM-MSR (all heads/$\sigma$), SPURS/SPURS-multi, MutateEverything Stage~1/2, and ThermoMPNN/ThermoMPNN-D, '
+        r'all trained on subsets of the same 172 Homology-Restricted MegaScale train domains (zero M/m/P/H overlap across all 12 external thermostability sets and MegaScale val/test). '
+        r'Rosetta values report global calibration overlap (\texttt{beta\_nov16\_cart} 20 reference energies and 1/2.94 scale factor tuned with Kellogg-2011 ProTherm and Rocklin-2017 design stability). '
+        r'$^\dagger$Canonical four-part sequence+structure holdout rows (Domainome 436 domains, ProteinGym 173 assays, MGnify 140,694 scored scaffolds, Rocklin \textit{de novo} 623 scored designs) '
+        r'remove every protein matching any of the 172 capped-train libraries at MMseqs2 $E \le 10^{-3}$, BLOSUM62 shorter-chain identity $>0.40$, Foldseek $E \le 10^{-3}$, or $\mathrm{TM}_{\max} > 0.70$, '
+        r'yielding zero overlap (---) for Capped Retrains (removing 27,687/180,367 MGnify scaffolds [100,365/766,790 rows; H/h.13] and 258/1,000 Rocklin designs [52,642/209,818 rows; H/h.25]). '
+        r'$^\ddagger$GeoDDG-3D was not scored on ProteinGym; its GeoFitness encoder was pretrained on 74 DMS fitness assays overlapping ProteinGym at the protein level (P).'
+    )
+
+    cap_supp = (
+        r'\textbf{Summary of Data-Leakage Audit: Supplementary-Only Models}. '
+        r'Same notation and benchmark rows as Table~\ref{tab:si_leakage_audit_main} for models included only in supplementary comparisons '
+        r'(ESMtherm, IFUM, DDGemb, and DDMut); see Table~\ref{tab:si_leakage_code_definitions} for leak-code definitions and '
+        r'Table~\ref{tab:si_leakage_inventories} for training inventories and evidence tiers. '
+        r'$^\dagger$Third-party models were audited on the full benchmark rows immediately above; n.a.\ denotes pairs not evaluated or not separately re-audited on the capped-train held-out subset. '
+        r'$^\S$ESMtherm and IFUM were trained on unfiltered MegaScale splits and were not separately row-audited against MGnify/Rocklin.'
+    )
+
+    lines_main = _render_matrix_table(invs_main, cap_main, 'tab:si_leakage_audit_main')
+    lines_supp = _render_matrix_table(invs_supp, cap_supp, 'tab:si_leakage_audit_supp')
+
+    # Table S7c: Leak Code Definitions (3 columns; Code/Meaning on 2 lines, Audit Criterion wraps freely, Precedence then Bolding on 2 lines)
+    code_rows = [
+        (r'\textbf{M}\newline Identical variant in training',
+         r'Same protein family and identical mutation set (construct-aligned and reverse structures); verified row-by-row.',
+         r'Rank~2\newline Excludes bold ($\ge 0.5\%$)'),
+        (r'\textbf{M?}\newline Mutation-level ceiling',
+         r'Test row matches a public Dataset2 variant of a training domain (IFUM), where per-row filters are undisclosed.',
+         r'Rank~2\newline Excludes bold ($\ge 0.5\%$)'),
+        (r'\textbf{m}\newline Constituent single mutation',
+         r'Every constituent single mutation of a multi-mutant row appears in training for the same protein, not the pair.',
+         r'Rank~3\newline Excludes bold ($\ge 0.5\%$)'),
+        (r'\textbf{P}\newline Same protein in training',
+         r'No mutation match, but $\ge 95\%$ identity over $\ge 90\%$ shorter-sequence coverage ($\text{len\_ratio}\ge 0.80$) or MMseqs2 $\ge 90\%$ identity over $\ge 50\%$ of test protein.',
+         r'Rank~4\newline Excludes bold ($\ge 0.5\%$)'),
+        (r'\textbf{H}\newline Strong homolog in training',
+         r'MMseqs2 $E \le 10^{-3}$ over $\ge 50\%$ of test protein; on Domainome and ProteinGym, also Foldseek $E \le 10^{-3}$ or $\mathrm{qTM} > 0.70$ over $\ge 50\%$.',
+         r'Rank~5\newline Excludes bold ($\ge 0.5\%$)'),
+        (r'\textbf{h}\newline Weak / twilight homolog',
+         r'MMseqs2 $E \le 10^{-2}$ or $\ge 30\%$ identity over $\ge 30\%$ of test protein; or Foldseek $E \le 10^{-2}$ over $\ge 30\%$.',
+         r'Rank~6\newline Retains bold'),
+        (r'\textbf{D}\newline Documented derivation',
+         r'Training set is documented in the original publication as derived from the benchmark (e.g.\ S2450/S9028 from S2648).',
+         r'Fallback flag\newline Excludes bold'),
+        (r'\textbf{V}\newline Validation / calibration set',
+         r'Rows used for checkpoint selection (capped val) or global parameter calibration (Rosetta \texttt{beta\_nov16}: Kellogg-2011 / Rocklin-2017).',
+         r'Rank~7\newline Retains bold'),
+        (r'\textbf{V?}\newline Val / test block ceiling',
+         r"Rows belonging to IFUM's merged 86-domain validation/test block (exact validation vs.\ test assignment unpublished).",
+         r'Rank~7\newline Retains bold'),
+        (r'\textbf{\#}\newline Test equals training set',
+         r"Benchmark is identical to or sourced from the model's training set (e.g.\ GeoDDG-3D on S8754; ESM3$\Delta$G on MGnify).",
+         r'Rank~1 (always wins)\newline Not a test result'),
+        (r'\textbf{---}\newline No supervised overlap',
+         r'Zero benchmark rows trigger any overlap class (M/m/P/H/h/V/D/\#) under the row-level and homology audit.',
+         r'Clean\newline Retains bold'),
+        (r'\textbf{n.a.}\newline Not audited / evaluated',
+         r'Model was not evaluated on this benchmark or no separate leakage audit was run on this subset.',
+         r'---'),
+    ]
+
+    cap_codes = (
+        r'\textbf{Leakage Audit Code Definitions and Bolding Rules}. '
+        r'Exact criteria, verification basis, and precedence for every leak code reported in '
+        r'Tables~\ref{tab:si_leakage_audit_main}--\ref{tab:si_leakage_audit_supp} and in the Homology / Overlap columns of Tables S2--S6. '
+        r'Fraction suffixes denote the proportion of audited benchmark rows in each class (e.g.\ .50 = 50\%, 1 = 100\%, $<$.001 = $<0.1\%$ with $\ge 1$ row). '
+        r'Models with M, M?, m, P, H, D, or \# at $\ge 0.5\%$ of rows are marked $^*$ and excluded from clean bolding in comparison tables, '
+        r'whereas distant homology (h) and validation/calibration flags (V, V?) remain eligible.'
+    )
+
+    lines_codes = [
+        r'\begin{table}[H]',
+        r'    \centering',
+        f'    \\caption{{{cap_codes}}}',
+        r'    \label{tab:si_leakage_code_definitions}',
+        r'    \renewcommand{\arraystretch}{1.3}',
+        r'    \resizebox{\textwidth}{!}{%',
+        r'    \begin{tabular}{@{}p{4.6cm}p{7.5cm}p{3.9cm}}\toprule',
+        r'        Code / Meaning & Audit Criterion & Precedence / Bolding \tabularnewline\midrule',
+    ]
+    for cm, crit, prec in code_rows:
+        lines_codes.append(f'        \\raggedright {cm} & \\raggedright {crit} & \\raggedright {prec} \\tabularnewline')
+    lines_codes.extend([
+        r'    \bottomrule',
+        r'    \end{tabular}',
+        r'    }',
+        r'    \par\bigskip',
+        r'\end{table}',
+        '',
+    ])
+
+    # Table S7d: Audited Model Training Inventories and Evidence Tiers (split into Main-Text & Supplementary-Only blocks)
+    inv_main_rows = [
+        ('Capped Retrains', 'ESM-MSR, SPURS, MutateEverything, ThermoMPNN (all heads/stages)',
+         r'172 Homology-Restricted MegaScale train domains (221,338 unique variants); validated on 23 capped-val domains.',
+         'Row-level verified'),
+        ('Rosetta', r'Rosetta \texttt{cartesian\_ddg} (\texttt{beta\_nov16\_cart})',
+         r'20 reference energies + 1/2.94 scale factor tuned with Kellogg-2011 (1,210 muts / 75 PDB) \& Rocklin-2017.',
+         'Calibration (V)'),
+        ('GeoDDG-3D', 'GeoDDG-3D (FASPR)',
+         r'Fine-tuned on S8754 (8,754 $\Delta\Delta G$ rows); encoder pretrained as GeoFitness on 74 DMS assays.',
+         r'Row-level (S8754);\newline protein-level (DMS)'),
+        (r'ESM3$\Delta$G', r'ESM3$\Delta$G (MGnify fine-tune)',
+         '960,216 MGnify Stability training sequences (60--80 aa; 0 identical sequences in external/MegaScale tests).',
+         'Row-level verified'),
+    ]
+    inv_supp_rows = [
+        ('ESMtherm', 'ESMtherm',
+         r'MegaScale \texttt{K50\_dG} Dataset1+2 (527,785 seqs; 414 domains split 80/10/10 per seq + 47 test domains).',
+         'Row-level verified'),
+        ('IFUM', r'IFUM (WT backbone \& ESMFold)',
+         r'MegaScale Dataset2 MMseqs2-30\% split: 322 train + 86 merged val/test domains (no public row list).',
+         r'Protein-level ceiling\newline (M?, V?)'),
+        ('DDGemb', 'DDGemb',
+         'S2450 = S2648 minus 198 S669-homologous mutations, doubled with reverse variants (4,900 rows).',
+         'Row-level verified'),
+        ('DDMut', 'DDMut (deployed)',
+         r'S9028 = S2648 + FireProtDB (9,028 single rows) $\cup$ SM1218 + SM444 (1,662 multi-mutant rows).',
+         'Row-level verified'),
+    ]
+
+    cap_inv = (
+        r'\textbf{Audited Model Training Inventories and Evidence Tiers}. '
+        r'Training data sources, dataset sizes, and verification tiers underlying Tables~\ref{tab:si_leakage_audit_main}--\ref{tab:si_leakage_audit_supp}, '
+        r'grouped into main-text models (top) and supplementary-only models (bottom). '
+        r'Zero-shot models (ProSST, ProteinMPNN, ESM3-small-open [$\sigma=0$], and ESM3-small/medium/large) use unsupervised pretraining corpora only and carry no supervised overlap.'
+    )
+
+    lines_inv = [
+        r'\begin{table}[H]',
+        r'    \centering',
+        f'    \\caption{{{cap_inv}}}',
+        r'    \label{tab:si_leakage_inventories}',
+        r'    \renewcommand{\arraystretch}{1.3}',
+        r'    \resizebox{\textwidth}{!}{%',
+        r'    \begin{tabular}{@{}p{2.7cm}p{3.9cm}p{6.2cm}p{3.4cm}}\toprule',
+        r'        Column & Models Covered & Training / Calibration Inventory & Evidence Tier \tabularnewline\midrule',
+    ]
+    for col, mods, inv_desc, ev in inv_main_rows:
+        lines_inv.append(f'        \\raggedright {col} & \\raggedright {mods} & \\raggedright {inv_desc} & \\raggedright {ev} \\tabularnewline')
+    lines_inv.append(r'        \midrule')
+    for col, mods, inv_desc, ev in inv_supp_rows:
+        lines_inv.append(f'        \\raggedright {col} & \\raggedright {mods} & \\raggedright {inv_desc} & \\raggedright {ev} \\tabularnewline')
+    lines_inv.extend([
+        r'    \bottomrule',
+        r'    \end{tabular}',
+        r'    }',
+        r'    \par\bigskip',
+        r'\end{table}',
+        '',
+    ])
+
+    return write_tex('table_S7_leakage_audit_summary.tex', '\n'.join(lines_main + lines_supp + lines_codes + lines_inv))
+
+
 def main() -> None:
     extra_df = _load_extra_df()
     tobit_df = _load_tobit_df()
     print(f'Loaded {len(extra_df)} extra-model rows from {EXTRA_CSV.name} and {len(tobit_df)} Tobit-linked override rows from {TOBIT_CSV.name}')
     generated: list[Path] = []
 
-    print('[0/6] Building Table S0 (Dataset Summary / tab:complexity_final)...')
+    print('[0/7] Building Table S0 (Dataset Summary / tab:complexity_final)...')
     generated.append(build_table_s0_dataset_summary())
 
-    print('[1/6] Building Tables S1a–S1b (Ablations: In-Distribution & OOD)...')
+    print('[1/7] Building Tables S1a–S1b (Ablations: In-Distribution & OOD)...')
     generated.extend(build_table_s1_ablations())
 
-    print('[2/6] Building Tables S2a–S2d (MegaScale All Models + Tobit Link + Homology Notes)...')
+    print('[2/7] Building Tables S2a–S2d (MegaScale All Models + Tobit Link + Homology Notes)...')
     generated.append(build_table_s2a_megascale_overall(extra_df, tobit_df))
     generated.append(build_table_s2b_megascale_doubles(extra_df, tobit_df))
     generated.append(build_table_s2c_megasplits(extra_df, tobit_df))
     generated.append(build_table_s2d_backbone_origin(extra_df, tobit_df))
 
-    print('[3/6] Building Tables S3a–S3b (Epistasis Hierarchy & Calibration All Models + Tobit Link + Homology Notes)...')
+    print('[3/7] Building Tables S3a–S3b (Epistasis Hierarchy & Calibration All Models + Tobit Link + Homology Notes)...')
     generated.extend(build_table_s3_epistasis(extra_df, tobit_df))
 
-    print('[4/6] Building Table S4 (Vertical Multi-Page Thermostability Longtable: All 12 Sets x All 19 Models) & S4c...')
+    print('[4/7] Building Table S4 (Vertical Multi-Page Thermostability Longtable: All 12 Sets x All 19 Models) & S4c...')
     generated.extend(build_table_s4_thermostability_longtable(extra_df, tobit_df))
 
-    print('[5/6] Building Tables S5a–S5b (Held-Out OOD All Models Longtable & ProteinGym Sigma)...')
+    print('[5/7] Building Tables S5a–S5b (Held-Out OOD All Models Longtable & ProteinGym Sigma)...')
     generated.extend(build_table_s5_heldout_ood(extra_df, tobit_df))
 
-    print('[6/6] Building Tables S6a–S6b (NDCG@96, Property Gain & Practical Screening + Tobit Link + Homology Notes)...')
-    generated.extend(build_table_s6_screening_and_ndcg(tobit_df))
+    print('[6/7] Building Tables S6a–S6b (NDCG@96, Property Gain & Practical Screening + Tobit Link + Homology Notes)...')
+    generated.extend(build_table_s6_screening_and_ndcg(extra_df, tobit_df))
+
+    print('[7/7] Building Table S7 (Full Leakage Audit Summary Matrix + Code & Inventory Key)...')
+    generated.append(build_table_s7_leakage_audit_summary())
 
     # Remove superseded horizontal thermostability files if present
     for old_f in ('table_S4a_thermostability_part1.tex', 'table_S4b_thermostability_part2.tex', 'table_S1_ablations_summary.tex'):

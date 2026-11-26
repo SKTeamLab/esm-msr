@@ -7,7 +7,7 @@ and unlinked latent RMSEs across ALL cDNA-proteolysis benchmarks where dG_wt is 
   - MegaScale full split (mega_splits): S2c (Overall/Stab/Destab & Doubles Epi/Add).
   - Held-out MGnify & Rocklin (S5a): unlinked latent RMSEs (primary ESM-MSR is already Tobit-linked).
 
-Saves to analysis/results/si_latex_tables/_tobit_linked_si_overrides.csv.
+Saves to analysis/results/00_supplementary_figs/tables/_tobit_linked_si_overrides.csv.
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from scipy.stats import pearsonr, spearmanr
 ROOT = Path('/home/sareeves/playground/esm-msr-devel')
 WT_DDDG = ROOT / 'wt-dddg-scatters'
 WT_SI = Path(__file__).resolve().parents[2]
-OUT_CSV = WT_SI / 'analysis/results/si_latex_tables/_tobit_linked_si_overrides.csv'
+OUT_CSV = WT_SI / 'analysis/results/00_supplementary_figs/tables/_tobit_linked_si_overrides.csv'
 
 for _p in (str(WT_DDDG / 'src'), str(WT_DDDG / 'analysis')):
     if _p not in sys.path:
@@ -197,9 +197,11 @@ def compute_s2_megascale() -> list[dict]:
 
     msr_dep_un = deployed_arr(fr, 'msrp0:wt', 'msrp0:comb')
     msr_dep_lk = apply_link(msr_dep_un, dg)
+    msr_cb_all_lk = apply_link(fr.preds['msrp0:comb'], dg)
     msr05_dep_lk = apply_link(deployed_arr(fr, 'msrp0@0.5:wt', 'msrp0@0.5:comb'), dg)
 
     comps_dep = [
+        ('ESM-MSR Dual-View (incl. singles)', msr_cb_all_lk),
         ('ESM-MSR σ=0.5', msr05_dep_lk),
         ('SPURS', deployed_arr(fr, 'spurs', 'spursm')),
         ('MutateEverything', deployed_arr(fr, 'me1', 'me2')),
@@ -299,7 +301,9 @@ def compute_s2_megascale() -> list[dict]:
 
     m_dep_un = deployed_arr(fr_m, 'msrp0:wt', 'msrp0:comb')
     m_dep_lk = apply_link(m_dep_un, dg_m)
+    m_cb_all_lk = apply_link(fr_m.preds['msrp0:comb'], dg_m)
     comps_m_dep = [
+        ('ESM-MSR Dual-View (incl. singles)', m_cb_all_lk),
         ('SPURS', deployed_arr(fr_m, 'spurs', 'spursm')),
         ('SPURS published', deployed_arr(fr_m, 'spurspub', 'spurspubm')),
         ('MutateEverything', deployed_arr(fr_m, 'me1', 'me2')),
@@ -594,8 +598,10 @@ def compute_s4c_megascale_rmse() -> list[dict]:
 
     msr_un = deployed_arr(fr, 'msrp0:wt', 'msrp0:comb')[:, ok]
     msr_lk = apply_link(msr_un, dg)
+    msr_cb_lk = apply_link(np.atleast_2d(fr.preds['msrp0:comb'])[:, ok], dg)
 
     comps = [
+        ('ESM-MSR Dual-View (incl. singles)', msr_cb_lk),
         ('SPURS', deployed_arr(fr, 'spurs', 'spursm')[:, ok]),
         ('MutateEverything', deployed_arr(fr, 'me1', 'me2')[:, ok]),
         ('ThermoMPNN', deployed_arr(fr, 'tmpnn', 'tmpnnd')[:, ok]),
@@ -667,9 +673,14 @@ def compute_s6b_megascale_singles() -> list[dict]:
     r_lk = float(np.mean([safe_pearson(wt_lk[s], y) for s in range(wt_lk.shape[0])]))
     rm_lk = float(np.mean([safe_rmse(wt_lk[s], y) for s in range(wt_lk.shape[0])]))
     rm_un = float(np.mean([safe_rmse(wt_un[s], y) for s in range(wt_un.shape[0])]))
+    cb_un = np.atleast_2d(fr.preds['msrp0:comb'])[:, m]
+    cb_lk = apply_link(cb_un, dg)
+    r_cb_lk = float(np.mean([safe_pearson(cb_lk[s], y) for s in range(cb_lk.shape[0])]))
+    rm_cb_lk = float(np.mean([safe_rmse(cb_lk[s], y) for s in range(cb_lk.shape[0])]))
     return [
         _row('screening_s6b', 'Figure4b_MegaScale_singles_nocys', 'pool', 'ESM-MSR', r=r_lk, rmse=rm_lk),
         _row('screening_s6b', 'Figure4b_MegaScale_singles_nocys', 'pool', 'ESM-MSR (unlinked)', rmse=rm_un, is_unlinked=True),
+        _row('screening_s6b', 'Figure4b_MegaScale_singles_nocys', 'pool', 'ESM-MSR Dual-View (incl. singles)', r=r_cb_lk, rmse=rm_cb_lk),
     ]
 
 

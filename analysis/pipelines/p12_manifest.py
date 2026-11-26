@@ -128,7 +128,6 @@ FOLDER_OWNER = {
     '09_ablation': 'p11_ablations_and_heads',
     '10_inference_resources': 'scoring/resources',
     '99_misc': 'p01 / p03 / p05 / p06 / p07 / p08 / p11 / studies/*',
-    'si_latex_tables': 'scripts/build_si_latex_tables',
 }
 
 
