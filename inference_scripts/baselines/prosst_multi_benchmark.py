@@ -90,7 +90,7 @@ def _load_prosst(prosst_dir: str, model_name: str, vocab_size: int, device: str)
             yield func(x)
     gss.iter_parallel_map = seq_map
 
-    predictor = SSTPredictor(structure_vocab_size=vocab_size, num_processes=1, num_threads=4, device=device)
+    predictor = SSTPredictor(structure_vocab_size=vocab_size, max_batch_nodes=2500, num_processes=1, num_threads=4, device=device)
     model = AutoModelForMaskedLM.from_pretrained(model_name, trust_remote_code=True).to(device).eval()
     tok = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
     return predictor, model, tok
@@ -231,8 +231,12 @@ def run_mgnify(out_dir: Path, predictor, model, tok, args, dev: str) -> None:
             part = part.reset_index(drop=True)
             scaf = part.drop_duplicates('code')[['code', 'pdb_file', 'overwrite']]
             sst = {}
-            for r in predictor.predict_from_pdb(list(scaf['pdb_file'])):
-                sst[os.path.splitext(r['name'])[0]] = (r['aa_seq'], list(r[f'{args.vocab}_sst_seq']))
+            pdb_files = list(scaf['pdb_file'])
+            torch.cuda.empty_cache()
+            for p_start in range(0, len(pdb_files), 64):
+                for r in predictor.predict_from_pdb(pdb_files[p_start:p_start + 64]):
+                    sst[os.path.splitext(r['name'])[0]] = (r['aa_seq'], list(r[f'{args.vocab}_sst_seq']))
+                torch.cuda.empty_cache()
             wt_arr = np.full(len(part), np.nan, dtype=np.float64)
             mt_arr = np.full(len(part), np.nan, dtype=np.float64)
             cb_arr = np.full(len(part), np.nan, dtype=np.float64)
