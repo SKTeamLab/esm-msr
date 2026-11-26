@@ -592,11 +592,41 @@ def _compute_extra_ablation_row_stats(row_key: str) -> dict[str, tuple[float, fl
     }
 
 
+def _compute_pgym_mt_p0() -> tuple[float, float]:
+    f3c = pd.read_csv(MAIN_SRC / 'figure3_panel_c_proteingym_sigma_sourcedata.csv')
+    pg_held = f3c[(~f3c['leaked']) & (~f3c['dropped_large'])][['assay', 'category']].copy()
+    vals: list[float] = []
+    for s in (1, 2, 3):
+        pg_dir = ROOT / 'final_pgym_comb/FINAL_p0' / f's{s}'
+        if not pg_dir.exists():
+            continue
+        cat_vals: dict[str, list[float]] = {}
+        for _, row in pg_held.iterrows():
+            assay, cat = row['assay'], row['category']
+            f_a = pg_dir / f'{assay}.csv'
+            if not f_a.exists():
+                matches = list(pg_dir.glob(f'{assay}*.csv'))
+                f_a = matches[0] if matches else None
+            if f_a is not None and f_a.exists():
+                da = pd.read_csv(f_a, usecols=['DMS_score', 'mt_lora_pred'])
+                ok = np.isfinite(da['DMS_score']) & np.isfinite(da['mt_lora_pred'])
+                if ok.sum() >= 3:
+                    cat_vals.setdefault(cat, []).append(
+                        float(spearmanr(da.loc[ok, 'mt_lora_pred'], da.loc[ok, 'DMS_score']).statistic)
+                    )
+        if len(cat_vals) == 5:
+            vals.append(float(np.mean([np.mean(v) for v in cat_vals.values()])))
+    if not vals:
+        return (np.nan, np.nan)
+    return (float(np.mean(vals)), float(np.std(vals, ddof=1)) if len(vals) > 1 else np.nan)
+
+
 def build_table_s1_ablations() -> list[Path]:
     cl = pd.read_csv(ABL_DIR / 'cells_long.csv')
     cl_mega = pd.read_csv(ABL_DIR / 'cells_long_mega_own_split.csv')
     mg_map = _load_mgnify_rocklin_ablations()
     extra_s05 = _compute_extra_ablation_row_stats('FINAL_p0_s05')
+    pgym_mt_p0 = _compute_pgym_mt_p0()
     mega_beyond, mega_cellmag = _compute_epi_beyond_cellmag('mega_splits-test', 'FINAL_p0_mega', 'sigma1.0_unmasked', (1, 2, 3))
 
     def get_cl(fam: str, col: str, head: str = 'primary', df_src: pd.DataFrame = cl) -> tuple[float, float]:
@@ -670,7 +700,7 @@ def build_table_s1_ablations() -> list[Path]:
             rec['ext_singles'] = get_cl_ext7('FINAL_p0', 'mt')
             rec['ext_multi'] = get_cl('FINAL_p0', 'ptmul', 'mt')
             rec['domainome'] = get_cl('FINAL_p0', 'domainome|lowid', 'mt')
-            rec['pgym'] = (np.nan, np.nan)
+            rec['pgym'] = pgym_mt_p0
         elif mode == 'extra_s05':
             for ck in ['tsu_overall', 'tsu_singles', 'tsu_doubles', 'tsu_beyond', 'tsu_cellmag', 'ext_singles', 'ext_multi', 'domainome', 'pgym']:
                 rec[ck] = extra_s05.get(ck, (np.nan, np.nan))
@@ -755,16 +785,15 @@ def build_table_s1_ablations() -> list[Path]:
         caption_title='Summary of ESM-MSR Ablations and Variations: Out-of-Distribution Benchmarks',
         caption_body=(
             r"Spearman's $\rho$ (mean $\pm$ SD across 3 independent training seeds) on out-of-distribution benchmarks "
-            r"under the deployed readout (WT-View on single-mutant thermostability sets, Domainome, and ProteinGym; Dual-View on PTMUL). "
+            r"under the deployed readout (WT-View on single-mutant thermostability sets, Domainome, and ProteinGym; Dual-View on PTMUL; except WT-View only and MT-View only). "
             r"Models marked (Ret.) are retrained with modifications on the Homology-Restricted MegaScale split, "
             r"while those without use the exact same weights as Dual-View (Reference). "
             r"Thermostability columns match the 8 main-text benchmarks: Singles (7) averages pooled $\rho$ across Ssym, S461, K2369, S783, S2648, Q3421, and S8754; "
             r"PTMUL reports pooled $\rho$ on the multi-mutant thermostability set ($n=914$). "
             r"Held-out DMS columns strictly use the 4-part homology-held-out sets defined against Homology-Restricted MegaScale train: Domainome reports mean per-domain $\rho$ across 436 held-out domains ($n=451{,}569$) "
-            r"and ProteinGym reports equal-category-weighted macro-average $\rho$ across 173 held-out assays (WT-View; Dual-View for reference and p1 differs by $<0.001$). "
+            r"and ProteinGym reports equal-category-weighted macro-average $\rho$ across 173 held-out assays (WT-View except MT-View only; Dual-View for reference and p1 differs by $<0.001$). "
             r"Highest performing Homology-Restricted models in each column are indicated in bold; Dual-View (Reference) is also bolded if its mean $\pm$ SD range overlaps the highest average performance. "
-            r"$^\dagger$Trained on the full MegaScale split (\texttt{mega\_splits}) and evaluated on the identical OOD sets; excluded from bolding in all columns. "
-            r"--- indicates not applicable or not evaluated."
+            r"$^\dagger$Trained on the full MegaScale split (\texttt{mega\_splits}) and evaluated on the identical OOD sets; excluded from bolding in all columns."
         ),
         label='tab:si_ablations_ood',
         col_spec='l' + 'c' * len(ood_cols),
