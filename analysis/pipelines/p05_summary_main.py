@@ -233,9 +233,9 @@ def _draw_pg_left(ax, pg: dict, ylim=(0.04, 1.0)) -> None:
     style_ov = {k: {'label': v} for k, v in pg['label_overrides'].items()}
     style.dot_panel(
         ax, groups, MODEL_ORDER, pg['table'], pg['cis'],
-        highlight=['ESM-MSR', 'ESM-MSR σ=0.5'], hollow=pg['hollow'],
+        highlight=['ESM-MSR', 'ESM-MSR σ=0.5'], highlight_scale=1.05, hollow=pg['hollow'],
         ylabel=r'Spearman $\rho$' if pg['pooled'] else r'Spearman $\rho$ (mean over assays / domains / WTs)',
-        xlabels=pg['labels'], rot=0, size=6.2, spread=0.84, ylim=ylim, style_overrides=style_ov,
+        xlabels=pg['labels'], rot=0, size=5.4, spread=0.84, ylim=ylim, style_overrides=style_ov,
     )
     if len(groups) > len(pg['cols']):
         ax.axvline(len(pg['cols']) - 0.5, color='#999999', lw=0.95, ls='--', zorder=2)
@@ -304,10 +304,10 @@ def _draw_thermo(ax, th: dict, ylim=None) -> list:
     label_ov = {'Rosetta': 'Rosetta (singles)'}
     style.dot_panel(
         ax, sets, models, table, cis,
-        highlight=['ESM-MSR'], hollow=hollow,
+        highlight=['ESM-MSR'], highlight_scale=1.05, hollow=hollow,
         ylabel=r'Spearman $\rho$ (pooled)',
         xlabels=[LABEL.get(d, d) for d in sets],
-        rot=0, ylim=ylim or (th['ymin'], 0.98), spread=spread, size=6.0,
+        rot=0, ylim=ylim or (th['ymin'], 0.98), spread=spread, size=5.2,
     )
     offs = np.linspace(-spread / 2, spread / 2, len(models))
     ov_labels = _overlap_short_labels()
@@ -431,9 +431,9 @@ def _draw_pareto_panel(ax) -> dict:
     ax.plot(xs, ys, color='#555555', lw=1.7, ls=':', alpha=0.90, zorder=6)
 
     msr_map = [
-        ('ESM-MSR (σ=0.0)', 'ESM3-small-open', 72),
-        ('ESM-MSR (σ=0.5)', 'ESM-MSR σ=0.5', 74),
-        ('ESM-MSR (σ=1.0)', 'ESM-MSR', 82),
+        ('ESM-MSR (σ=0.0)', 'ESM3-small-open', 54),
+        ('ESM-MSR (σ=0.5)', 'ESM-MSR σ=0.5', 56),
+        ('ESM-MSR (σ=1.0)', 'ESM-MSR', 60),
     ]
     for tab_key, roster_name, s_sz in msr_map:
         xv, yv = float(tab.loc[tab_key, xcol]), float(tab.loc[tab_key, ycol])
@@ -456,12 +456,12 @@ def _draw_pareto_panel(ax) -> dict:
     label_specs = {
         # ESM-MSR greyscale trajectory
         'ESM-MSR (σ=1.0)': ('ESM-MSR σ = 1.0', (12, -16), 'bold', '#000000', True),
-        'ESM-MSR (σ=0.5)': ('ESM-MSR σ = 0.5', (14, 14), 'bold', '#333333', True),
-        'ESM-MSR (σ=0.0)': ('ESM3-small-open\n(σ = 0)', (12, -26), 'bold', '#555555', True),
+        'ESM-MSR (σ=0.5)': ('ESM-MSR σ = 0.5', (12, 10), 'bold', '#333333', True),
+        'ESM-MSR (σ=0.0)': ('ESM3-small-open\n(σ = 0)', (5, -7), 'bold', '#555555', False),
         # Top public methods by modality
-        'VenusREM': ('VenusREM (MSA)', (10, 8), 'bold', '#8a4b00', True),
+        'VenusREM': ('VenusREM (MSA)', (10, 11), 'bold', '#8a4b00', True),
         'S3F_MSA': ('S3F_MSA', (-10, 8), 'normal', '#8a4b00', False),
-        'ProSST-2048': ('ProSST-2048 (top no-MSA)', (11, 0), 'normal', '#1b4f72', True),
+        'ProSST-2048': ('ProSST-2048 (top no-MSA)', (14, 5), 'normal', '#1b4f72', True),
         'VespaG': ('VespaG\n(top seq-only)', (-22, 18), 'bold', '#444444', True),
         # All 7 stability baselines (explicitly labeled, omitted from legend)
         'SPURS': ('SPURS', (20, 11), 'semibold', M.BY_NAME['SPURS'].color, True),
