@@ -83,6 +83,7 @@ def test_canonical_results_routing_and_fig_prefix_stripping():
         '09_ablation',
         '10_inference_resources',
         '99_misc',
+        'si_latex_tables',
     )
     assert paths.CANONICAL_RESULT_TOPS == expected_tops
     assert list(paths.CANONICAL_RESULT_TOPS) == sorted(paths.CANONICAL_RESULT_TOPS)
