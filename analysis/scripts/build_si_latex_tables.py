@@ -1097,8 +1097,7 @@ def build_table_s2c_megasplits(extra_df: pd.DataFrame, tobit_df: pd.DataFrame) -
     bests_a = [(_best_clean_set(p, 'val', True), _best_clean_set(p, 'pearson', True), _best_clean_set(p, 'rmse', False)) for _, p, _ in panels_a]
     rows_a = []
     for m in models_a:
-        note, ov = ('---', False) if m == 'ESM-MSR (unlinked)' else HOM.note_and_overlap(m, 'tsuboyama_mega_test')
-        cells = [clean_model_display(m, overlap=ov)]
+        cells = [clean_model_display(m, overlap=False)]
         for (_, pan, B), (b_rho, b_r, b_rm) in zip(panels_a, bests_a):
             d = pan.get(m)
             cells += ['---'] * 4 if not d else [
@@ -1107,7 +1106,6 @@ def build_table_s2c_megasplits(extra_df: pd.DataFrame, tobit_df: pd.DataFrame) -
                 fmt_num(d['rmse'], 3, bold=(m in b_rm)),
                 '---' if m in (msr_a, 'ESM-MSR (unlinked)') else fmt_p(d['p'], B),
             ]
-        cells.append(note)
         rows_a.append(' & '.join(cells) + r' \\')
 
     tex_a = render_table(
@@ -1117,14 +1115,14 @@ def build_table_s2c_megasplits(extra_df: pd.DataFrame, tobit_df: pd.DataFrame) -
             r"16/28 test domains have sequence/structural homology to train/val). "
             r"ESM-MSR uses the Tobit observation link; ESM-MSR (unlinked) reports raw latent RMSE only. "
             r"One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). "
-            r"Published SPURS and ThermoMPNN checkpoints (both trained on the identical \texttt{mega\_splits} split, verified by MD5) appear consecutively after their retrained counterparts."
+            r"All supervised models are trained on \texttt{mega\_splits}; published SPURS and ThermoMPNN checkpoints (verified identical split by MD5) appear consecutively after their retrained counterparts."
         ),
         label='tab:si_megasplits_overall',
-        col_spec='l' + 'c' * 12 + 'l',
+        col_spec='l' + 'c' * 12,
         header_lines=[
-            '{} & ' + ' & '.join(f'\\multicolumn{{4}}{{c}}{{{t}}}' for t, _, _ in panels_a) + r' & {} \\',
+            '{} & ' + ' & '.join(f'\\multicolumn{{4}}{{c}}{{{t}}}' for t, _, _ in panels_a) + r' \\',
             r'\cmidrule(lr){2-5} \cmidrule(lr){6-9} \cmidrule(lr){10-13}',
-            'ID & ' + ' & '.join([r'$\rho$ & $r$ & RMSE & $p$'] * 3) + r' & Homology / Overlap \\',
+            'ID & ' + ' & '.join([r'$\rho$ & $r$ & RMSE & $p$'] * 3) + r' \\',
         ],
         body_rows=rows_a,
     )
@@ -1146,8 +1144,7 @@ def build_table_s2c_megasplits(extra_df: pd.DataFrame, tobit_df: pd.DataFrame) -
     bests_b = [(_best_clean_set(p, 'val', True), _best_clean_set(p, 'pearson', True), _best_clean_set(p, 'rmse', False)) for _, p, _ in panels_b]
     rows_b = []
     for m in models_b:
-        note, ov = ('---', False) if m == 'ESM-MSR (unlinked)' else HOM.note_and_overlap(m, 'tsuboyama_mega_test', multi=True)
-        cells = [clean_model_display(m, overlap=ov)]
+        cells = [clean_model_display(m, overlap=False)]
         for (_, pan, B), (b_rho, b_r, b_rm) in zip(panels_b, bests_b):
             d = pan.get(m)
             cells += ['---'] * 4 if not d else [
@@ -1156,7 +1153,6 @@ def build_table_s2c_megasplits(extra_df: pd.DataFrame, tobit_df: pd.DataFrame) -
                 fmt_num(d['rmse'], 3, bold=(m in b_rm)),
                 '---' if m in (msr_b, 'ESM-MSR (unlinked)') else fmt_p(d['p'], B),
             ]
-        cells.append(note)
         rows_b.append(' & '.join(cells) + r' \\')
 
     tex_b = render_table(
@@ -1167,11 +1163,11 @@ def build_table_s2c_megasplits(extra_df: pd.DataFrame, tobit_df: pd.DataFrame) -
             r"One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected)."
         ),
         label='tab:si_megasplits_doubles',
-        col_spec='l' + 'c' * 8 + 'l',
+        col_spec='l' + 'c' * 8,
         header_lines=[
-            '{} & ' + ' & '.join(f'\\multicolumn{{4}}{{c}}{{{t}}}' for t, _, _ in panels_b) + r' & {} \\',
+            '{} & ' + ' & '.join(f'\\multicolumn{{4}}{{c}}{{{t}}}' for t, _, _ in panels_b) + r' \\',
             r'\cmidrule(lr){2-5} \cmidrule(lr){6-9}',
-            'ID & ' + ' & '.join([r'$\rho$ & $r$ & RMSE & $p$'] * 2) + r' & Homology / Overlap \\',
+            'ID & ' + ' & '.join([r'$\rho$ & $r$ & RMSE & $p$'] * 2) + r' \\',
         ],
         body_rows=rows_b,
     )

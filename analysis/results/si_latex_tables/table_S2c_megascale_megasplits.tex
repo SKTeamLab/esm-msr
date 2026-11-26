@@ -1,25 +1,25 @@
 \begin{table}[H]
 \centering
-\caption{\textbf{All-Model Comparison on Full MegaScale Split Test Set: Overall, Stabilizing, and Destabilizing Variants}. Mean per-domain Spearman's $\rho$, Pearson's $r$, and raw RMSE (kcal/mol) across the 28 test domains of the full MegaScale split (\texttt{mega\_splits}; 16/28 test domains have sequence/structural homology to train/val). ESM-MSR uses the Tobit observation link; ESM-MSR (unlinked) reports raw latent RMSE only. One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). Published SPURS and ThermoMPNN checkpoints (both trained on the identical \texttt{mega\_splits} split, verified by MD5) appear consecutively after their retrained counterparts.}
+\caption{\textbf{All-Model Comparison on Full MegaScale Split Test Set: Overall, Stabilizing, and Destabilizing Variants}. Mean per-domain Spearman's $\rho$, Pearson's $r$, and raw RMSE (kcal/mol) across the 28 test domains of the full MegaScale split (\texttt{mega\_splits}; 16/28 test domains have sequence/structural homology to train/val). ESM-MSR uses the Tobit observation link; ESM-MSR (unlinked) reports raw latent RMSE only. One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). All supervised models are trained on \texttt{mega\_splits}; published SPURS and ThermoMPNN checkpoints (verified identical split by MD5) appear consecutively after their retrained counterparts.}
 \label{tab:si_megasplits_overall}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{lccccccccccccl}
+\begin{tabular}{lcccccccccccc}
 \toprule
-{} & \multicolumn{4}{c}{Overall ($n$=49,048)} & \multicolumn{4}{c}{Stabilizing ($n$=8,791)} & \multicolumn{4}{c}{Destabilizing ($n$=40,257)} & {} \\
+{} & \multicolumn{4}{c}{Overall ($n$=49,048)} & \multicolumn{4}{c}{Stabilizing ($n$=8,791)} & \multicolumn{4}{c}{Destabilizing ($n$=40,257)} \\
 \cmidrule(lr){2-5} \cmidrule(lr){6-9} \cmidrule(lr){10-13}
-ID & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ & Homology / Overlap \\
+ID & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ \\
 \midrule
-ESM-MSR & \textbf{0.820} & \textbf{0.834} & \textbf{0.698} & --- & 0.289 & 0.276 & 0.596 & --- & \textbf{0.803} & \textbf{0.805} & \textbf{0.700} & --- & Trained on \texttt{mega\_splits} \\
-ESM-MSR (unlinked) & --- & --- & 0.928 & --- & --- & --- & 0.625 & --- & --- & --- & 0.982 & --- & --- \\
-SPURS & 0.801 & 0.823 & 0.754 & 0.031 & \textbf{0.299} & \textbf{0.288} & 0.607 & 0.692 & 0.777 & 0.790 & 0.772 & 0.011 & Trained on \texttt{mega\_splits} \\
-SPURS (published) & 0.794 & 0.805 & 1.016 & 0.086 & 0.280 & 0.268 & 0.652 & 0.227 & 0.769 & 0.772 & 1.076 & 0.047 & Same \texttt{mega\_splits} (pub.) \\
-Mutate Everything & 0.775 & 0.805 & 0.779 & 0.0004 & 0.221 & 0.212 & \textbf{0.576} & 0.001 & 0.757 & 0.776 & 0.808 & $<10^{-4}$ & Trained on \texttt{mega\_splits} \\
-ThermoMPNN & 0.779 & 0.795 & 0.760 & 0.0007 & 0.239 & 0.199 & 0.625 & 0.003 & 0.752 & 0.758 & 0.768 & 0.0003 & Trained on \texttt{mega\_splits} \\
-ThermoMPNN (published) & 0.777 & 0.794 & 0.813 & 0.0005 & 0.235 & 0.197 & 0.645 & 0.001 & 0.751 & 0.759 & 0.830 & 0.0002 & Same \texttt{mega\_splits} (pub.\ ens.) \\
-Rosetta & 0.675 & 0.645 & 2.182 & $<10^{-4}$ & 0.097 & 0.062 & 1.228 & $<10^{-4}$ & 0.657 & 0.612 & 2.384 & $<10^{-4}$ & V (Rocklin cal.) \\
-ESM3-small-open & 0.594 & 0.605 & 1.441 & $<10^{-4}$ & 0.000 & $-$0.028 & 1.532 & $<10^{-4}$ & 0.586 & 0.585 & 1.416 & $<10^{-4}$ & --- \\
-ProteinMPNN & 0.596 & 0.583 & 3.562 & $<10^{-4}$ & 0.078 & 0.064 & 2.784 & $<10^{-4}$ & 0.567 & 0.545 & 3.692 & $<10^{-4}$ & --- \\
-ProSST & 0.642 & 0.674 & 7.835 & $<10^{-4}$ & 0.041 & 0.031 & 5.070 & $<10^{-4}$ & 0.645 & 0.658 & 8.375 & $<10^{-4}$ & --- \\
+ESM-MSR & \textbf{0.820} & \textbf{0.834} & \textbf{0.698} & --- & 0.289 & 0.276 & 0.596 & --- & \textbf{0.803} & \textbf{0.805} & \textbf{0.700} & --- \\
+ESM-MSR (unlinked) & --- & --- & 0.928 & --- & --- & --- & 0.625 & --- & --- & --- & 0.982 & --- \\
+SPURS & 0.801 & 0.823 & 0.754 & 0.031 & \textbf{0.299} & \textbf{0.288} & 0.607 & 0.692 & 0.777 & 0.790 & 0.772 & 0.011 \\
+SPURS (published) & 0.794 & 0.805 & 1.016 & 0.086 & 0.280 & 0.268 & 0.652 & 0.227 & 0.769 & 0.772 & 1.076 & 0.047 \\
+Mutate Everything & 0.775 & 0.805 & 0.779 & 0.0004 & 0.221 & 0.212 & \textbf{0.576} & 0.001 & 0.757 & 0.776 & 0.808 & $<10^{-4}$ \\
+ThermoMPNN & 0.779 & 0.795 & 0.760 & 0.0007 & 0.239 & 0.199 & 0.625 & 0.003 & 0.752 & 0.758 & 0.768 & 0.0003 \\
+ThermoMPNN (published) & 0.777 & 0.794 & 0.813 & 0.0005 & 0.235 & 0.197 & 0.645 & 0.001 & 0.751 & 0.759 & 0.830 & 0.0002 \\
+Rosetta & 0.675 & 0.645 & 2.182 & $<10^{-4}$ & 0.097 & 0.062 & 1.228 & $<10^{-4}$ & 0.657 & 0.612 & 2.384 & $<10^{-4}$ \\
+ESM3-small-open & 0.594 & 0.605 & 1.441 & $<10^{-4}$ & 0.000 & $-$0.028 & 1.532 & $<10^{-4}$ & 0.586 & 0.585 & 1.416 & $<10^{-4}$ \\
+ProteinMPNN & 0.596 & 0.583 & 3.562 & $<10^{-4}$ & 0.078 & 0.064 & 2.784 & $<10^{-4}$ & 0.567 & 0.545 & 3.692 & $<10^{-4}$ \\
+ProSST & 0.642 & 0.674 & 7.835 & $<10^{-4}$ & 0.041 & 0.031 & 5.070 & $<10^{-4}$ & 0.645 & 0.658 & 8.375 & $<10^{-4}$ \\
 \bottomrule
 \end{tabular}
 }
@@ -30,23 +30,23 @@ ProSST & 0.642 & 0.674 & 7.835 & $<10^{-4}$ & 0.041 & 0.031 & 5.070 & $<10^{-4}$
 \caption{\textbf{All-Model Comparison on Full MegaScale Split Test Set: Double Mutants (Epistatic vs. Additive Readout)}. Mean per-domain Spearman's $\rho$, Pearson's $r$, and raw RMSE (kcal/mol) across the 20 double-mutant test domains of \texttt{mega\_splits} ($n=18{,}574$ doubles). ESM-MSR uses the Tobit observation link; ESM-MSR (unlinked) reports raw latent RMSE only. One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired domain-cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected).}
 \label{tab:si_megasplits_doubles}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{lccccccccl}
+\begin{tabular}{lcccccccc}
 \toprule
-{} & \multicolumn{4}{c}{Epistatic Readout ($n$=18,574)} & \multicolumn{4}{c}{Additive Readout ($n$=18,574)} & {} \\
+{} & \multicolumn{4}{c}{Epistatic Readout ($n$=18,574)} & \multicolumn{4}{c}{Additive Readout ($n$=18,574)} \\
 \cmidrule(lr){2-5} \cmidrule(lr){6-9}
-ID & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ & Homology / Overlap \\
+ID & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ \\
 \midrule
-ESM-MSR & \textbf{0.661} & \textbf{0.633} & \textbf{0.836} & --- & 0.559 & 0.537 & \textbf{0.961} & --- & Trained on \texttt{mega\_splits} \\
-ESM-MSR (unlinked) & --- & --- & 1.434 & --- & --- & --- & 2.082 & --- & --- \\
-SPURS & 0.598 & 0.612 & 1.040 & 0.021 & \textbf{0.567} & \textbf{0.579} & 1.555 & 0.683 & Trained on \texttt{mega\_splits} \\
-SPURS (published) & 0.617 & 0.629 & 1.016 & 0.055 & 0.543 & 0.555 & 1.763 & 0.256 & Same \texttt{mega\_splits} (pub.) \\
-Mutate Everything & 0.595 & 0.625 & 1.041 & 0.009 & 0.509 & 0.527 & 1.714 & 0.041 & Trained on \texttt{mega\_splits} \\
-ThermoMPNN & 0.615 & 0.626 & 0.946 & 0.078 & 0.557 & 0.572 & 1.308 & 0.475 & Trained on \texttt{mega\_splits} \\
-ThermoMPNN (published) & 0.611 & 0.626 & 0.991 & 0.079 & 0.564 & 0.576 & 1.158 & 0.632 & Same \texttt{mega\_splits} (pub.\ ens.) \\
-Rosetta & 0.459 & 0.448 & 2.805 & $<10^{-4}$ & 0.421 & 0.418 & 3.258 & $<10^{-4}$ & V (Rocklin cal.) \\
-ESM3-small-open & 0.353 & 0.370 & 1.561 & $<10^{-4}$ & 0.347 & 0.366 & 2.778 & $<10^{-4}$ & --- \\
-ProteinMPNN & 0.287 & 0.317 & 5.399 & $<10^{-4}$ & 0.273 & 0.300 & 5.795 & $<10^{-4}$ & --- \\
-ProSST & --- & --- & --- & --- & 0.370 & 0.390 & 12.221 & $<10^{-4}$ & --- \\
+ESM-MSR & \textbf{0.661} & \textbf{0.633} & \textbf{0.836} & --- & 0.559 & 0.537 & \textbf{0.961} & --- \\
+ESM-MSR (unlinked) & --- & --- & 1.434 & --- & --- & --- & 2.082 & --- \\
+SPURS & 0.598 & 0.612 & 1.040 & 0.021 & \textbf{0.567} & \textbf{0.579} & 1.555 & 0.683 \\
+SPURS (published) & 0.617 & 0.629 & 1.016 & 0.055 & 0.543 & 0.555 & 1.763 & 0.256 \\
+Mutate Everything & 0.595 & 0.625 & 1.041 & 0.009 & 0.509 & 0.527 & 1.714 & 0.041 \\
+ThermoMPNN & 0.615 & 0.626 & 0.946 & 0.078 & 0.557 & 0.572 & 1.308 & 0.475 \\
+ThermoMPNN (published) & 0.611 & 0.626 & 0.991 & 0.079 & 0.564 & 0.576 & 1.158 & 0.632 \\
+Rosetta & 0.459 & 0.448 & 2.805 & $<10^{-4}$ & 0.421 & 0.418 & 3.258 & $<10^{-4}$ \\
+ESM3-small-open & 0.353 & 0.370 & 1.561 & $<10^{-4}$ & 0.347 & 0.366 & 2.778 & $<10^{-4}$ \\
+ProteinMPNN & 0.287 & 0.317 & 5.399 & $<10^{-4}$ & 0.273 & 0.300 & 5.795 & $<10^{-4}$ \\
+ProSST & --- & --- & --- & --- & 0.370 & 0.390 & 12.221 & $<10^{-4}$ \\
 \bottomrule
 \end{tabular}
 }
