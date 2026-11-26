@@ -9,7 +9,8 @@ BATCH=${BATCH:-200}; MAXQ=${MAXQ:-900}
 START0=${START0:-0}; WALL=${WALL:-3:00:00}      # first chunk to submit (a resumed run skips the batches already sent); walltime per chunk job
 cd $ROOT
 NS=$(( $(wc -l < $OUT/tasks/structures.csv) - 1 )); NC=$(( $(wc -l < $OUT/tasks/chunks.csv) - 1 ))
-nq() { squeue -u $USER -h -r | wc -l; }
+# a failed squeue (controller timeout) counts as a full queue, never as an empty one
+nq() { local q; q=$(squeue -u $USER -h -r) || { echo $MAXQ; return; }; [ -z "$q" ] && echo 0 || wc -l <<< "$q"; }
 echo "$(date) $NS structures, $NC chunks"
 if [ "$(ls $OUT/relaxed/*/*_minimized_0001.pdb 2>/dev/null | wc -l)" -lt "$NS" ]; then
   J=$(sbatch --parsable --array=0-$((NS-1)) $S/relax.sh 0); echo "$(date) relax array $J"
@@ -22,6 +23,7 @@ for (( START=START0; START<NC; START+=BATCH )); do
   [ $todo -eq 0 ] && continue
   while [ $(( $(nq) + BATCH )) -gt $MAXQ ]; do sleep 120; done
   N=$(( NC - START < BATCH ? NC - START : BATCH ))
-  J=$(sbatch --parsable --time=$WALL --array=0-$((N-1)) $S/ddg.sh $START); echo "$(date) ddg chunks $START..$((START+N-1)) job $J"
+  until J=$(sbatch --parsable --time=$WALL --array=0-$((N-1)) $S/ddg.sh $START); do echo "$(date) sbatch failed for chunks from $START, retrying"; sleep 120; done
+  echo "$(date) ddg chunks $START..$((START+N-1)) job $J"
 done
 echo "$(date) all submitted"
