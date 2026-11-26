@@ -1,0 +1,25 @@
+Statistical Annotation: _property_gain_k24_pvalues.csv
+============================================================
+Figure / Panel: Supplementary Figure _property_gain_k24 (Rectified gain @ k = 24 across the 4 ASA x hydrophobicity quadrants on Homology-Restricted MegaScale test single mutants; k = 24 companion to Main-Text Figure 4a).
+
+Metric Tested:
+  Mean per-domain rectified stability gain sum(max(ddG_true, 0)) among each model's top k = 24 single-mutant picks
+  per domain (33 domains with ASA/hydrophobicity annotations, 35,295 single mutants), evaluated per quadrant
+  and summed across all 4 quadrants (Total rectified gain @ k = 24).
+
+Statistical Test & Resampling Procedure:
+  Paired nonparametric domain-cluster x training-seed bootstrap (B = 10,000).
+  All 33 test domains are resampled identically across models via shared Multinomial(33, 1/33) weights,
+  jointly with Multinomial(3, 1/3) seed weights for 3-seed retrained models. Oracle is excluded from statistical
+  comparisons (upper bound, not a predictive model).
+
+Hypotheses & One-Sided P-Value Formula:
+  H0: E[gain_ESM-MSR - gain_X] <= 0  vs  H1: E[gain_ESM-MSR - gain_X] > 0.
+  Exact Monte Carlo one-sided p-value: p = (1 + #{b: delta^(b) <= 0}) / (B + 1).
+  Bonferroni correction multiplies p_one_sided_uncorrected by m = 8 clean comparator models within each quadrant
+  (and within total gain).
+
+Key Assumptions & Limitations:
+  - Test domains (N = 33) are treated as independent biological units.
+  - Because picks are fixed to k = 24 total per domain, quadrant-level gains depend on both pick allocation
+    across quadrants (shown in the Picks % strip) and ranking quality within each quadrant.
