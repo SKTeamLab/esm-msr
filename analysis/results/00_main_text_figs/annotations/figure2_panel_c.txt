@@ -1,0 +1,4 @@
+Figure 2, Panel c — Distribution of measured epistasis types across additive stability bins
+===========================================================================================
+
+Top: share of measured pairwise epistasis types across bins of label additive stability expectation dG_add = dG_wt + ddG_A + ddG_B (kcal/mol; n = 12,455 doubles). Hatched segments indicate floor-dominated doubles (36% overall), where the unfolded-state assay floor determines the observed epistasis. Bottom: log-scale variant counts per bin split by the sign of the summed single-mutant effects (singles' sum ddG < 0 vs > 0).

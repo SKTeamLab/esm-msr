@@ -1,0 +1,4 @@
+Figure 4, Panel d — ProteinGym Activity preservation during stability-guided screening
+=======================================================================================
+
+Functional-damage curves on held-out ProteinGym Activity single-mutant assays (top: all 38 held-out Activity assays; bottom: 16 held-out enzyme assays; single-mutant models only), evaluated across screening budgets K from 1 to 100 variants per assay. Vertical axis shows the fraction of the top-K stability-ranked picks that hurt activity (defined as measured activity more than 0.5 assay standard deviations below the measured wild type; lower is better). Shaded grey band indicates the 95% bootstrap confidence interval (B = 1,000) for ESM-MSR WT-view only; dashed red line indicates random selection.

@@ -1,0 +1,4 @@
+Figure 4, Panel b — Homology-Restricted MegaScale single-mutant screening curves
+=================================================================================
+
+Single-mutant screening efficiency on the Homology-Restricted MegaScale test set excluding mutations to cysteine (33 proteins; single-mutant models only), evaluated across screening budgets K from 1 to 100 variants per protein. Top: stabilizing hit rate (fraction of top-K picks with measured ddG > 0.5 kcal/mol). Bottom: P(at least one stabilizing hit in top K). Shaded grey band indicates the 95% bootstrap confidence interval (B = 1,000) for ESM-MSR WT-view only; dotted black and dashed red lines indicate oracle and random selection.
