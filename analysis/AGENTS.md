@@ -46,9 +46,13 @@ Always arrange models in this exact group order (and use the immutable colors/ma
    - `ESMtherm*`, `IFUM*`, `DDGemb`, `DDMut`
    - **Do NOT include `SPURS published*`** — it is retired and not relevant.
 
-## 6. Additional Consistent Conventions Across the Repository
+## 6. Mandatory Tobit Observation Link Whenever $\Delta G_{\text{wt}}$ Is Available
+- **ESM-MSR must always use the Tobit observation link** $h(\Delta G_{\text{wt}} + \widehat{\Delta\Delta G}) - \Delta G_{\text{wt}}$ (`msr_analysis/tobit.py`, `esm_msr.val_stats.tobit_link(**TOBIT)`) whenever wild-type stability $\Delta G_{\text{wt}}$ is available — specifically on **all MegaScale splits** (Homology-Restricted `capped` and `mega_splits`), **MGnify**, and **Rocklin *de novo* designs**, all measured by the same lab with the same cDNA proteolysis assay.
+- Never report unlinked latent ESM-MSR as the primary row on MegaScale, MGnify, or Rocklin (especially for RMSE/MAE, Pearson $r$, or pooled $\rho$ across scaffolds, where unlinked latent predictions incur large floor-saturation error against censored proteolysis measurements).
+- In supplementary tables reporting RMSE on these cDNA proteolysis benchmarks, you may additionally include an **`ESM-MSR (unlinked)`** row directly below `ESM-MSR` that is blank (`---`) in every column except RMSE, showing the raw latent RMSE for transparency.
+
+## 7. Additional Consistent Conventions Across the Repository
 - **Triplicate seed averaging & joint `[cluster/assay × seed]` bootstrap**: average across seeds 1–3 for all retrained models (`ESM-MSR`, `MutateEverything`, `ThermoMPNN`, `SPURS`) and our 3-run `ProteinMPNN`. Always resample replicate seeds **jointly** with proteins/assays in bootstrap CIs and paired $p$-values (see `analysis/docs/SEED_AUDIT.md`).
-- **Observed Tobit-linked scale vs. latent scale**: within-protein rank metrics ($\rho$) are monotone-invariant, but pooled cross-protein correlations (e.g., MGnify / Rocklin pooled $\rho$) and RMSE/MAE for Tobit-linked checkpoints must evaluate ESM-MSR on the observed linked scale $h(\Delta G_{\text{wt}} + \text{latent}) - \Delta G_{\text{wt}}$ (`msr_analysis/tobit.py`).
 - **Censoring & wild-type backgrounds on MegaScale**: filter out censored rows (`cens == 0`) for numeric $\Delta\Delta G$ evaluation and distinguish wild-type-backbone libraries from stabilizing mutant-background libraries per `docs/BENCHMARKS_OCT2026.md`.
 - **Per-mutation calibration bias**: always enforce `tie_mt_scale=False`, `per_mutation_bias=True` (bias applied once per mutated position, not once per variant).
 - **Atomic cache & file writes**: always write caches and outputs via `msr_analysis.paths.atomic_to_csv` / `atomic_pickle_dump` / `atomic_write_text` so worktree symlinks are never mutated in place.
