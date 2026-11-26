@@ -60,8 +60,8 @@ PG_DROP = frozenset({
     'POLG_CXB3N_Mattenberger_2021',
     'SCN5A_HUMAN_Glazer_2019',
 })
-PG_STAB_LEAK = frozenset({'ESMtherm', 'SPURS published*', 'ESM3ΔG'})
-SUPPLEMENT_PG = ('ESMtherm', 'SPURS published*')
+PG_STAB_LEAK = frozenset({'ESMtherm', 'ESM3ΔG'})
+SUPPLEMENT_PG = ('ESMtherm',)
 SEEDS = (1, 2, 3)
 SIGMAS = (0.0, 0.5, 1.0)
 
@@ -628,9 +628,6 @@ def load_all_models_pgym(
             per_model_rows['ESM3ΔG'][dms] = [_score_rowid_dir(esm3dg_dir, dms, y_full)]
             per_model_rows['ESMtherm'][dms] = [_score_rowid_dir(esmtherm_dir, dms, y_full)]
             per_model_rows['Rosetta'][dms] = [float(ro.loc[dms, 'rho']) if dms in ro.index else np.nan]
-            per_model_rows['SPURS published*'][dms] = [
-                float(a.loc[dms, 'SPURS multi'] if has_mm else a.loc[dms, 'SPURS single-additive'])
-            ]
             meta_rows[dms] = {
                 'category': str(ref_213.loc[dms, 'category']),
                 'homologous': bool(ref_213.loc[dms, 'homologous']),

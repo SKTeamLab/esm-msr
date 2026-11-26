@@ -1,0 +1,30 @@
+\begin{table}[H]
+\centering
+\caption{\textbf{All-Model Comparison on Homology-Restricted MegaScale Test Set Stratified by Backbone Stability and Domain Origin}. Mean per-library Spearman's $\rho$, Pearson's $r$, and raw RMSE (kcal/mol) stratified by wild-type backbone type (native vs.\ pre-destabilized) and protein origin (natural vs.\ de novo synthetic domains). ESM-MSR (and ESM-MSR $\sigma=0.5$) uses the Tobit observation link; ESM-MSR (unlinked) reports raw latent RMSE only. One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired cluster $\times$ seed bootstrap ($B=10{,}000$; uncorrected). Homology / overlap codes (fraction of benchmark rows affected, e.g.\ M.50 = 50\%, M1 = 100\%): M = exact mutation in training set (\#: test set equals training set; M?: protein-level ceiling); m = constituent single mutation of a multi-mutant in training set; P = same protein ($\ge 95\%$ identity); H = close homolog ($E\le 10^{-3}$ or TM $>0.70$); h = distant homolog ($E\le 10^{-2}$ or $\ge 30\%$ identity); V = validation/calibration set; D = training set includes reverse mutations; --- = no detected overlap. Models with M/m/P/H/\# training overlap (or trained on the unfiltered benchmark source) are marked $^*$ and excluded from clean bolding.}
+\label{tab:si_megascale_backbone_origin}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lccccccccccccccccl}
+\toprule
+{} & \multicolumn{4}{c}{Native Backbone ($n$=40,866)} & \multicolumn{4}{c}{Destabilized Backbone ($n$=7,874)} & \multicolumn{4}{c}{Natural Domains ($n$=37,542)} & \multicolumn{4}{c}{Synthetic Domains ($n$=11,198)} & {} \\
+\cmidrule(lr){2-5} \cmidrule(lr){6-9} \cmidrule(lr){10-13} \cmidrule(lr){14-17}
+ID & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ & $\rho$ & $r$ & RMSE & $p$ & Homology / Overlap \\
+\midrule
+ESM-MSR & \textbf{0.827} & \textbf{0.835} & \textbf{0.566} & --- & \textbf{0.879} & \textbf{0.873} & \textbf{0.471} & --- & \textbf{0.845} & \textbf{0.850} & \textbf{0.571} & --- & \textbf{0.811} & \textbf{0.818} & \textbf{0.513} & --- & h.16 \\
+ESM-MSR (unlinked) & --- & --- & 0.640 & --- & --- & --- & 0.675 & --- & --- & --- & 0.675 & --- & --- & --- & 0.590 & --- & --- \\
+ESM-MSR ($\sigma$=0.5) & 0.768 & 0.776 & 0.672 & $<10^{-4}$ & 0.835 & 0.823 & 0.607 & $<10^{-4}$ & 0.803 & 0.804 & 0.675 & $<10^{-4}$ & 0.724 & 0.738 & 0.631 & $<10^{-4}$ & h.16 \\
+SPURS & 0.796 & 0.809 & 0.613 & 0.005 & 0.845 & 0.834 & 0.632 & $<10^{-4}$ & 0.821 & 0.823 & 0.648 & 0.040 & 0.770 & 0.794 & 0.552 & 0.0007 & h.16 \\
+Mutate Everything & 0.761 & 0.782 & 0.629 & $<10^{-4}$ & 0.849 & 0.830 & 0.624 & $<10^{-4}$ & 0.802 & 0.805 & 0.666 & 0.002 & 0.720 & 0.750 & 0.567 & $<10^{-4}$ & h.16 \\
+ThermoMPNN & 0.781 & 0.788 & 0.635 & $<10^{-4}$ & 0.819 & 0.802 & 0.633 & $<10^{-4}$ & 0.797 & 0.794 & 0.660 & 0.0002 & 0.765 & 0.778 & 0.576 & 0.0002 & h.16 \\
+GeoDDG-3D & 0.596 & 0.608 & 0.911 & $<10^{-4}$ & 0.751 & 0.734 & 0.903 & $<10^{-4}$ & 0.663 & 0.665 & 0.980 & $<10^{-4}$ & 0.525 & 0.546 & 0.808 & $<10^{-4}$ & h.07 \\
+Rosetta & 0.661 & 0.617 & 1.956 & $<10^{-4}$ & 0.703 & 0.585 & 2.132 & $<10^{-4}$ & 0.686 & 0.620 & 2.009 & $<10^{-4}$ & 0.627 & 0.597 & 1.918 & $<10^{-4}$ & V.12 (Rocklin cal.) \\
+DDGemb & 0.489 & 0.473 & 1.109 & $<10^{-4}$ & 0.683 & 0.667 & 0.868 & $<10^{-4}$ & 0.572 & 0.552 & 1.090 & $<10^{-4}$ & 0.408 & 0.406 & 1.052 & $<10^{-4}$ & h.02 \\
+ESMtherm$^*$ & 0.760 & 0.800 & 0.714 & 0.060 & 0.869 & 0.868 & 0.615 & 0.231 & 0.765 & 0.794 & 0.760 & 0.065 & 0.789 & 0.825 & 0.595 & 0.312 & M.51 P.34 H.04 h.03 V.06 \\
+IFUM (WT backbone)$^*$ & 0.698 & 0.725 & 0.887 & $<10^{-4}$ & 0.820 & 0.793 & 0.713 & $<10^{-4}$ & 0.741 & 0.744 & 0.935 & $<10^{-4}$ & 0.665 & 0.705 & 0.756 & $<10^{-4}$ & M?.46 P.02 H.07 h.06 V?.47 \\
+IFUM (ESMFold)$^*$ & 0.742 & 0.761 & 0.772 & $<10^{-4}$ & 0.825 & 0.801 & 0.683 & 0.0003 & 0.784 & 0.783 & 0.812 & $<10^{-4}$ & 0.701 & 0.731 & 0.670 & 0.0003 & M?.46 P.02 H.07 h.06 V?.47 \\
+ESM3-small-open & 0.564 & 0.579 & 1.139 & $<10^{-4}$ & 0.645 & 0.628 & 1.287 & $<10^{-4}$ & 0.622 & 0.622 & 1.218 & $<10^{-4}$ & 0.481 & 0.507 & 1.079 & $<10^{-4}$ & --- \\
+ProteinMPNN & 0.537 & 0.519 & 3.113 & $<10^{-4}$ & 0.636 & 0.631 & 2.664 & $<10^{-4}$ & 0.627 & 0.617 & 3.162 & $<10^{-4}$ & 0.410 & 0.389 & 2.959 & $<10^{-4}$ & --- \\
+ProSST & 0.592 & 0.626 & 6.679 & $<10^{-4}$ & 0.703 & 0.679 & 6.643 & $<10^{-4}$ & 0.663 & 0.673 & 7.330 & $<10^{-4}$ & 0.495 & 0.546 & 5.713 & $<10^{-4}$ & --- \\
+\bottomrule
+\end{tabular}
+}
+\end{table}

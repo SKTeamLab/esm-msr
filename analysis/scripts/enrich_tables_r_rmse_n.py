@@ -1075,6 +1075,8 @@ def enrich_figure4_and_supp7() -> None:
         (MAIN_SRC / 'figure4_panel_d_pgym_all_screening_sourcedata.csv', {k[1]: v for k, v in pg_act_r.items() if k[0] == 'Figure4d_PGym_Activity_all_38'}, pg_act_r[('Figure4d_PGym_Activity_all_38', 'msr')][2]),
         (MAIN_SRC / 'figure4_panel_d_pgym_enzymes_screening_sourcedata.csv', {k[1]: v for k, v in pg_act_r.items() if k[0] == 'Figure4d_PGym_Activity_enzymes_16'}, pg_act_r[('Figure4d_PGym_Activity_enzymes_16', 'msr')][2]),
     ):
+        if not csv_p.exists():
+            continue
         df = pd.read_csv(csv_p)
         df['n_variants_pool'] = n_v_def
         df['pool_pearson_r'] = [lookup_d.get(str(r.family), (np.nan,) * 3)[0] for r in df.itertuples()]

@@ -1,0 +1,85 @@
+{
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\begin{longtable}{lccccl}
+\caption{\textbf{Comprehensive All-Model Comparison on Large-Scale Held-Out Out-of-Distribution Benchmarks}. Comparison of all models with available predictions across the four 4-part homology-held-out benchmarks (ProteinGym 173 assays, Domainome 436 domains, MGnify pooled, and Rocklin de novo designs pooled). RMSE is omitted on ProteinGym because assays span heterogeneous fitness scales. On MGnify and Rocklin, ESM-MSR uses the Tobit observation link; ESM-MSR (unlinked) reports raw latent RMSE only. One-sided $p$-values test $H_1\colon \rho_{\text{ESM-MSR}} > \rho_{\text{model}}$ via paired assay/domain/scaffold $\times$ seed bootstrap ($B=10{,}000$ on ProteinGym and Domainome; $B=1{,}000$ on MGnify and Rocklin; uncorrected). Internal variant ESM-MSR ($\sigma=0.5$) is excluded from bolding of external comparators. ProteinGym overlap codes for external models reflect the full ProteinGym audit (GeoDDG-3D's encoder was pretrained on GeoFitness, 74 DMS assays); Domainome overlap codes reflect the held-out Domainome audit. Homology / overlap codes (fraction of benchmark rows affected, e.g.\ M.50 = 50\%, M1 = 100\%): M = exact mutation in training set (\#: test set equals training set; M?: protein-level ceiling); m = constituent single mutation of a multi-mutant in training set; P = same protein ($\ge 95\%$ identity); H = close homolog ($E\le 10^{-3}$ or TM $>0.70$); h = distant homolog ($E\le 10^{-2}$ or $\ge 30\%$ identity); V = validation/calibration set; D = training set includes reverse mutations; --- = no detected overlap. Models with M/m/P/H/\# training overlap (or trained on the unfiltered benchmark source) are marked $^*$ and excluded from clean bolding.}\label{tab:si_heldout_ood} \\
+\toprule
+Model & $\rho$ & $r$ & RMSE & $p$ & Homology / Overlap \\
+\midrule
+\endfirsthead
+\multicolumn{6}{l}{\textit{Continued from previous page}} \\
+\toprule
+Model & $\rho$ & $r$ & RMSE & $p$ & Homology / Overlap \\
+\midrule
+\endhead
+\midrule
+\multicolumn{6}{r}{\textit{Continued on next page}} \\
+\endfoot
+\bottomrule
+\endlastfoot
+\multicolumn{6}{l}{\textbf{ProteinGym (173 held-out DMS assays; $n=2{,}351{,}490$; category-weighted macro average)}} \\*
+\midrule
+ESM-MSR & 0.509 & 0.518 & --- & --- & --- (held-out) \\
+ESM-MSR ($\sigma$=0.5) & 0.509 & 0.508 & --- & 0.457 & --- (held-out) \\
+SPURS & 0.457 & 0.465 & --- & $<10^{-4}$ & --- (held-out) \\
+Mutate Everything & 0.455 & 0.463 & --- & $<10^{-4}$ & --- (held-out) \\
+ThermoMPNN & 0.439 & 0.442 & --- & $<10^{-4}$ & --- (held-out) \\
+GeoDDG-3D$^*$ & 0.384 & 0.384 & --- & $<10^{-4}$ & GeoFitness pretrain (74 DMS) \\
+ESM3$\Delta G$$^*$ & 0.381 & 0.398 & --- & $<10^{-4}$ & P.003 H.02 h.33 \\
+Rosetta & 0.378 & 0.377 & --- & $<10^{-4}$ & V.002 \\
+ESMtherm$^*$ & 0.220 & --- & --- & $<10^{-4}$ & M.02 P.02 H.004 h$<$.001 V.003 \\
+ESM3-small-open & 0.447 & 0.438 & --- & $<10^{-4}$ & --- \\
+ProteinMPNN & 0.409 & 0.392 & --- & $<10^{-4}$ & --- \\
+ProSST & \textbf{0.513} & \textbf{0.530} & --- & 0.623 & --- \\
+ProSST (published) & \textbf{0.513} & --- & --- & 0.630 & --- \\
+\midrule
+\multicolumn{6}{l}{\textbf{Domainome (436 held-out domains; $n=451{,}569$; per-domain mean)}} \\*
+\midrule
+ESM-MSR & 0.540 & \textbf{0.600} & 1.222 & --- & h.03 (held-out) \\
+ESM-MSR ($\sigma$=0.5) & 0.568 & 0.612 & 1.521 & 1.000 & h.03 (held-out) \\
+SPURS & 0.480 & 0.503 & 0.884 & $<10^{-4}$ & h.03 (held-out) \\
+Mutate Everything & 0.510 & 0.555 & 0.975 & $<10^{-4}$ & h.03 (held-out) \\
+ThermoMPNN & 0.435 & 0.460 & \textbf{0.810} & $<10^{-4}$ & h.03 (held-out) \\
+GeoDDG-3D$^*$ & 0.411 & 0.462 & 1.133 & $<10^{-4}$ & M.001 P.06 H.31 h.08 \\
+ESM3$\Delta G$$^*$ & 0.501 & 0.539 & 0.744 & $<10^{-4}$ & P.006 H.14 h.56 \\
+DDGemb$^*$ & 0.341 & 0.340 & 0.992 & $<10^{-4}$ & M$<$.001 P.03 H.19 h.08 \\
+ESMtherm$^*$ & 0.182 & 0.249 & 0.532 & $<10^{-4}$ & M.002 P.04 H.30 h.04 V$<$.001 \\
+IFUM (WT backbone)$^*$ & 0.457 & 0.514 & 0.602 & $<10^{-4}$ & M?.005 P.04 H.29 h.04 V?.002 \\
+IFUM (ESMFold)$^*$ & 0.465 & 0.520 & 0.671 & $<10^{-4}$ & M?.005 P.04 H.29 h.04 V?.002 \\
+ESM3-small-open & \textbf{0.550} & 0.576 & 1.500 & 0.998 & --- \\
+ESM3-large & 0.517 & 0.533 & 10.550 & $<10^{-4}$ & --- \\
+ProteinMPNN & 0.544 & 0.536 & 3.012 & 0.854 & --- \\
+ProSST & 0.527 & 0.574 & 7.259 & 0.0004 & --- \\
+\midrule
+\multicolumn{6}{l}{\textbf{MGnify Stability (140,694 held-out scaffolds; $n=612{,}406$; pooled)}} \\*
+\midrule
+ESM-MSR & \textbf{0.644} & \textbf{0.692} & \textbf{0.722} & --- & --- \\
+ESM-MSR (unlinked) & --- & --- & 0.849 & --- & --- \\
+ESM-MSR ($\sigma$=0.5) & 0.576 & 0.640 & 0.821 & $<10^{-3}$ & --- \\
+SPURS & 0.589 & 0.612 & 0.742 & $<10^{-3}$ & --- \\
+ThermoMPNN & 0.550 & 0.584 & 0.815 & $<10^{-3}$ & --- \\
+GeoDDG-3D & 0.436 & 0.473 & 1.036 & $<10^{-3}$ & --- \\
+ESM3$\Delta G$$^*$ & 0.686 & 0.742 & 0.642 & 1.000 & Trained on MGnify \\
+ESMtherm$^*$ & 0.433 & 0.418 & 0.980 & $<10^{-3}$ & Trained on MegaScale (unfiltered) \\
+IFUM$^*$ & 0.477 & 0.531 & 0.832 & $<10^{-3}$ & Trained on MegaScale (unfiltered) \\
+ESM3-small-open & 0.376 & 0.427 & 1.738 & $<10^{-3}$ & --- \\
+ProteinMPNN & 0.388 & 0.417 & 2.927 & $<10^{-3}$ & --- \\
+ProSST & 0.403 & 0.458 & 7.080 & $<10^{-3}$ & --- \\
+\midrule
+\multicolumn{6}{l}{\textbf{Rocklin De Novo Designs (623 held-out scaffolds; $n=109{,}581$; pooled)}} \\*
+\midrule
+ESM-MSR & \textbf{0.454} & \textbf{0.436} & \textbf{0.748} & --- & --- \\
+ESM-MSR (unlinked) & --- & --- & 1.248 & --- & --- \\
+ESM-MSR ($\sigma$=0.5) & 0.417 & 0.417 & 0.811 & $<10^{-3}$ & --- \\
+SPURS & 0.252 & 0.228 & 1.279 & $<10^{-3}$ & --- \\
+Mutate Everything & 0.229 & 0.211 & 1.338 & $<10^{-3}$ & --- \\
+ThermoMPNN & 0.187 & 0.168 & 1.357 & $<10^{-3}$ & --- \\
+GeoDDG-3D & 0.214 & 0.181 & 1.348 & $<10^{-3}$ & --- \\
+ESM3$\Delta G$$^*$ & 0.384 & 0.343 & 0.748 & $<10^{-3}$ & Trained on MGnify \\
+ESMtherm$^*$ & 0.360 & 0.363 & 0.747 & $<10^{-3}$ & Trained on MegaScale (unfiltered) \\
+IFUM$^*$ & 0.268 & 0.230 & 0.770 & $<10^{-3}$ & Trained on MegaScale (unfiltered) \\
+ESM3-small-open & 0.111 & 0.104 & 3.018 & $<10^{-3}$ & --- \\
+ProteinMPNN & 0.114 & 0.094 & 5.803 & $<10^{-3}$ & --- \\
+ProSST & 0.114 & 0.092 & 14.514 & $<10^{-3}$ & --- \\
+\end{longtable}
+}

@@ -144,7 +144,6 @@ def build_family_specs(split: str = 'capped') -> dict:
     if split == 'mega':
         extra = {
             'spursu': ('SPURS, trained adapter', 'SPURS multi, trained adapter', 'spursu', 'spursum', 'spursu', (MODELS['spursu']['color'], '-', 2.0, 6)),
-            'spurspub': ('SPURS, published', 'SPURS multi, published', 'spurspub', 'spurspubm', 'spurspub', (MODELS['spurspub']['color'], '--', 2.0, 6)),
             'tmpub': ('ThermoMPNN, published', 'ThermoMPNN-D, published', 'tmpnnpub', 'tmpnndpub', 'tmpnnpub', (MODELS['tmpnnpub']['color'], '--', 2.0, 6)),
         }
         for f, (ls, lc, sk, mk, st, col) in extra.items():
@@ -152,7 +151,7 @@ def build_family_specs(split: str = 'capped') -> dict:
             fam_label_singles[f] = ls
             fam_label_composite[f] = f"{ls} | {lc.split(',')[0]}"
             single_key[f], multi_key[f], fam_style[f], fam_color_all[f] = sk, mk, st, col
-            fam_name[f] = {'spursu': 'SPURS', 'spurspub': 'SPURS published*', 'tmpub': 'ThermoMPNN'}[f]
+            fam_name[f] = {'spursu': 'SPURS', 'tmpub': 'ThermoMPNN'}[f]
         fam_all = fam_all[:7] + list(extra) + fam_all[7:]
 
     return dict(
@@ -1345,11 +1344,14 @@ def load_pg_activity_assays() -> tuple[Frame, pd.DataFrame]:
         'pmpnn': (lambda k: PUBLIC / 'proteinmpnn' / 'proteingym' / {1: 'fast', 2: 'fast_seed1', 3: 'fast_seed2'}[k], 'mpnn_score'),
     }
     pub_cols = {'prosst': 'ProSST-2048', 'pmpnn_pub': 'ProteinMPNN', 'esm3_pub': 'ESM3'}
-    rows, preds, info = [], {**{k: {sd: [] for sd in seeds} for k in srcs}, **{k: [] for k in list(pub_cols) + ['rosetta', 'msrrel@0:wt']}}, []
+    esm3dg_pg_dir = PUBLIC / 'esm3dg' / 'proteingym'
+    rows, preds, info = [], {**{k: {sd: [] for sd in seeds} for k in srcs}, **{k: [] for k in list(pub_cols) + ['rosetta', 'msrrel@0:wt', 'esm3dg']}}, []
 
     for dms, r in ref.iterrows():
-        base = pd.read_csv(pg_dir / f'{dms}.csv', usecols=['mutant', 'DMS_score'])
-        base = base[~base['mutant'].str.contains(':')].reset_index(drop=True)
+        base_full = pd.read_csv(pg_dir / f'{dms}.csv', usecols=['mutant', 'DMS_score'])
+        base_sing = base_full[~base_full['mutant'].str.contains(':')]
+        sing_row_ids = base_sing.index
+        base = base_sing.reset_index(drop=True)
         x = base['DMS_score'].to_numpy()
         cut = _cutoff_on_scale(r.DMS_binarization_cutoff, x)
         w_pl, sd_pl = _plateau(x, cut)
@@ -1406,6 +1408,12 @@ def load_pg_activity_assays() -> tuple[Frame, pd.DataFrame]:
         pub_df = pd.read_csv(PUBLIC / 'proteingym_published' / f'{dms}.csv', usecols=['mutant'] + list(pub_cols.values())).drop_duplicates('mutant').set_index('mutant')
         for k, col in pub_cols.items():
             preds[k].append(pub_df[col].reindex(base['mutant']).to_numpy(dtype=float))
+        e3dg_p = esm3dg_pg_dir / f'{dms}.csv'
+        if e3dg_p.exists():
+            e3dg_s = pd.read_csv(e3dg_p, usecols=['row_id', 'pred']).drop_duplicates('row_id').set_index('row_id')['pred']
+            preds['esm3dg'].append(e3dg_s.reindex(sing_row_ids).to_numpy(dtype=float))
+        else:
+            preds['esm3dg'].append(np.full(len(base), np.nan, dtype=float))
         rows.append(pd.DataFrame({
             'id': dms + '_' + base['mutant'], 'y': z, 'score': x, 'wt': wt, 'z': z, 'z_sd': z_sd, 'z_var5': z_v5, 'z_var10': z_v10,
             'z_plateau_sd': z_pl, 'z_old_proxy': z_old, 'r_floor': r_floor, 'use_wt': use, 'use_floor': use & floor_ok,
@@ -1432,7 +1440,7 @@ def run_pg_activity(specs: dict, B: int) -> dict[str, pd.DataFrame]:
     atomic_to_csv(info, out / 'assay_definitions.csv', float_format='%.4f')
 
     pg_fam = specs['fam_transfer']
-    pg_fam_all = [f for f in specs['fam_all'] if f not in ('geoddg', 'esm3dg')]
+    pg_fam_all = [f for f in specs['fam_all'] if f != 'geoddg']
     n_enz = int(sum(d in PG_ENZYME for d in info.index))
     n_all = len(info)
 
@@ -1745,7 +1753,7 @@ def run_17_gain_fit(split: str, specs: dict, B: int) -> tuple[pd.DataFrame, dict
     to_cys = np.array([any(part.endswith('C') for part in str(m).split(':')) for m in sp['mut']], dtype=bool)
     lk = np.log(KS_CURVE)
 
-    extra = [f for f in specs['fam_all'] if f in ('prosst', 'pmpnn', 'esm3', 'rosetta', 'spursu', 'spurspub', 'tmpub')]
+    extra = [f for f in specs['fam_all'] if f in ('prosst', 'pmpnn', 'esm3', 'rosetta', 'spursu', 'tmpub')]
     fams_fit = list(specs['fam_transfer']) + [f for f in extra if f not in specs['fam_transfer']]
     main_fams = list(specs['fam_transfer'])
     s_title = split_title(split)
@@ -2118,7 +2126,7 @@ def build_figure4(
 
     omean, _, _ = _boot_mean_ci(stats_k[mcols[0]['name']][0], counts)
     top_val = 0.0
-    fs_txt = 8.0
+    fs_txt = 7.4
     for mc, x_col in zip(mcols, xs):
         m = mc['name']
         V_m = stats_k[m][0]
@@ -2262,7 +2270,7 @@ def build_figure4(
         f'dots: domains; dark bars with vertical 95% CI whiskers (B = {B}) & annotations: mean over domains; dashed lines: oracle mean.\n'
         f'b–d. Single mutants only, scored by the single-mutant models; MegaScale excludes mutations to Cys. '
         f'ProteinGym Activity column: a variant hurts when its activity is more than half an assay standard deviation below the measured wild type; lower is better. '
-        f'Shaded band: 95% bootstrap interval (B = {B}) of ESM-MSR only.'
+        f'Shaded band: 95% bootstrap interval (B = {B}) of ESM-MSR only. ESM3ΔG is shown on Domainome and ProteinGym Activity (omitted on MegaScale due to 41% strong-homolog overlap with its MGnify training set).'
     )
     kw_n = dict(fontsize=7.6, color='#444444')
     fig.text(0.012, 0.006, style.wrap_to_px(fig, note4, 0.975 * fig.bbox.width, **kw_n), ha='left', va='bottom', **kw_n)

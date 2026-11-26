@@ -136,6 +136,9 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                       help="Include ESM3's sequence LM output head in the WT LoRA targets (default True). Pass --no-incl_sequence_head_wt to freeze.")
     arch.add_argument('--incl_sequence_head_mt', action=argparse.BooleanOptionalAction, default=True,
                       help="Include ESM3's sequence LM output head in the MT LoRA targets (default True). Pass --no-incl_sequence_head_mt to freeze.")
+    arch.add_argument('--default_plddt_one', action=argparse.BooleanOptionalAction, default=False,
+                      help="Opt-in: pass per_res_plddt=1.0 for residues with finite backbone coordinates (matching ESM3.logits()) "
+                           "when use_plddt is False. Default False preserves exact manuscript FINAL_p0 behavior (per_res_plddt=None -> zeros).")
 
     obj = parser.add_argument_group("Objective")
     obj.add_argument('--lambda_rank_wt', type=float, default=1.0)

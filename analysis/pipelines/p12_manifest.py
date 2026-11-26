@@ -88,7 +88,7 @@ TABLE_FIGURES = {
     '1.2.1': ['01_megascale/megascale_overview', '01_megascale/megascale_per_library', '01_megascale/megascale_singles_doubles', '00_main_text_figs/figure3'],
     '1.2.2': ['00_supplementary_figs/split_construction/split_best_partner_capped', '00_supplementary_figs/split_construction/mega_clean_vs_homologous_test', '01_megascale/megascale_overview'],
     '1.3.1': ['04_domainome/domainome_vs_retrains', '04_domainome/domainome_sigma_vs_zero_shot', '99_misc/dms3/dms_vs_retrains', '99_misc/dms3/dms_sigma_vs_zero_shot', '06_summary/pg_categories', '00_main_text_figs/figure3'],
-    '1.3.2': ['00_supplementary_figs/holdout_filter', '00_for_reviewers/reference/spurs_published_vs_retrained', '99_misc/dms3/dms_vs_retrains'],
+    '1.3.2': ['00_supplementary_figs/holdout_filter', '99_misc/dms3/dms_vs_retrains'],
     '1.3.3': ['04_domainome/domainome_sigma_sweep', '04_domainome/domainome_sigma_vs_zero_shot', '99_misc/dms3/dms_sigma_sweep', '99_misc/dms3/dms_sigma_vs_zero_shot'],
     '1.4.1': ['06_summary/pg_categories', '03_proteingym/pg_table_heatmap', '03_proteingym/pg_overview', '00_main_text_figs/figure3'],
     '1.4.2': ['00_supplementary_figs/holdout_filter', '03_proteingym/pg_overview'],
@@ -98,9 +98,9 @@ TABLE_FIGURES = {
     '1.7.3': ['05_mgnify/mgnify_homology'],
     '1.7.4': ['05_mgnify/rocklin_overview', '06_summary/pg_categories', '00_main_text_figs/figure3'],
     '2.0.1': ['01_megascale/epistasis/epistasis_levels_bars_val', '01_megascale/epistasis/epistasis_naive_recomputed'],
-    '2.0.2': ['01_megascale/epistasis/epistasis_levels_bars_test', '00_main_text_figs/epistasis_main_composite'],
+    '2.0.2': ['01_megascale/epistasis/epistasis_levels_bars_test', '00_main_text_figs/figure2'],
     '2.1.1': ['01_megascale/epistasis/epistasis_levels_bars_val', '01_megascale/epistasis/epistasis_naive_recomputed'],
-    '2.2.1': ['01_megascale/epistasis/epistasis_levels_bars_test', '00_main_text_figs/epistasis_main_composite', '01_megascale/epistasis/epistasis_scatter_dddG'],
+    '2.2.1': ['01_megascale/epistasis/epistasis_levels_bars_test', '00_main_text_figs/figure2', '01_megascale/epistasis/epistasis_scatter_dddG'],
     '2.3.1': ['01_megascale/epistasis/ddg_ranking', '01_megascale/epistasis/epistasis_scatter_ddG_doubles'],
     '2.5.1': ['00_for_reviewers/baseline_nobb_ablation', '09_ablation/ablation_architecture_suite'],
     '2.6.1': ['01_megascale/epistasis/lambda_scan', '99_misc/dms3/epistasis_lambda_scan'],
@@ -108,8 +108,8 @@ TABLE_FIGURES = {
     '3.2': ['03_proteingym/pg_per_dms_scatter', '03_proteingym/pg_property_sigma_summary'],
     '6.2.1': ['00_supplementary_figs/holdout_filter', '00_supplementary_figs/split_construction/split_max_identity_heatmap', '00_supplementary_figs/split_construction/split_max_tm_heatmap'],
     '6.3.1': ['00_supplementary_figs/holdout_filter', '00_supplementary_figs/split_construction/split_best_partner_capped'],
-    '6.5.1': ['00_supplementary_figs/holdout_filter', '00_supplementary_figs/split_construction/mega_clean_vs_homologous_test', '00_for_reviewers/reference/spurs_published_vs_retrained'],
-    '6.5.2': ['02_thermostability/thermo_external_rho', '02_thermostability/thermo_overview', '00_for_reviewers/reference/spurs_published_vs_retrained'],
+    '6.5.1': ['00_supplementary_figs/holdout_filter', '00_supplementary_figs/split_construction/mega_clean_vs_homologous_test'],
+    '6.5.2': ['02_thermostability/thermo_external_rho', '02_thermostability/thermo_overview'],
 }
 
 FOLDER_OWNER = {
@@ -128,6 +128,7 @@ FOLDER_OWNER = {
     '09_ablation': 'p11_ablations_and_heads',
     '10_inference_resources': 'scoring/resources',
     '99_misc': 'p01 / p03 / p05 / p06 / p07 / p08 / p11 / studies/*',
+    'si_latex_tables': 'scripts/build_si_latex_tables',
 }
 
 

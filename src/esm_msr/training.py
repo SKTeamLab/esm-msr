@@ -181,7 +181,13 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
                              "target_mode": hp.get(f'target_mode_{side}', config.LORA_TARGET_MODE), "last_n_layers": int(hp.get(f'last_n_layers_{side}', 0) or 0), "seed": hp.seed, "incl_sequence_head": bool(hp[f'incl_sequence_head_{side}'])}
         lora_config = {'wt_config': lora('wt'), 'mt_config': lora('mt'), 'seed': hp.seed}
 
-        self.model = MSRModel(lora_config=lora_config, shared_scale_init=SHARED_SCALE_INIT, shared_bias_init=SHARED_BIAS_INIT, model_dtype=torch.float32)
+        self.model = MSRModel(
+            lora_config=lora_config,
+            shared_scale_init=SHARED_SCALE_INIT,
+            shared_bias_init=SHARED_BIAS_INIT,
+            default_plddt_one=bool(hp.get('default_plddt_one', False)),
+            model_dtype=torch.float32,
+        )
 
         # on_save_checkpoint deliberately keeps only the lora / calibration entries, so a
         # checkpoint is missing every frozen base weight. Lightning's default strict load would then refuse

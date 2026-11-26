@@ -17,10 +17,10 @@ Every agent or contributor editing evaluation scripts, scoring tables, statistic
   - `SPURS`: **SPURS-multi** (`spursm`)
 - Never mix a singles-only model onto a multi-mutant benchmark (except in explicitly labelled additive/epistasis baselines) or a Dual-view/Stage-2 model onto a single-mutant-only benchmark (such as Domainome or single-mutant external $\Delta\Delta G$ sets).
 
-## 2. ESM3 Zero-Shot Convention (`σ = 0`, `per_res_plddt = 1.0`)
-- `ESM3-small-open` zero-shot is evaluated as **ESM-MSR at $\sigma = 0$** (`lora_alpha = 0`) with **`per_res_plddt = 1.0` wherever structure coordinates are finite** (`0.0` at BOS/EOS/missing coordinates), matching official `ESM3.logits()` conditioning (`src/esm_msr/models.py:_get_esm3_outputs`).
-- Never leave `per_res_plddt=None` in `ESM3.forward()`, which silently defaults `per_res_plddt` to all zeros and degrades zero-shot ESM3 accuracy.
-- When matching ProteinGym's published `ESM3` column, use single-site masked marginal summed additively over mutated positions (`--mask_strategy independent --skip_reverse --sigma 0`), which reproduces public ProteinGym `ESM3` to $r > 0.9999$.
+## 2. ESM3 Zero-Shot Convention (`σ = 0`, `per_res_plddt = 1.0`, opt-in `--default_plddt_one`)
+- `ESM3-small-open` zero-shot is evaluated as **ESM-MSR at $\sigma = 0$** (`lora_alpha = 0`) with **`--default_plddt_one`** (`per_res_plddt = 1.0` wherever structure coordinates are finite, `0.0` at BOS/EOS/missing coordinates), matching official `ESM3.logits()` conditioning (`src/esm_msr/models.py:_get_esm3_outputs`).
+- `default_plddt_one` defaults to **`False`** everywhere (`per_res_plddt=None`, ESM3's zero-filled default) so manuscript `FINAL_p0` checkpoints and future non-pLDDT runs stay 100% bit-exact with `FINAL_p0` training. Pass `--default_plddt_one` explicitly for zero-shot ESM3 (`σ = 0`) or `plddt=1.0` training/inference (saved to `hparams.yaml` and auto-restored on load).
+- When matching ProteinGym's published `ESM3` column, use single-site masked marginal summed additively over mutated positions (`--mask_strategy independent --skip_reverse --sigma 0 --default_plddt_one`), which reproduces public ProteinGym `ESM3` to $r > 0.9999$.
 
 ## 3. Rosetta Raw-Output Energy Scaling (`1 / 2.94`)
 - **Rosetta Cartesian $\Delta\Delta G$ predictions must always be scaled by `1 / 2.94`** (REU $\to$ kcal/mol) whenever scored from raw Rosetta outputs (critical for RMSE/MAE, calibration, and any scale-sensitive metric; verify sign convention too so stabilizing/destabilizing direction matches the target).
@@ -46,9 +46,13 @@ Always arrange models in this exact group order (and use the immutable colors/ma
    - `ESMtherm*`, `IFUM*`, `DDGemb`, `DDMut`
    - **Do NOT include `SPURS published*`** — it is retired and not relevant.
 
-## 6. Additional Consistent Conventions Across the Repository
+## 6. Mandatory Tobit Observation Link Whenever $\Delta G_{\text{wt}}$ Is Available
+- **ESM-MSR must always use the Tobit observation link** $h(\Delta G_{\text{wt}} + \widehat{\Delta\Delta G}) - \Delta G_{\text{wt}}$ (`msr_analysis/tobit.py`, `esm_msr.val_stats.tobit_link(**TOBIT)`) whenever wild-type stability $\Delta G_{\text{wt}}$ is available — specifically on **all MegaScale splits** (Homology-Restricted `capped` and `mega_splits`), **MGnify**, and **Rocklin *de novo* designs**, all measured by the same lab with the same cDNA proteolysis assay.
+- Never report unlinked latent ESM-MSR as the primary row on MegaScale, MGnify, or Rocklin (especially for RMSE/MAE, Pearson $r$, or pooled $\rho$ across scaffolds, where unlinked latent predictions incur large floor-saturation error against censored proteolysis measurements).
+- In supplementary tables reporting RMSE on these cDNA proteolysis benchmarks, you may additionally include an **`ESM-MSR (unlinked)`** row directly below `ESM-MSR` that is blank (`---`) in every column except RMSE, showing the raw latent RMSE for transparency.
+
+## 7. Additional Consistent Conventions Across the Repository
 - **Triplicate seed averaging & joint `[cluster/assay × seed]` bootstrap**: average across seeds 1–3 for all retrained models (`ESM-MSR`, `MutateEverything`, `ThermoMPNN`, `SPURS`) and our 3-run `ProteinMPNN`. Always resample replicate seeds **jointly** with proteins/assays in bootstrap CIs and paired $p$-values (see `analysis/docs/SEED_AUDIT.md`).
-- **Observed Tobit-linked scale vs. latent scale**: within-protein rank metrics ($\rho$) are monotone-invariant, but pooled cross-protein correlations (e.g., MGnify / Rocklin pooled $\rho$) and RMSE/MAE for Tobit-linked checkpoints must evaluate ESM-MSR on the observed linked scale $h(\Delta G_{\text{wt}} + \text{latent}) - \Delta G_{\text{wt}}$ (`msr_analysis/tobit.py`).
 - **Censoring & wild-type backgrounds on MegaScale**: filter out censored rows (`cens == 0`) for numeric $\Delta\Delta G$ evaluation and distinguish wild-type-backbone libraries from stabilizing mutant-background libraries per `docs/BENCHMARKS_OCT2026.md`.
 - **Per-mutation calibration bias**: always enforce `tie_mt_scale=False`, `per_mutation_bias=True` (bias applied once per mutated position, not once per variant).
 - **Atomic cache & file writes**: always write caches and outputs via `msr_analysis.paths.atomic_to_csv` / `atomic_pickle_dump` / `atomic_write_text` so worktree symlinks are never mutated in place.

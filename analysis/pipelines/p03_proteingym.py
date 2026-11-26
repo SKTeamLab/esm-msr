@@ -211,7 +211,7 @@ def _draw_main_pgym_figures(
             f'* Four-part training-homology filter applied across all categories ({n_removed} homologous assays excluded; '
             f'4 large BRCA1/BRCA2/POLG/SCN5A assays omitted for uniform baseline coverage). '
             'Singles version on singles assays, Dual-view / Stage 2 / -D / -multi on multi-mutant assays. '
-            'Models marked * (ESMtherm*, SPURS published*) trained on unsplit MegaScale libraries.'
+            'Models marked * (ESMtherm*) trained on unsplit MegaScale libraries.'
         ),
         note_fontsize=7.3,
     )
