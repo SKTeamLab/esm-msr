@@ -583,6 +583,7 @@ def main_(args):
         mask_native_cond_struct = bool(parsed_config.get('mask_native_cond_struct', False))
         fused_antisymmetric = bool(parsed_config.get('fused_antisymmetric', False))
         ckpt_default_plddt_one = bool(parsed_config.get('default_plddt_one', False))
+        ckpt_sequence_only = bool(parsed_config.get('sequence_only', False))
         if args.sigma != 1:
             parsed_config['wt_config']['lora_alpha'] *= args.sigma
             parsed_config['mt_config']['lora_alpha'] *= args.sigma
@@ -613,11 +614,13 @@ def main_(args):
         mask_native_cond_struct = False
         fused_antisymmetric = False
         ckpt_default_plddt_one = False
+        ckpt_sequence_only = False
         lora_config = {'wt_config': wt_lora_config, 'mt_config': mt_lora_config, 'seed': args.seed}        
 
     eff_default_plddt_one = ckpt_default_plddt_one if args.default_plddt_one is None else bool(args.default_plddt_one)
+    eff_sequence_only = ckpt_sequence_only if args.sequence_only is None else bool(args.sequence_only)
     model_dtype = torch.bfloat16 if args.dtype == 'bf16' else torch.float32
-    print(f"[MODEL] inference dtype = {args.dtype} ({model_dtype}), default_plddt_one = {eff_default_plddt_one}")
+    print(f"[MODEL] inference dtype = {args.dtype} ({model_dtype}), default_plddt_one = {eff_default_plddt_one}, sequence_only = {eff_sequence_only}")
     # Resource tracking (on by default, --no_resource_tracking to skip): per-dataset and per-protein wall time, CPU, RAM,
     # VRAM and I/O of the inference calls only; model loading and data handling are separate `stage` / dataset rows.
     tracker = resource_tracker.Tracker.from_args(
@@ -628,6 +631,7 @@ def main_(args):
               'precision_flag': args.precision, 'mask_strategy': str(args.mask_strategy),
               'skip_reverse': bool(args.skip_reverse),
               'default_plddt_one': eff_default_plddt_one,
+              'sequence_only': eff_sequence_only,
               'batch_mode': args.batch_mode or ('auto' if args.auto_batch_size else 'legacy'), 'batch_size_arg': args.batch_size,
               'auto_batch_headroom': args.auto_batch_headroom if (args.batch_mode in ('auto', 'table') or args.auto_batch_size) else None})
     _model_load = tracker.stage('model_load')
@@ -639,6 +643,7 @@ def main_(args):
         lora_config=lora_config, shared_scale_init=1, shared_bias_init=0, adapter_mode=adapter_mode,
         lora_mode=lora_mode, model_dtype=model_dtype, inference_mode=True,
         default_plddt_one=eff_default_plddt_one,
+        sequence_only=eff_sequence_only,
         tie_mt_scale=cal['tie_mt_scale'], per_mutation_bias=cal['per_mutation_bias'],
         native_cond_mt_input=native_cond_for_mt,
         mask_native_cond_struct=mask_native_cond_struct,
@@ -1154,6 +1159,9 @@ if __name__ == "__main__":
         parser.add_argument('--default_plddt_one', action=argparse.BooleanOptionalAction, default=None,
                             help="Opt-in: pass per_res_plddt=1.0 for residues with finite coordinates (matching ESM3.logits()). "
                                  "Default: the checkpoint's hparams (OFF when missing, preserving exact manuscript FINAL_p0 behavior).")
+        parser.add_argument('--sequence_only', action=argparse.BooleanOptionalAction, default=None,
+                            help="Opt-in sequence-only ablation: omit structure_coords, structure_tokens, and per_res_plddt. "
+                                 "Default: the checkpoint's hparams (OFF when missing).")
         resource_tracker.add_tracking_args(parser)
 
         args, remaining_argv = parser.parse_known_args()

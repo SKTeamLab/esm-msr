@@ -139,6 +139,9 @@ def parse_arguments(argv=None) -> argparse.Namespace:
     arch.add_argument('--default_plddt_one', action=argparse.BooleanOptionalAction, default=False,
                       help="Opt-in: pass per_res_plddt=1.0 for residues with finite backbone coordinates (matching ESM3.logits()) "
                            "when use_plddt is False. Default False preserves exact manuscript FINAL_p0 behavior (per_res_plddt=None -> zeros).")
+    arch.add_argument('--sequence_only', action=argparse.BooleanOptionalAction, default=False,
+                      help="Opt-in sequence-only ablation: omit structure_coords, structure_tokens, and per_res_plddt from every ESM3 forward pass, "
+                           "letting the base ESM3 model handle missing structure inputs with its built-in defaults (default False).")
 
     obj = parser.add_argument_group("Objective")
     obj.add_argument('--lambda_rank_wt', type=float, default=1.0)

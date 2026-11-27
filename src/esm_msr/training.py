@@ -186,6 +186,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             shared_scale_init=SHARED_SCALE_INIT,
             shared_bias_init=SHARED_BIAS_INIT,
             default_plddt_one=bool(hp.get('default_plddt_one', False)),
+            sequence_only=bool(hp.get('sequence_only', False)),
             model_dtype=torch.float32,
         )
 
