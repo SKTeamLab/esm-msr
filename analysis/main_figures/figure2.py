@@ -225,7 +225,7 @@ def build_figure2(*, split: str = 'capped', cycles_scale: float = 4.0, levels_sc
 
     p0_entries = [
         p06._hier_entry('ProSST', 'ProSST'),
-        p06._hier_entry('ProteinMPNN', 'ProteinMPNN'),
+        p06._hier_entry('ProteinMPNN', 'ProteinMPNN', 'ProteinMPNN Dual-path'),
         p06._hier_entry('ESM3-small-open', 'ESM3-small-open'),
         p06._hier_entry(p06.P0_EPI_NAME, 'ESM-MSR'),
         p06._hier_entry(p06.P0_CTX_NAME, 'ESM-MSR', 'ESM-MSR ctx ctrl', M.VARIANT_COLOR['ESM-MSR ctx ctrl']),

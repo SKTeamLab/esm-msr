@@ -1497,7 +1497,7 @@ def run_hierarchy_and_composite(B: int, split: str = 'capped', procs: int = 6, T
 
     std_entries = [
         _hier_entry('ProSST', 'ProSST'),
-        _hier_entry('ProteinMPNN', 'ProteinMPNN'),
+        _hier_entry('ProteinMPNN', 'ProteinMPNN', 'ProteinMPNN Dual-path'),
         _hier_entry('ESM3-small-open', 'ESM3-small-open'),
         _hier_entry(STD_EPI_NAME, 'ESM-MSR'),
         _hier_entry(STD_CTX_NAME, 'ESM-MSR', 'ESM-MSR ctx ctrl', M.VARIANT_COLOR['ESM-MSR ctx ctrl']),
@@ -1617,7 +1617,7 @@ def run_hierarchy_and_composite(B: int, split: str = 'capped', procs: int = 6, T
 
         p0_entries = [
             _hier_entry('ProSST', 'ProSST'),
-            _hier_entry('ProteinMPNN', 'ProteinMPNN'),
+            _hier_entry('ProteinMPNN', 'ProteinMPNN', 'ProteinMPNN Dual-path'),
             _hier_entry('ESM3-small-open', 'ESM3-small-open'),
             _hier_entry(P0_EPI_NAME, 'ESM-MSR'),
             _hier_entry(P0_CTX_NAME, 'ESM-MSR', 'ESM-MSR ctx ctrl', M.VARIANT_COLOR['ESM-MSR ctx ctrl']),
@@ -1770,19 +1770,18 @@ def build_supp_figure5(T_mk: pd.DataFrame | None = None) -> Path:
     return out_path
 
 
-def build_fig5a_epistasis_definitions_compare(B: int = 1000, procs: int = 4) -> Path:
+def build_fig5a_epistasis_definitions_compare(B: int = 100, procs: int = 6) -> Path:
     """Build 2-row a/b supplementary Figure 5a (`00_supplementary_figs/fig5a_epistasis_levels_bars_test_p0.{png,pdf}`):
-      - Panel a (top): Identical to Main Figure 2e (deployed-singles epistasis: comb_AB − WT_A − WT_B for ESM-MSR & ESM3-small-open,
-        Stage 2 − Stage 1 for MutateEverything, SPURS-multi − SPURS-single for SPURS).
-      - Panel b (bottom): Self-consistent multi-mutant model epistasis everywhere:
+      - Panel a (top): Deployed dual_AB − single_A − single_B everywhere (zero-shot models strictly dual_AB − WT_A − WT_B:
+        ProSST comb_AB − WT_A − WT_B, ProteinMPNN Dual-path − one-shot WT singles, ESM3-small-open comb_AB − WT_A − WT_B;
+        retrained models: ESM-MSR & ctx ctrl comb/ctx − WT_A − WT_B, ME Stage 2 − Stage 1, ThermoMPNN-D − ThermoMPNN,
+        SPURS-multi − SPURS-single; supervised: direct − sum of singles).
+      - Panel b (bottom): Self-consistent dual_AB − dual_A − dual_B everywhere:
         comb_AB − (comb_A + comb_B) for ProSST, ESM3-small-open, ESM-MSR, and ESM-MSR ctx ctrl;
-        Stage 2_AB − (Stage 2_A + Stage 2_B) for MutateEverything; native SPURS_multi_epi (= SPURS_multi − SPURS_multi_additive)
-        for SPURS-multi; native epistatic_pred for ThermoMPNN-D; direct − sum of singles for ProteinMPNN, GeoDDG-3D, Rosetta.
+        Stage 2_AB − (Stage 2_A + Stage 2_B) for MutateEverything; SPURS_multi_epi (= SPURS_multi − SPURS_multi_additive)
+        for SPURS-multi; native epistatic_pred for ThermoMPNN-D; direct − sum of singles for ProteinMPNN Dual-path, GeoDDG-3D, Rosetta.
     """
     out_supp = out_dir('supplementary_figs')
-    T_a = pd.read_csv(out_supp / 'fig5_epistasis_levels_p0_bootstrap_test.csv')
-
-    # Build Panel b bootstrap table (B draws, same domain x seed scheme)
     fr = load_frame('tsuboyama_capped_test')
     sp, p = fr.spine, fr.preds
     ids = sp['id'].to_numpy(dtype=object)
@@ -1792,25 +1791,61 @@ def build_fig5a_epistasis_definitions_compare(B: int = 1000, procs: int = 4) -> 
     f_fin = load_final_frame('tsuboyama_capped_test', families=['FINAL_p0'])
     revs = [_ctx_rev_for_seed(sp, 'test', s) for s in (1, 2, 3)]
     have_ctx = all(rv is not None for rv in revs)
+    unf_dir = BASE / 'retrained' / 'spurs_unfrozen' / 'predictions'
+    have_unf = all((unf_dir / f'seed{sd}' / 'tsuboyama_test.csv').exists() for sd in (1, 2, 3))
+    c_exact = np.array([float(dg_json.get(k, np.nan)) for k in sp['code'].astype(str)])
+    wt_true = np.where((sp['n_mut'] == 1).to_numpy(), sp['y'].to_numpy(float), sp['ddG_additive_ML'].to_numpy(float))
 
+    # --- Panel a: strictly dual_AB - single_A - single_B (zero-shot strictly dual_AB - WT_A - WT_B) ---
+    tables_a: dict[tuple[str, int], E.Table] = {}
+    specs_a: list[tuple[str, str, str]] = []
+    for s in (1, 2, 3):
+        heads = ('epi', 'ctx', 'add') if have_ctx else ('epi', 'add')
+        tables_a[('p0_a', s)] = _make_epi_table_fast(epi_sp, f_fin.preds['FINAL_p0:wt'][s - 1], f_fin.preds['FINAL_p0:comb'][s - 1], heads=heads, wt_rev=revs[s - 1] if have_ctx else None)
+    specs_a.append((P0_EPI_NAME, 'p0_a', 'epi'))
+    if have_ctx:
+        specs_a.append((P0_CTX_NAME, 'p0_a', 'ctx'))
+    for name, direct, add in [
+        ('ProSST', 'prosst:comb', 'prosst'),
+        ('ProteinMPNN', 'pmpnn', 'pmpnn+'),
+        ('ESM3-small-open', 'msrrel@0:comb', 'msrrel@0:wt'),
+        ('ME stage 2', 'me2', 'me1'),
+        ('ThermoMPNN-D', 'tmpnnd', 'tmpnn'),
+        ('GeoDDG-3D', 'geoddg', 'geoddg+'),
+        ('Rosetta', 'rosetta', 'rosetta+'),
+    ]:
+        if direct not in p or add not in p:
+            continue
+        ns = p[direct].shape[0]
+        for s in range(ns):
+            tables_a[(name, s + 1)] = _make_epi_table_fast(epi_sp, p[add][min(s, p[add].shape[0] - 1)], p[direct][s], heads=('epi', 'add'))
+        specs_a.append((name, name, 'epi'))
+    if have_unf:
+        for sd in (1, 2, 3):
+            d_u = pd.read_csv(unf_dir / f'seed{sd}' / 'tsuboyama_test.csv', usecols=['uid', 'SPURS_single_additive', 'SPURS_multi'], low_memory=False)
+            s_u = _align_id(ids, d_u['uid'].astype(str).to_numpy(), d_u['SPURS_single_additive'].to_numpy())
+            m_u = _align_id(ids, d_u['uid'].astype(str).to_numpy(), d_u['SPURS_multi'].to_numpy())
+            tables_a[('spurs_a', sd)] = _make_epi_table_fast(epi_sp, s_u, m_u, heads=('epi', 'add'))
+        specs_a.append(('SPURS multi', 'spurs_a', 'epi'))
+    tables_a[('neg_dg_add', 1)] = _make_epi_table_fast(epi_sp, wt_true, -c_exact, heads=('epi', 'add'))
+    specs_a.append(('−dG_add', 'neg_dg_add', 'epi'))
+    T_a, reps_a, metric_names = _fast_boot_epistasis_models(tables_a, specs_a, B=B, seed=11, jobs=procs)
+    T_a = T_a.assign(split='test')
+    atomic_to_csv(T_a, out_supp / 'fig5_epistasis_levels_dual_minus_single_bootstrap_test.csv', index=False, float_format='%.5f')
+
+    # --- Panel b: self-consistent dual_AB - dual_A - dual_B everywhere ---
     tables_b: dict[tuple[str, int], E.Table] = {}
     specs_b: list[tuple[str, str, str]] = []
-
-    # ESM-MSR: comb_AB - (comb_A + comb_B)
     for s in (1, 2, 3):
         comb_s = f_fin.preds['FINAL_p0:comb'][s - 1]
         tables_b[('p0_sc', s)] = _make_epi_table_fast(epi_sp, comb_s, comb_s, heads=('epi', 'add'))
     specs_b.append((P0_EPI_NAME, 'p0_sc', 'epi'))
-
-    # ESM-MSR ctx ctrl: ctx_AB - (ctx_A + ctx_B) where ctx = 0.5 * (wt + wt_rev)
     if have_ctx:
         for s in (1, 2, 3):
             ctx_s = 0.5 * (f_fin.preds['FINAL_p0:wt'][s - 1] + revs[s - 1])
             tables_b[('ctx_sc', s)] = _make_epi_table_fast(epi_sp, ctx_s, ctx_s, heads=('epi', 'add'))
         specs_b.append((P0_CTX_NAME, 'ctx_sc', 'epi'))
-
-    # Self-consistent baselines: f_multi(AB) - (f_multi(A) + f_multi(B))
-    sc_plain = [
+    for name, direct, add in [
         ('ProSST', 'prosst:comb', 'prosst:comb'),
         ('ProteinMPNN', 'pmpnn', 'pmpnn+'),
         ('ESM3-small-open', 'msrrel@0:comb', 'msrrel@0:comb'),
@@ -1818,18 +1853,13 @@ def build_fig5a_epistasis_definitions_compare(B: int = 1000, procs: int = 4) -> 
         ('ThermoMPNN-D', 'tmpnnd', 'tmpnn'),
         ('GeoDDG-3D', 'geoddg', 'geoddg+'),
         ('Rosetta', 'rosetta', 'rosetta+'),
-    ]
-    for name, direct, add in sc_plain:
+    ]:
         if direct not in p or add not in p:
             continue
         ns = p[direct].shape[0]
         for s in range(ns):
             tables_b[(name, s + 1)] = _make_epi_table_fast(epi_sp, p[add][min(s, p[add].shape[0] - 1)], p[direct][s], heads=('epi', 'add'))
         specs_b.append((name, name, 'epi'))
-
-    # SPURS-multi: native SPURS_multi_epi = SPURS_multi - SPURS_multi_additive
-    unf_dir = BASE / 'retrained' / 'spurs_unfrozen' / 'predictions'
-    have_unf = all((unf_dir / f'seed{sd}' / 'tsuboyama_test.csv').exists() for sd in (1, 2, 3))
     if have_unf:
         for sd in (1, 2, 3):
             d_u = pd.read_csv(unf_dir / f'seed{sd}' / 'tsuboyama_test.csv', usecols=['uid', 'SPURS_multi_additive', 'SPURS_multi'], low_memory=False)
@@ -1841,10 +1871,6 @@ def build_fig5a_epistasis_definitions_compare(B: int = 1000, procs: int = 4) -> 
         for sd in range(p['spursm'].shape[0]):
             tables_b[('spurs_sc', sd + 1)] = _make_epi_table_fast(epi_sp, p['spursm'][sd], p['spursm'][sd], heads=('epi', 'add'))
         specs_b.append(('SPURS multi', 'spurs_sc', 'epi'))
-
-    # -dG_add saturation floor ceiling
-    c_exact = np.array([float(dg_json.get(k, np.nan)) for k in sp['code'].astype(str)])
-    wt_true = np.where((sp['n_mut'] == 1).to_numpy(), sp['y'].to_numpy(float), sp['ddG_additive_ML'].to_numpy(float))
     tables_b[('neg_dg_add', 1)] = _make_epi_table_fast(epi_sp, wt_true, -c_exact, heads=('epi', 'add'))
     specs_b.append(('−dG_add', 'neg_dg_add', 'epi'))
 
@@ -1856,7 +1882,7 @@ def build_fig5a_epistasis_definitions_compare(B: int = 1000, procs: int = 4) -> 
 
     entries = [
         _hier_entry('ProSST', 'ProSST'),
-        _hier_entry('ProteinMPNN', 'ProteinMPNN'),
+        _hier_entry('ProteinMPNN', 'ProteinMPNN', 'ProteinMPNN Dual-path'),
         _hier_entry('ESM3-small-open', 'ESM3-small-open'),
         _hier_entry(P0_EPI_NAME, 'ESM-MSR'),
         _hier_entry(P0_CTX_NAME, 'ESM-MSR', 'ESM-MSR ctx ctrl', M.VARIANT_COLOR['ESM-MSR ctx ctrl']),
@@ -1869,7 +1895,6 @@ def build_fig5a_epistasis_definitions_compare(B: int = 1000, procs: int = 4) -> 
 
     nd = int(T_a['n_domains'].iloc[0])
     nn = int(T_a['n_doubles'].iloc[0])
-    B_a = int(T_a['B'].iloc[0])
 
     fig = plt.figure(figsize=(18.0, 13.8), facecolor='white')
     gs_a = fig.add_gridspec(1, 5, left=0.052, right=0.990, top=0.920, bottom=0.675, wspace=0.14)
@@ -1891,23 +1916,23 @@ def build_fig5a_epistasis_definitions_compare(B: int = 1000, procs: int = 4) -> 
     fig.text(0.010, pa.y1 + 0.062, 'a', ha='left', va='top', fontsize=15, fontweight='bold')
     fig.text(
         0.032, pa.y1 + 0.060,
-        'Deployed-singles epistasis (Main Fig. 2e): ESM-MSR & ESM3-small-open comb_AB − (WT_A + WT_B); ME Stage 2 − Stage 1; SPURS-multi − SPURS-single',
-        ha='left', va='top', fontsize=10.6, fontweight='bold', color='#222222',
+        'Deployed dual_AB − single_A − single_B (zero-shot: dual_AB − WT_A − WT_B; retrained: comb/ctx − WT, ME Stage 2 − Stage 1, ThermoMPNN-D − single, SPURS-multi − SPURS-single)',
+        ha='left', va='top', fontsize=10.3, fontweight='bold', color='#222222',
     )
     fig.text(0.010, pb.y1 + 0.062, 'b', ha='left', va='top', fontsize=15, fontweight='bold')
     fig.text(
         0.032, pb.y1 + 0.060,
-        'Self-consistent multi-model epistasis: comb_AB − (comb_A + comb_B) for ProSST / ESM3 / ESM-MSR / ctx ctrl; ME Stage 2_AB − (Stage 2_A + Stage 2_B); native SPURS_multi_epi',
-        ha='left', va='top', fontsize=10.6, fontweight='bold', color='#222222',
+        'Self-consistent dual_AB − dual_A − dual_B (ProSST / ESM3 / ESM-MSR / ctx ctrl: comb − comb+; ME Stage 2 − Stage 2+; SPURS-multi: SPURS_multi_epi)',
+        ha='left', va='top', fontsize=10.3, fontweight='bold', color='#222222',
     )
 
     note = (
         f'Homology-Restricted MegaScale test doubles with both singles measured (n = {nn:,} doubles across {nd} domains; 3-seed means for retrained models; '
-        f'whiskers: 95% domain × seed bootstrap, B = {B_a:,} in a, B = {B:,} in b; black horizontal dashes: unsaturated subset ΔG_add > 0 kcal/mol; '
-        f'red dotted line: −ΔG_add floor ceiling).  '
-        'Panel a reproduces Main Fig. 2e using each model\'s deployed single-mutant head as the additive baseline (requiring only 1 WT pass/protein for ESM-MSR & ESM3-small-open; '
-        'ProSST uses comb_AB − (comb_A + comb_B) in both panels to cancel unmasked self-bias; ThermoMPNN-D, ProteinMPNN, GeoDDG-3D, and Rosetta are identical in a and b).  '
-        'Panel b subtracts each multi-mutant model\'s own single-mutant predictions (or native epistatic head SPURS_multi_epi), removing cross-head offsets at the cost of scoring every single mutant with the multi-mutant model.'
+        f'whiskers: 95% domain × seed bootstrap, B = {B:,}; black horizontal dashes: unsaturated subset ΔG_add > 0 kcal/mol; red dotted line: −ΔG_add floor ceiling).  '
+        'Panel a consistently evaluates deployed dual_AB − single_A − single_B across all two-version models (zero-shot ProSST, ESM3-small-open, and ProteinMPNN Dual-path subtract WT/one-shot singles; '
+        'retrained models subtract their singles-trained version).  '
+        'Panel b consistently evaluates dual_AB − dual_A − dual_B using each multi-mutant model\'s own single-mutant predictions (SPURS_multi_epi = SPURS_multi − SPURS_multi_additive; '
+        'ProteinMPNN Dual-path, ThermoMPNN-D, GeoDDG-3D, and Rosetta have a single additive baseline and are identical in a and b).'
     )
     kw = dict(fontsize=8.0, color='#444444', linespacing=1.28)
     fig.text(0.012, 0.010, style.wrap_to_px(fig, note, 0.976 * fig.bbox.width, **kw), ha='left', va='bottom', **kw)

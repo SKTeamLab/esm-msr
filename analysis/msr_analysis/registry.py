@@ -181,7 +181,7 @@ _reg('prosst:epi', 'ProSST, Dual-view − sum of singles', 'ProSST', fill=True)
 
 _reg('pmpnn', 'ProteinMPNN', 'ProteinMPNN')
 _reg('pmpnn+', 'ProteinMPNN, sum of the singles', 'ProteinMPNN', fill=False)
-_reg('pmpnn:epi', 'ProteinMPNN, direct − sum of singles', 'ProteinMPNN', fill=True)
+_reg('pmpnn:epi', 'ProteinMPNN Dual-path − sum of singles', 'ProteinMPNN', fill=True)
 
 _reg('esmtherm', 'ESMtherm*', 'ESMtherm')
 _reg('esmtherm+', 'ESMtherm*, sum of the singles', 'ESMtherm', fill=False)

@@ -99,7 +99,7 @@ ROSTER = [
           views=('WT-view', 'Dual-view'),
           label_all='ProSST\nWT-view (& Dual-view)', label_pair='ProSST\nWT-view → Dual-view', label_epi='ProSST\nDual-view −\nsum of singles'),
     Model('ProteinMPNN', 'zeroshot', '#34495e', 'd', ls='-.', single='pmpnn', multi='pmpnn', epi='pmpnn:epi', add='pmpnn+',
-          label_all='ProteinMPNN', label_pair='ProteinMPNN\nOne-shot singles → AR doubles', label_epi='ProteinMPNN\ndirect −\nsum of singles'),
+          label_all='ProteinMPNN', label_pair='ProteinMPNN\nOne-shot → Dual-path', label_epi='ProteinMPNN\nDual-path −\nsum of singles'),
     Model('ESM3-small-open', 'zeroshot', '#7f8c8d', '^', single='msrrel@0:wt', multi='msrrel@0:comb', epi='msrrel@0:epi', add='msrrel@0:wt+',
           views=('WT-view', 'Dual-view'), legend='ESM3-small-open (σ = 0)',
           label_all='ESM3-small-open\nWT-view (& Dual-view)', label_pair='ESM3-small-open\nWT-view → Dual-view', label_epi='ESM3-small-open\ncomb_AB −\nWT_A − WT_B'),

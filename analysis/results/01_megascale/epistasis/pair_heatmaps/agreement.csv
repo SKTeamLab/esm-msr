@@ -1,6 +1,6 @@
 mode,domain,pos1,pos2,model,spearman,n_cells
 raw,2D1U,61,71,ProSST,0.2884,287
-raw,2D1U,61,71,ProteinMPNN,0.6210,287
+raw,2D1U,61,71,ProteinMPNN Dual-path,0.6210,287
 raw,2D1U,61,71,ESM3-small-open,0.4529,287
 raw,2D1U,61,71,ESM-MSR,0.6584,287
 raw,2D1U,61,71,MutateEverything Stage 2,0.5608,287
@@ -12,7 +12,7 @@ raw,2D1U,61,71,ESMtherm*,0.6737,287
 raw,2D1U,61,71,IFUM*,0.5340,287
 raw,2D1U,61,71,DDGemb,0.4941,287
 raw,2KRU,28,32,ProSST,0.6773,324
-raw,2KRU,28,32,ProteinMPNN,0.3669,324
+raw,2KRU,28,32,ProteinMPNN Dual-path,0.3669,324
 raw,2KRU,28,32,ESM3-small-open,0.4396,324
 raw,2KRU,28,32,ESM-MSR,0.5287,324
 raw,2KRU,28,32,MutateEverything Stage 2,0.4342,324
@@ -24,7 +24,7 @@ raw,2KRU,28,32,ESMtherm*,-0.0254,324
 raw,2KRU,28,32,IFUM*,0.5511,324
 raw,2KRU,28,32,DDGemb,0.0801,324
 raw,2KRU,42,46,ProSST,0.4839,353
-raw,2KRU,42,46,ProteinMPNN,0.4811,353
+raw,2KRU,42,46,ProteinMPNN Dual-path,0.4811,353
 raw,2KRU,42,46,ESM3-small-open,0.3046,353
 raw,2KRU,42,46,ESM-MSR,0.4795,353
 raw,2KRU,42,46,MutateEverything Stage 2,0.3766,353
@@ -36,7 +36,7 @@ raw,2KRU,42,46,ESMtherm*,0.0918,353
 raw,2KRU,42,46,IFUM*,0.4810,353
 raw,2KRU,42,46,DDGemb,0.1902,353
 raw,2KVS,2,63,ProSST,0.1603,341
-raw,2KVS,2,63,ProteinMPNN,0.2988,341
+raw,2KVS,2,63,ProteinMPNN Dual-path,0.2988,341
 raw,2KVS,2,63,ESM3-small-open,0.5276,341
 raw,2KVS,2,63,ESM-MSR,0.5372,341
 raw,2KVS,2,63,MutateEverything Stage 2,0.4834,341
@@ -48,7 +48,7 @@ raw,2KVS,2,63,ESMtherm*,-0.0730,341
 raw,2KVS,2,63,IFUM*,-0.0572,341
 raw,2KVS,2,63,DDGemb,-0.0329,341
 raw,2KVS,3,31,ProSST,0.2725,361
-raw,2KVS,3,31,ProteinMPNN,0.5995,361
+raw,2KVS,3,31,ProteinMPNN Dual-path,0.5995,361
 raw,2KVS,3,31,ESM3-small-open,0.7701,361
 raw,2KVS,3,31,ESM-MSR,0.5923,361
 raw,2KVS,3,31,MutateEverything Stage 2,0.6210,361
@@ -60,7 +60,7 @@ raw,2KVS,3,31,ESMtherm*,0.2967,361
 raw,2KVS,3,31,IFUM*,-0.0616,361
 raw,2KVS,3,31,DDGemb,0.0533,361
 raw,2KVS,33,35,ProSST,0.2235,323
-raw,2KVS,33,35,ProteinMPNN,0.2530,323
+raw,2KVS,33,35,ProteinMPNN Dual-path,0.2530,323
 raw,2KVS,33,35,ESM3-small-open,0.4798,323
 raw,2KVS,33,35,ESM-MSR,0.4747,323
 raw,2KVS,33,35,MutateEverything Stage 2,0.3622,323
@@ -72,7 +72,7 @@ raw,2KVS,33,35,ESMtherm*,-0.1463,323
 raw,2KVS,33,35,IFUM*,-0.2020,323
 raw,2KVS,33,35,DDGemb,-0.1454,323
 raw,2L09,28,32,ProSST,0.3179,324
-raw,2L09,28,32,ProteinMPNN,0.2406,324
+raw,2L09,28,32,ProteinMPNN Dual-path,0.2406,324
 raw,2L09,28,32,ESM3-small-open,0.5153,324
 raw,2L09,28,32,ESM-MSR,0.4870,324
 raw,2L09,28,32,MutateEverything Stage 2,0.3583,324
@@ -84,7 +84,7 @@ raw,2L09,28,32,ESMtherm*,0.3802,324
 raw,2L09,28,32,IFUM*,0.3857,324
 raw,2L09,28,32,DDGemb,0.0804,324
 raw,2LC2,36,39,ProSST,0.1109,361
-raw,2LC2,36,39,ProteinMPNN,0.0458,361
+raw,2LC2,36,39,ProteinMPNN Dual-path,0.0458,361
 raw,2LC2,36,39,ESM3-small-open,0.5828,361
 raw,2LC2,36,39,ESM-MSR,0.6995,361
 raw,2LC2,36,39,MutateEverything Stage 2,0.4282,361
@@ -96,7 +96,7 @@ raw,2LC2,36,39,ESMtherm*,0.8133,361
 raw,2LC2,36,39,IFUM*,0.4190,361
 raw,2LC2,36,39,DDGemb,0.2926,361
 raw,3DKM,18,28,ProSST,0.0353,342
-raw,3DKM,18,28,ProteinMPNN,0.0529,342
+raw,3DKM,18,28,ProteinMPNN Dual-path,0.0529,342
 raw,3DKM,18,28,ESM3-small-open,0.2144,342
 raw,3DKM,18,28,ESM-MSR,0.5095,342
 raw,3DKM,18,28,MutateEverything Stage 2,0.3835,342
@@ -108,7 +108,7 @@ raw,3DKM,18,28,ESMtherm*,0.4567,342
 raw,3DKM,18,28,IFUM*,-0.0012,342
 raw,3DKM,18,28,DDGemb,0.1674,342
 raw,3DKM,27,56,ProSST,0.1806,361
-raw,3DKM,27,56,ProteinMPNN,0.2875,361
+raw,3DKM,27,56,ProteinMPNN Dual-path,0.2875,361
 raw,3DKM,27,56,ESM3-small-open,0.2635,361
 raw,3DKM,27,56,ESM-MSR,-0.0893,361
 raw,3DKM,27,56,MutateEverything Stage 2,0.4039,361
@@ -120,7 +120,7 @@ raw,3DKM,27,56,ESMtherm*,0.2762,361
 raw,3DKM,27,56,IFUM*,0.1414,361
 raw,3DKM,27,56,DDGemb,-0.0686,361
 raw,3DKM,59,67,ProSST,0.2351,227
-raw,3DKM,59,67,ProteinMPNN,0.2934,227
+raw,3DKM,59,67,ProteinMPNN Dual-path,0.2934,227
 raw,3DKM,59,67,ESM3-small-open,0.2941,227
 raw,3DKM,59,67,ESM-MSR,0.2521,227
 raw,3DKM,59,67,MutateEverything Stage 2,0.1099,227
@@ -132,7 +132,7 @@ raw,3DKM,59,67,ESMtherm*,0.1683,227
 raw,3DKM,59,67,IFUM*,0.2123,227
 raw,3DKM,59,67,DDGemb,0.1380,227
 raw,3ZGK,11,41,ProSST,0.1554,361
-raw,3ZGK,11,41,ProteinMPNN,0.3135,361
+raw,3ZGK,11,41,ProteinMPNN Dual-path,0.3135,361
 raw,3ZGK,11,41,ESM3-small-open,0.3931,361
 raw,3ZGK,11,41,ESM-MSR,0.5282,361
 raw,3ZGK,11,41,MutateEverything Stage 2,0.3882,361
@@ -144,7 +144,7 @@ raw,3ZGK,11,41,ESMtherm*,0.6355,361
 raw,3ZGK,11,41,IFUM*,-0.1733,361
 raw,3ZGK,11,41,DDGemb,0.3344,361
 raw,3ZGK,33,68,ProSST,0.4874,328
-raw,3ZGK,33,68,ProteinMPNN,0.2814,328
+raw,3ZGK,33,68,ProteinMPNN Dual-path,0.2814,328
 raw,3ZGK,33,68,ESM3-small-open,0.6382,328
 raw,3ZGK,33,68,ESM-MSR,0.6851,328
 raw,3ZGK,33,68,MutateEverything Stage 2,0.6509,328
@@ -156,7 +156,7 @@ raw,3ZGK,33,68,ESMtherm*,0.8149,328
 raw,3ZGK,33,68,IFUM*,-0.2240,328
 raw,3ZGK,33,68,DDGemb,0.5731,328
 raw,3ZGK,42,45,ProSST,0.5165,361
-raw,3ZGK,42,45,ProteinMPNN,0.3028,361
+raw,3ZGK,42,45,ProteinMPNN Dual-path,0.3028,361
 raw,3ZGK,42,45,ESM3-small-open,0.5816,361
 raw,3ZGK,42,45,ESM-MSR,0.6319,361
 raw,3ZGK,42,45,MutateEverything Stage 2,0.3892,361
@@ -168,7 +168,7 @@ raw,3ZGK,42,45,ESMtherm*,0.6586,361
 raw,3ZGK,42,45,IFUM*,0.0718,361
 raw,3ZGK,42,45,DDGemb,0.2834,361
 raw,3ZGK,52,57,ProSST,-0.0850,361
-raw,3ZGK,52,57,ProteinMPNN,0.2870,361
+raw,3ZGK,52,57,ProteinMPNN Dual-path,0.2870,361
 raw,3ZGK,52,57,ESM3-small-open,0.2382,361
 raw,3ZGK,52,57,ESM-MSR,0.1912,361
 raw,3ZGK,52,57,MutateEverything Stage 2,0.1422,361
@@ -180,7 +180,7 @@ raw,3ZGK,52,57,ESMtherm*,0.0016,361
 raw,3ZGK,52,57,IFUM*,-0.1398,361
 raw,3ZGK,52,57,DDGemb,-0.2238,361
 saturation_corrected,2D1U,61,71,ProSST,0.3721,287
-saturation_corrected,2D1U,61,71,ProteinMPNN,0.2227,287
+saturation_corrected,2D1U,61,71,ProteinMPNN Dual-path,0.2227,287
 saturation_corrected,2D1U,61,71,ESM3-small-open,0.2229,287
 saturation_corrected,2D1U,61,71,ESM-MSR,0.7019,287
 saturation_corrected,2D1U,61,71,MutateEverything Stage 2,0.1172,287
@@ -192,7 +192,7 @@ saturation_corrected,2D1U,61,71,ESMtherm*,0.4286,287
 saturation_corrected,2D1U,61,71,IFUM*,0.4570,287
 saturation_corrected,2D1U,61,71,DDGemb,0.2220,287
 saturation_corrected,2KRU,28,32,ProSST,0.3850,324
-saturation_corrected,2KRU,28,32,ProteinMPNN,0.0693,324
+saturation_corrected,2KRU,28,32,ProteinMPNN Dual-path,0.0693,324
 saturation_corrected,2KRU,28,32,ESM3-small-open,-0.0928,324
 saturation_corrected,2KRU,28,32,ESM-MSR,0.3787,324
 saturation_corrected,2KRU,28,32,MutateEverything Stage 2,-0.0647,324
@@ -204,7 +204,7 @@ saturation_corrected,2KRU,28,32,ESMtherm*,0.4272,324
 saturation_corrected,2KRU,28,32,IFUM*,0.4017,324
 saturation_corrected,2KRU,28,32,DDGemb,-0.0574,324
 saturation_corrected,2KRU,42,46,ProSST,0.3942,353
-saturation_corrected,2KRU,42,46,ProteinMPNN,0.3991,353
+saturation_corrected,2KRU,42,46,ProteinMPNN Dual-path,0.3991,353
 saturation_corrected,2KRU,42,46,ESM3-small-open,-0.1183,353
 saturation_corrected,2KRU,42,46,ESM-MSR,0.1874,353
 saturation_corrected,2KRU,42,46,MutateEverything Stage 2,0.1414,353
@@ -216,7 +216,7 @@ saturation_corrected,2KRU,42,46,ESMtherm*,0.3171,353
 saturation_corrected,2KRU,42,46,IFUM*,0.4442,353
 saturation_corrected,2KRU,42,46,DDGemb,0.0849,353
 saturation_corrected,2KVS,2,63,ProSST,0.0197,341
-saturation_corrected,2KVS,2,63,ProteinMPNN,0.0873,341
+saturation_corrected,2KVS,2,63,ProteinMPNN Dual-path,0.0873,341
 saturation_corrected,2KVS,2,63,ESM3-small-open,0.1074,341
 saturation_corrected,2KVS,2,63,ESM-MSR,0.1034,341
 saturation_corrected,2KVS,2,63,MutateEverything Stage 2,-0.2206,341
@@ -228,7 +228,7 @@ saturation_corrected,2KVS,2,63,ESMtherm*,0.3382,341
 saturation_corrected,2KVS,2,63,IFUM*,0.4012,341
 saturation_corrected,2KVS,2,63,DDGemb,-0.3653,341
 saturation_corrected,2KVS,3,31,ProSST,0.2355,361
-saturation_corrected,2KVS,3,31,ProteinMPNN,0.5360,361
+saturation_corrected,2KVS,3,31,ProteinMPNN Dual-path,0.5360,361
 saturation_corrected,2KVS,3,31,ESM3-small-open,0.6227,361
 saturation_corrected,2KVS,3,31,ESM-MSR,0.5476,361
 saturation_corrected,2KVS,3,31,MutateEverything Stage 2,0.3704,361
@@ -240,7 +240,7 @@ saturation_corrected,2KVS,3,31,ESMtherm*,0.1950,361
 saturation_corrected,2KVS,3,31,IFUM*,-0.1858,361
 saturation_corrected,2KVS,3,31,DDGemb,-0.0720,361
 saturation_corrected,2KVS,33,35,ProSST,0.2281,323
-saturation_corrected,2KVS,33,35,ProteinMPNN,0.2749,323
+saturation_corrected,2KVS,33,35,ProteinMPNN Dual-path,0.2749,323
 saturation_corrected,2KVS,33,35,ESM3-small-open,0.4186,323
 saturation_corrected,2KVS,33,35,ESM-MSR,0.4540,323
 saturation_corrected,2KVS,33,35,MutateEverything Stage 2,0.3214,323
@@ -252,7 +252,7 @@ saturation_corrected,2KVS,33,35,ESMtherm*,-0.1755,323
 saturation_corrected,2KVS,33,35,IFUM*,-0.1938,323
 saturation_corrected,2KVS,33,35,DDGemb,-0.1344,323
 saturation_corrected,2L09,28,32,ProSST,0.1786,324
-saturation_corrected,2L09,28,32,ProteinMPNN,0.0231,324
+saturation_corrected,2L09,28,32,ProteinMPNN Dual-path,0.0231,324
 saturation_corrected,2L09,28,32,ESM3-small-open,0.2436,324
 saturation_corrected,2L09,28,32,ESM-MSR,0.5599,324
 saturation_corrected,2L09,28,32,MutateEverything Stage 2,0.1027,324
@@ -264,7 +264,7 @@ saturation_corrected,2L09,28,32,ESMtherm*,0.4777,324
 saturation_corrected,2L09,28,32,IFUM*,0.4800,324
 saturation_corrected,2L09,28,32,DDGemb,-0.0922,324
 saturation_corrected,2LC2,36,39,ProSST,0.1746,361
-saturation_corrected,2LC2,36,39,ProteinMPNN,0.0791,361
+saturation_corrected,2LC2,36,39,ProteinMPNN Dual-path,0.0791,361
 saturation_corrected,2LC2,36,39,ESM3-small-open,0.4523,361
 saturation_corrected,2LC2,36,39,ESM-MSR,0.6066,361
 saturation_corrected,2LC2,36,39,MutateEverything Stage 2,0.4273,361
@@ -276,7 +276,7 @@ saturation_corrected,2LC2,36,39,ESMtherm*,0.6190,361
 saturation_corrected,2LC2,36,39,IFUM*,0.4013,361
 saturation_corrected,2LC2,36,39,DDGemb,0.1818,361
 saturation_corrected,3DKM,18,28,ProSST,0.1183,342
-saturation_corrected,3DKM,18,28,ProteinMPNN,0.0569,342
+saturation_corrected,3DKM,18,28,ProteinMPNN Dual-path,0.0569,342
 saturation_corrected,3DKM,18,28,ESM3-small-open,-0.1218,342
 saturation_corrected,3DKM,18,28,ESM-MSR,0.0470,342
 saturation_corrected,3DKM,18,28,MutateEverything Stage 2,0.2852,342
@@ -288,7 +288,7 @@ saturation_corrected,3DKM,18,28,ESMtherm*,0.0149,342
 saturation_corrected,3DKM,18,28,IFUM*,0.2260,342
 saturation_corrected,3DKM,18,28,DDGemb,-0.5735,342
 saturation_corrected,3DKM,27,56,ProSST,0.1661,361
-saturation_corrected,3DKM,27,56,ProteinMPNN,0.2286,361
+saturation_corrected,3DKM,27,56,ProteinMPNN Dual-path,0.2286,361
 saturation_corrected,3DKM,27,56,ESM3-small-open,-0.1420,361
 saturation_corrected,3DKM,27,56,ESM-MSR,-0.3447,361
 saturation_corrected,3DKM,27,56,MutateEverything Stage 2,-0.1457,361
@@ -300,7 +300,7 @@ saturation_corrected,3DKM,27,56,ESMtherm*,-0.0942,361
 saturation_corrected,3DKM,27,56,IFUM*,-0.0089,361
 saturation_corrected,3DKM,27,56,DDGemb,0.0894,361
 saturation_corrected,3DKM,59,67,ProSST,-0.3330,227
-saturation_corrected,3DKM,59,67,ProteinMPNN,-0.1481,227
+saturation_corrected,3DKM,59,67,ProteinMPNN Dual-path,-0.1481,227
 saturation_corrected,3DKM,59,67,ESM3-small-open,0.0672,227
 saturation_corrected,3DKM,59,67,ESM-MSR,0.0339,227
 saturation_corrected,3DKM,59,67,MutateEverything Stage 2,-0.2538,227
@@ -312,7 +312,7 @@ saturation_corrected,3DKM,59,67,ESMtherm*,-0.3681,227
 saturation_corrected,3DKM,59,67,IFUM*,-0.3635,227
 saturation_corrected,3DKM,59,67,DDGemb,-0.4542,227
 saturation_corrected,3ZGK,11,41,ProSST,0.2843,361
-saturation_corrected,3ZGK,11,41,ProteinMPNN,0.4569,361
+saturation_corrected,3ZGK,11,41,ProteinMPNN Dual-path,0.4569,361
 saturation_corrected,3ZGK,11,41,ESM3-small-open,0.3044,361
 saturation_corrected,3ZGK,11,41,ESM-MSR,0.4995,361
 saturation_corrected,3ZGK,11,41,MutateEverything Stage 2,0.0313,361
@@ -324,7 +324,7 @@ saturation_corrected,3ZGK,11,41,ESMtherm*,0.3707,361
 saturation_corrected,3ZGK,11,41,IFUM*,-0.0999,361
 saturation_corrected,3ZGK,11,41,DDGemb,0.1981,361
 saturation_corrected,3ZGK,33,68,ProSST,-0.1155,328
-saturation_corrected,3ZGK,33,68,ProteinMPNN,0.0590,328
+saturation_corrected,3ZGK,33,68,ProteinMPNN Dual-path,0.0590,328
 saturation_corrected,3ZGK,33,68,ESM3-small-open,0.0732,328
 saturation_corrected,3ZGK,33,68,ESM-MSR,0.0605,328
 saturation_corrected,3ZGK,33,68,MutateEverything Stage 2,0.0445,328
@@ -336,7 +336,7 @@ saturation_corrected,3ZGK,33,68,ESMtherm*,0.2823,328
 saturation_corrected,3ZGK,33,68,IFUM*,-0.0669,328
 saturation_corrected,3ZGK,33,68,DDGemb,-0.0217,328
 saturation_corrected,3ZGK,42,45,ProSST,0.4906,361
-saturation_corrected,3ZGK,42,45,ProteinMPNN,0.3601,361
+saturation_corrected,3ZGK,42,45,ProteinMPNN Dual-path,0.3601,361
 saturation_corrected,3ZGK,42,45,ESM3-small-open,0.3882,361
 saturation_corrected,3ZGK,42,45,ESM-MSR,0.4650,361
 saturation_corrected,3ZGK,42,45,MutateEverything Stage 2,0.2397,361
@@ -348,7 +348,7 @@ saturation_corrected,3ZGK,42,45,ESMtherm*,0.5853,361
 saturation_corrected,3ZGK,42,45,IFUM*,0.0946,361
 saturation_corrected,3ZGK,42,45,DDGemb,0.2464,361
 saturation_corrected,3ZGK,52,57,ProSST,-0.0314,361
-saturation_corrected,3ZGK,52,57,ProteinMPNN,0.2836,361
+saturation_corrected,3ZGK,52,57,ProteinMPNN Dual-path,0.2836,361
 saturation_corrected,3ZGK,52,57,ESM3-small-open,0.1450,361
 saturation_corrected,3ZGK,52,57,ESM-MSR,0.1931,361
 saturation_corrected,3ZGK,52,57,MutateEverything Stage 2,0.1414,361

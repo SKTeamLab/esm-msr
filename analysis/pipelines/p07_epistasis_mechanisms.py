@@ -74,7 +74,7 @@ PAIR_AA = list('KRHDESTNQYCAVILMFWPG')
 PAIR_IDX = {a: i for i, a in enumerate(PAIR_AA)}
 HEATMAP_MODELS = [
     ('ProSST', ('key', 'prosst:epi'), 'prosst:comb+', 'prosst:comb'),
-    ('ProteinMPNN', ('diff', 'pmpnn', 'pmpnn+'), 'pmpnn+', 'pmpnn'),
+    ('ProteinMPNN Dual-path', ('diff', 'pmpnn', 'pmpnn+'), 'pmpnn+', 'pmpnn'),
     ('ESM3-small-open', ('key', 'msrrel@0:epi'), 'msrrel@0:wt+', 'msrrel@0:wt'),
     ('ESM-MSR', ('key', 'msrp0:epi'), 'msrp0:wt+', 'msrp0:wt'),
     ('MutateEverything Stage 2', ('key', 'me2:epi'), 'me1', 'me1'),
@@ -94,7 +94,7 @@ HEATMAP_MODELS = [
 # ----------------------------------------------------------------------------------------------
 MAIN_DDD_GRID_MODELS = [
     ('ProSST', 'Zero-shot'),
-    ('ProteinMPNN', 'Zero-shot'),
+    ('ProteinMPNN Dual-path', 'Zero-shot'),
     ('ESM3-small-open', 'Zero-shot'),
     ('ESM-MSR', 'Retrained'),
     ('MutateEverything Stage 2', 'Retrained'),
@@ -2019,7 +2019,7 @@ def build_supp_megascale_scatter_trio(split: str = 'capped', B: int = 10_000, co
             msr_name='ESM-MSR',
             models=[
                 ('ProSST Dual-view', 'prosst:epi', 'Zero-shot', 'predicted δΔΔG (log-likelihood)'),
-                ('ProteinMPNN', 'pmpnn:epi', 'Zero-shot', 'predicted δΔΔG (log-odds)'),
+                ('ProteinMPNN Dual-path', 'pmpnn:epi', 'Zero-shot', 'predicted δΔΔG (log-odds)'),
                 ('ESM3-small-open', 'msrrel@0:epi', 'Zero-shot', 'predicted δΔΔG = dddG (kcal/mol)'),
                 ('ESM-MSR', 'msrp0:epi', 'Retrained', 'predicted δΔΔG = dddG (kcal/mol)'),
                 ('MutateEverything Stage 2', 'me2:epi', 'Retrained', 'predicted δΔΔG = dddG (kcal/mol)'),
