@@ -18,7 +18,7 @@ knows nothing about the model: the sequences a block needs and the assembly of i
 import logging
 import random
 from dataclasses import dataclass, field
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import torch
@@ -46,6 +46,7 @@ class Library:
     singles: Dict[str, np.ndarray] = field(default_factory=dict)       # name -> [P, 20]
     pairs: List[Tuple[int, int]] = field(default_factory=list)         # (i, j), i < j
     pair_data: Dict[str, np.ndarray] = field(default_factory=dict)     # name -> [Q, 20, 20]
+    plddt: Optional[torch.Tensor] = None                               # [1, L] per-residue pLDDT from cache (optional)
 
     @property
     def n_pairs(self) -> int:
@@ -98,6 +99,8 @@ def build_library(name: str, items: Sequence[dict]) -> 'Library | None':
     if not singles and not pairs:
         return None
     sp = np.array(sorted(singles), dtype=np.int64)
+    raw_plddt = ref.get('plddt', None)
+    plddt_t = torch.as_tensor(raw_plddt, dtype=torch.float32).reshape(1, -1) if raw_plddt is not None else None
     lib = Library(
         name=name,
         seq=torch.as_tensor(ref['wt_sequence_tokens'], dtype=torch.long),
@@ -106,7 +109,8 @@ def build_library(name: str, items: Sequence[dict]) -> 'Library | None':
         wt_tok=wt_tok, single_pos=sp,
         singles={f: np.stack([singles[int(p)][f] for p in sp]) for f in SINGLE_FIELDS} if len(sp) else {},
         pairs=sorted(pairs),
-        pair_data={f: np.stack([pairs[k][f] for k in sorted(pairs)]) for f in SINGLE_FIELDS} if pairs else {})
+        pair_data={f: np.stack([pairs[k][f] for k in sorted(pairs)]) for f in SINGLE_FIELDS} if pairs else {},
+        plddt=plddt_t)
     return lib
 
 
@@ -344,6 +348,8 @@ class BlockDataset(Dataset):
         lib = self.libs[li]
         t = lambda a: torch.as_tensor(a)
         batch = {'pdb': lib.name, 'seq': lib.seq, 'coords': lib.coords, 'structure_tokens': lib.structure_tokens}
+        if lib.plddt is not None:
+            batch['plddt'] = lib.plddt
         if end:                                                 # --block_domain_steps
             batch.update(step_end=end[0], n_lib_pairs=lib.n_pairs)
         if kind == 's':

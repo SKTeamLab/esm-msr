@@ -18,6 +18,7 @@ from esm.utils.structure.protein_complex import ProteinComplex
 from esm.utils.constants import esm3 as C
 
 # Import structural data handling and prep logic from preprocess
+from esm_msr.plddt import is_experimental_pdb, plddt_mode_from_hparams, resolve_plddt_mode
 from esm_msr.preprocess import (
     download_pdb,
     fix_noncanonical_residues,
@@ -137,7 +138,8 @@ def parse_hparams_to_lora_config(hparams_path: str, sigma: float = 1.0) -> dict:
         'native_cond_for_mt': bool(hparams.get('native_cond_for_mt', False)),
         'mask_native_cond_struct': bool(hparams.get('mask_native_cond_struct', False)),
         'fused_antisymmetric': bool(hparams.get('fused_antisymmetric', False)),
-        'default_plddt_one': bool(hparams.get('default_plddt_one', False)),
+        'plddt_mode': plddt_mode_from_hparams(hparams),
+        'default_plddt_one': plddt_mode_from_hparams(hparams) == 'one',
         'sequence_only': bool(hparams.get('sequence_only', False)),
     }
 
@@ -205,7 +207,7 @@ def preprocess_structure(model, pdb_path, chain, dev, backbone_mutation, assert_
         chains = [chain]
 
     if len(chains) == 1:
-        protein_chain = ProteinChain.from_pdb(pdb_path, chains[0], is_predicted=True)
+        protein_chain = ProteinChain.from_pdb(pdb_path, chains[0], is_predicted=not is_experimental_pdb(pdb_path))
         coords, plddt, residue_index = protein_chain.to_structure_encoder_inputs()
         seq = protein_chain.sequence
     else:
@@ -227,7 +229,7 @@ def preprocess_structure(model, pdb_path, chain, dev, backbone_mutation, assert_
     seq_tokens_list = model.sequence_tokenizer.encode(corrected_seq)
     seq_tokens = torch.tensor(seq_tokens_list, dtype=torch.long).unsqueeze(0).to(dev)
         
-    return seq_tokens, masked_coords.to(dev), F.pad(plddt.to(dev, dtype=model.dtype), (1, 1), value=0.0).to(dev), masked_struct.to(dev), corrected_seq
+    return seq_tokens, masked_coords.to(dev), F.pad(plddt.to(dev, dtype=torch.float32), (1, 1), value=0.0).to(dev), masked_struct.to(dev), corrected_seq
 
 
 def _prepare_sparse_batch(model, muts_list, dev):
@@ -538,10 +540,13 @@ if __name__ == "__main__":
     
     # Model configuration
     parser.add_argument("--log_likelihood", action="store_true", help="Process raw logits into log likelihoods")
-    parser.add_argument("--use_plddt", action="store_true", help="Whether to pass pLDDT values to the model")
+    parser.add_argument("--plddt_mode", type=str, default=None, choices=["zero", "one", "infer"],
+                        help="pLDDT conditioning passed to ESM3: 'zero' (zeros), 'one' (1.0 on finite coords), "
+                             "or 'infer' (real pLDDTs normalized to [0, 1], falling back to 1.0 on crystal/unscored PDBs). "
+                             "Default: checkpoint hparams ('zero' when missing).")
+    parser.add_argument("--use_plddt", action="store_true", help="Deprecated alias for --plddt_mode infer")
     parser.add_argument("--default_plddt_one", action=argparse.BooleanOptionalAction, default=None,
-                        help="Opt-in: pass per_res_plddt=1.0 for residues with finite coordinates when --use_plddt is unset "
-                             "(matches ESM3.logits()). Default: checkpoint hparams (False when missing, matching manuscript FINAL_p0).")
+                        help="Deprecated alias for --plddt_mode one (when True) / --plddt_mode zero (when False).")
     parser.add_argument("--sequence_only", action=argparse.BooleanOptionalAction, default=None,
                         help="Opt-in sequence-only ablation: omit structure_coords, structure_tokens, and per_res_plddt. "
                              "Default: checkpoint hparams (False when missing).")
@@ -669,7 +674,7 @@ if __name__ == "__main__":
     checkpoint_cal = None
     ckpt_mask_strategy = None
     native_cond_for_mt = False
-    ckpt_default_plddt_one = False
+    ckpt_plddt_mode = 'zero'
     ckpt_sequence_only = False
 
     if args.lora_config:
@@ -687,7 +692,7 @@ if __name__ == "__main__":
             native_cond_for_mt = bool(lora_config.get('native_cond_for_mt', False))
             mask_native_cond_struct = bool(lora_config.get('mask_native_cond_struct', False))
             fused_antisymmetric = bool(lora_config.get('fused_antisymmetric', False))
-            ckpt_default_plddt_one = bool(lora_config.get('default_plddt_one', False))
+            ckpt_plddt_mode = plddt_mode_from_hparams(lora_config)
             ckpt_sequence_only = bool(lora_config.get('sequence_only', False))
 
             # Apply sigma
@@ -713,14 +718,21 @@ if __name__ == "__main__":
         native_cond_for_mt = bool(parsed_config.get('native_cond_for_mt', False))
         mask_native_cond_struct = bool(parsed_config.get('mask_native_cond_struct', False))
         fused_antisymmetric = bool(parsed_config.get('fused_antisymmetric', False))
-        ckpt_default_plddt_one = bool(parsed_config.get('default_plddt_one', False))
+        ckpt_plddt_mode = plddt_mode_from_hparams(parsed_config)
         ckpt_sequence_only = bool(parsed_config.get('sequence_only', False))
         lora_config = {
             'wt_config': parsed_config['wt_config'],
             'mt_config': parsed_config['mt_config']
         }
 
-    eff_default_plddt_one = ckpt_default_plddt_one if args.default_plddt_one is None else bool(args.default_plddt_one)
+    if args.plddt_mode is not None:
+        eff_plddt_mode = resolve_plddt_mode(plddt_mode=args.plddt_mode)
+    elif args.use_plddt:
+        eff_plddt_mode = 'infer'
+    elif args.default_plddt_one is not None:
+        eff_plddt_mode = 'one' if args.default_plddt_one else 'zero'
+    else:
+        eff_plddt_mode = ckpt_plddt_mode
     eff_sequence_only = ckpt_sequence_only if args.sequence_only is None else bool(args.sequence_only)
 
     if args.mask_strategy_wt is not None or args.mask_strategy_mt is not None:
@@ -738,7 +750,7 @@ if __name__ == "__main__":
 
     cal = resolve_calibration(checkpoint_cal, args.tie_mt_scale, args.per_mutation_bias)
     logging.info(f"Initializing MSRModel on {device} (dtype: {model_dtype}, adapter: {adapter_mode}, lora: {lora_mode}, "
-                 f"tie_mt_scale: {cal['tie_mt_scale']}, per_mutation_bias: {cal['per_mutation_bias']}, mask_strategy: {eff_mask_strategy})...")
+                 f"plddt_mode: {eff_plddt_mode}, tie_mt_scale: {cal['tie_mt_scale']}, per_mutation_bias: {cal['per_mutation_bias']}, mask_strategy: {eff_mask_strategy})...")
 
     model = MSRModel(
         lora_config=lora_config,
@@ -746,8 +758,7 @@ if __name__ == "__main__":
         shared_bias_init=0,
         inference_mode=True,
         log_likelihood=args.log_likelihood,
-        use_plddt=args.use_plddt,
-        default_plddt_one=eff_default_plddt_one,
+        plddt_mode=eff_plddt_mode,
         sequence_only=eff_sequence_only,
         quaternary_mode=args.quaternary_mode,
         model_dtype=model_dtype,
