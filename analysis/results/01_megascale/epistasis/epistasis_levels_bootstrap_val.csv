@@ -87,6 +87,28 @@ SPURS multi,SPURS multi,epi,line_rho_sub0,0.21001,0.10355,0.36577,0.06477,0.0485
 SPURS multi,SPURS multi,epi,cell_rank_sub0,0.02306,-0.00536,0.05609,0.01604,0.01850,3,8494,9,1000,val
 SPURS multi,SPURS multi,epi,cell_mag_sub0,0.01395,-0.02261,0.07513,0.02386,0.01089,3,8494,9,1000,val
 SPURS multi,SPURS multi,epi,cell_mag_pooled_sub0,0.03658,-0.00603,0.07328,0.01985,0.00986,3,8494,9,1000,val
+ProSST,ProSST,epi,naive_rho,0.13237,-0.04566,0.40597,0.11807,,1,8494,9,1000,val
+ProSST,ProSST,epi,beyond_rho,0.22035,0.07119,0.38805,0.08394,,1,8494,9,1000,val
+ProSST,ProSST,epi,pair_rho,0.19652,-0.25000,0.68376,0.23251,,1,8494,9,1000,val
+ProSST,ProSST,epi,line_rho,0.13326,-0.03074,0.30654,0.09244,,1,8494,9,1000,val
+ProSST,ProSST,epi,cell_rank,0.09583,0.03820,0.16723,0.03440,,1,8494,9,1000,val
+ProSST,ProSST,epi,cell_mag,0.12744,0.02636,0.23646,0.05749,,1,8494,9,1000,val
+ProSST,ProSST,epi,cell_mag_pooled,0.13880,0.02819,0.24468,0.05968,,1,8494,9,1000,val
+ProSST,ProSST,epi,cell_mag_gt0,0.15710,0.04177,0.28179,0.06329,,1,8494,9,1000,val
+ProSST,ProSST,epi,naive_rho_gt1,0.14335,-0.14291,0.46502,0.15924,,1,8494,9,1000,val
+ProSST,ProSST,epi,beyond_rho_gt1,0.15073,-0.02553,0.39908,0.11483,,1,8494,9,1000,val
+ProSST,ProSST,epi,pair_rho_gt1,0.19098,-0.20013,0.73351,0.24018,,1,8494,9,1000,val
+ProSST,ProSST,epi,line_rho_gt1,0.20094,-0.02928,0.35750,0.10300,,1,8494,9,1000,val
+ProSST,ProSST,epi,cell_rank_gt1,0.14573,0.03625,0.22332,0.04811,,1,8494,9,1000,val
+ProSST,ProSST,epi,cell_mag_gt1,0.20763,0.04945,0.29788,0.06685,,1,8494,9,1000,val
+ProSST,ProSST,epi,cell_mag_pooled_gt1,0.22043,0.03530,0.32148,0.07888,,1,8494,9,1000,val
+ProSST,ProSST,epi,naive_rho_sub0,0.23496,-0.02668,0.48335,0.13239,,1,8494,9,1000,val
+ProSST,ProSST,epi,beyond_rho_sub0,0.23793,0.02354,0.44709,0.11372,,1,8494,9,1000,val
+ProSST,ProSST,epi,pair_rho_sub0,0.24704,-0.14529,0.69835,0.21198,,1,8494,9,1000,val
+ProSST,ProSST,epi,line_rho_sub0,0.11754,-0.04081,0.26096,0.08011,,1,8494,9,1000,val
+ProSST,ProSST,epi,cell_rank_sub0,0.10993,0.04359,0.16885,0.03329,,1,8494,9,1000,val
+ProSST,ProSST,epi,cell_mag_sub0,0.14325,0.02677,0.27747,0.06573,,1,8494,9,1000,val
+ProSST,ProSST,epi,cell_mag_pooled_sub0,0.17353,-0.01217,0.30696,0.08927,,1,8494,9,1000,val
 ESM3-small-open,ESM3-small-open,epi,naive_rho,0.50977,0.34718,0.59929,0.06297,,1,8494,9,1000,val
 ESM3-small-open,ESM3-small-open,epi,beyond_rho,0.37665,0.09187,0.52144,0.09654,,1,8494,9,1000,val
 ESM3-small-open,ESM3-small-open,epi,pair_rho,0.55130,-0.02103,0.78080,0.20899,,1,8494,9,1000,val

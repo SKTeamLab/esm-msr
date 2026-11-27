@@ -221,40 +221,30 @@ def _draw_panel_c_types(ax_top: plt.Axes, ax_bot: plt.Axes, split: str = 'capped
 def build_figure2(*, split: str = 'capped', cycles_scale: float = 4.0, levels_scale: float = 3.0) -> Path:
     """Build and save Main-Text Figure 2 (`00_main_text_figs/figure2.{png,pdf}`)."""
     supp_dir = results_dir('supplementary_figs', create=False)
-    T_p0 = pd.read_csv(supp_dir / 'fig5_epistasis_levels_p0_bootstrap_test.csv')
+    dual_csv = supp_dir / 'fig5_epistasis_levels_dual_minus_single_bootstrap_test.csv'
+    T_p0 = pd.read_csv(dual_csv if dual_csv.exists() else supp_dir / 'fig5_epistasis_levels_p0_bootstrap_test.csv')
 
-    p0_entries = [
-        p06._hier_entry('ProteinMPNN', 'ProteinMPNN'),
-        p06._hier_entry('ESM3-small-open', 'ESM3-small-open'),
-        p06._hier_entry(p06.P0_EPI_NAME, 'ESM-MSR'),
-        p06._hier_entry(p06.P0_CTX_NAME, 'ESM-MSR', 'ESM-MSR ctx ctrl', M.VARIANT_COLOR['ESM-MSR ctx ctrl']),
-        p06._hier_entry('ME stage 2', 'MutateEverything'),
-        p06._hier_entry('ThermoMPNN-D', 'ThermoMPNN'),
-        p06._hier_entry('SPURS multi', 'SPURS'),
-        p06._hier_entry('GeoDDG-3D', 'GeoDDG-3D'),
-        p06._hier_entry('Rosetta', 'Rosetta'),
-        p06._hier_entry('ESM3ΔG', 'ESM3ΔG'),
-    ]
+    p0_entries = p06.hier_entries_deployed()
 
     img_a = _render_svg_to_rgb(REPO_ROOT / '_assets' / 'epistasis_cycles_split.svg', scale=cycles_scale)
     img_d = _render_svg_to_rgb(REPO_ROOT / '_assets' / 'epistasis_levels_5panel_anova.svg', scale=levels_scale)
 
-    fig = plt.figure(figsize=(17.6, 19.6), facecolor='white')
+    fig = plt.figure(figsize=(17.8, 19.2), facecolor='white')
 
-    # --- Top row (a, b, c): y in [0.742, 0.974] ---
-    gs_a = fig.add_gridspec(1, 1, left=0.020, right=0.320, top=0.974, bottom=0.735)
+    # --- Top row (a, b, c): y in [0.742, 0.976] ---
+    gs_a = fig.add_gridspec(1, 1, left=0.020, right=0.320, top=0.976, bottom=0.738)
     ax_a = fig.add_subplot(gs_a[0, 0])
     ax_a.imshow(img_a, interpolation='lanczos')
     ax_a.set_axis_off()
 
     gs_b = fig.add_gridspec(1, 2, width_ratios=[1.0, 0.055], wspace=0.06,
-                            left=0.376, right=0.635, top=0.968, bottom=0.748)
+                            left=0.376, right=0.635, top=0.970, bottom=0.750)
     ax_b = fig.add_subplot(gs_b[0, 0])
     cax_b = fig.add_subplot(gs_b[0, 1])
     n_epi = _draw_panel_b_scatter(ax_b, cax_b, split=split)
 
     gs_c = fig.add_gridspec(2, 1, height_ratios=[3.6, 1.0], hspace=0.08,
-                            left=0.728, right=0.986, top=0.968, bottom=0.748)
+                            left=0.728, right=0.986, top=0.970, bottom=0.750)
     ax_c_top = fig.add_subplot(gs_c[0, 0])
     ax_c_bot = fig.add_subplot(gs_c[1, 0], sharex=ax_c_top)
     floor_share = _draw_panel_c_types(ax_c_top, ax_c_bot, split=split)
@@ -262,7 +252,7 @@ def build_figure2(*, split: str = 'capped', cycles_scale: float = 4.0, levels_sc
     # --- Middle row (d): epistasis_levels_5panel_anova.svg (1560x630) ---
     # Width-constrained box so the 5 SVG cards ([15,295], [325,605], [635,915], [945,1225], [1255,1545])
     # span [0.052, 0.986] cleanly and Panel e axes lock 1:1 to their exact rendered horizontal bounds.
-    gs_d = fig.add_gridspec(1, 1, left=0.043, right=0.995, top=0.708, bottom=0.358)
+    gs_d = fig.add_gridspec(1, 1, left=0.043, right=0.995, top=0.710, bottom=0.360)
     ax_d = fig.add_subplot(gs_d[0, 0])
     ax_d.imshow(img_d, interpolation='lanczos')
     ax_d.set_axis_off()
@@ -274,7 +264,7 @@ def build_figure2(*, split: str = 'capped', cycles_scale: float = 4.0, levels_sc
     # --- Bottom row (e): 5 pooled epistasis levels locked 1:1 horizontally to Panel d's 5 SVG cards ---
     svg_w = 1560.0
     svg_cards = [(15.0, 280.0), (325.0, 280.0), (635.0, 280.0), (945.0, 280.0), (1255.0, 290.0)]
-    bottom_e, height_e = 0.136, 0.176
+    bottom_e, height_e = 0.145, 0.180
     axes_e = np.empty(5, dtype=object)
     for i, (cx, cw) in enumerate(svg_cards):
         ax_x0 = pd_box.x0 + pd_box.width * (cx / svg_w)
@@ -283,7 +273,7 @@ def build_figure2(*, split: str = 'capped', cycles_scale: float = 4.0, levels_sc
     for i in range(1, 5):
         axes_e[i].sharey(axes_e[0])
         axes_e[i].tick_params(axis='y', labelleft=False)
-    p06._draw_hierarchy_axes(axes_e, T_p0, p0_entries, p06.LEVELS_CELL_MAG, overlay_sub0=True)
+    p06._draw_hierarchy_axes(axes_e, T_p0, p0_entries, p06.LEVELS_CELL_MAG, overlay_sub0=True, xt_fontsize=9.2)
 
     # --- Nature-style sub-figure annotations: a, b, c (top), d (middle), e (bottom) ---
     fig.canvas.draw()
@@ -298,21 +288,27 @@ def build_figure2(*, split: str = 'capped', cycles_scale: float = 4.0, levels_sc
     fig.text(0.008, pd_box.y1 + 0.006, 'd', ha='left', va='top', fontsize=15, fontweight='bold')
     fig.text(0.008, pe.y1 + 0.032, 'e', ha='left', va='top', fontsize=15, fontweight='bold')
 
-    # --- Combined footnote ---
-    nd = int(T_p0['n_domains'].iloc[0])
-    B_val = int(T_p0['B'].iloc[0])
-    note2 = (
-        f'a. Thermodynamic-cycle schematic of epistasis types (top: weak positive A, additive B, strong negative/clash C; bottom: strong positive/compensation D, additive E, weak negative F). '
-        f'b. Homology-Restricted MegaScale test doubles with both singles measured (n = {n_epi:,}, {nd} domains): unfolded-state floor (y = −x) and assay cutoff (y = −x − 1) induce a strong negative trend (ρ = −0.64). '
-        f'c. Share of measured epistasis types across label additive expectation bins ΔG_add = ΔG_wt + ΔΔG_A + ΔΔG_B (hatched: floor-dominated doubles, {100.0 * floor_share:.0f}%; bottom: log-scale counts split by sign of singles\' summed ΔΔG).\n'
-        f'd, e. Five-level pooled epistasis residual hierarchy (B = {B_val:,} domain × seed bootstrap; black bars: unsaturated subset ΔG_add > 0; red dotted line: −ΔG_add floor ceiling). '
-        f'All five levels are evaluated in pooled form (naive / raw ρ, saturation-subtracted ρ, pair ρ across position-pair matrices ≥ 20 doubles, line ρ across pair-centred row/column lines ≥ 3 cells, and cell ρ pooled over all double-centred residual cells).'
-    )
-    kw_n = dict(fontsize=7.6, color='#444444')
-    fig.text(0.012, 0.006, style.wrap_to_px(fig, note2, 0.975 * fig.bbox.width, **kw_n), ha='left', va='bottom', **kw_n)
-
     out_path = results_dir('main_text_figs') / 'figure2'
     style.save(fig, out_path)
+
+    # Write separate combined + per-panel caption text (no figure text/titles embedded in image)
+    nd = int(T_p0['n_domains'].iloc[0])
+    B_val = int(T_p0['B'].iloc[0])
+    ann_dir = results_dir('main_text_figs') / 'annotations'
+    ann_dir.mkdir(parents=True, exist_ok=True)
+    note2 = (
+        f'Figure 2 — Epistasis thermodynamic cycles, assay-floor saturation, and five-level residual hierarchy\n'
+        f'===================================================================================================\n\n'
+        f'a. Thermodynamic-cycle schematic of epistasis types (top: weak positive A, additive B, strong negative/clash C; bottom: strong positive/compensation D, additive E, weak negative F).\n'
+        f'b. Homology-Restricted MegaScale test doubles with both singles measured (n = {n_epi:,}, {nd} domains): unfolded-state floor (y = -x) and assay cutoff (y = -x - 1) induce a strong negative trend (rho = -0.64).\n'
+        f'c. Share of measured epistasis types across label additive expectation bins dG_add = dG_wt + ddG_A + ddG_B (hatched: floor-dominated doubles, {100.0 * floor_share:.0f}%; bottom: log-scale counts split by sign of singles\' summed ddG).\n'
+        f'd, e. Five-level pooled epistasis residual hierarchy under the deployed two-model / cross-view epistasis definition (B = {B_val:,} joint domain x seed bootstrap; black horizontal dashes: unsaturated subset dG_add > 0; red dotted line: -dG_add floor ceiling). '
+        f'*ESM-MSR (Dual-WT adapters) is the context-only control scoring the mutated sequence with the WT-trained adapter (never trained on doubles). '
+        f'All five levels are evaluated in pooled form (naive / raw rho, saturation-subtracted rho, pair rho across position-pair matrices >= 20 doubles, line rho across pair-centred row/column lines >= 3 cells, and cell rho pooled over all double-centred residual cells); '
+        f'see Supplementary Fig. 5a for within-model epistasis (Dual_AB - Dual_add and SPURS -multi epistasis head).\n'
+    )
+    from msr_analysis.paths import atomic_write_text
+    atomic_write_text(ann_dir / 'figure2.txt', note2)
     return out_path
 
 

@@ -459,7 +459,7 @@ Key Assumptions & Limitations:
         )
 
     # Also within-model epistatic > additive one-sided tests (matching Figure 1c brackets)
-    non_add_models = [m for m in models_c if ('additive', m) in pt_c and ('epistatic', m) in pt_c and m != 'ProSST']
+    non_add_models = [m for m in models_c if ('additive', m) in pt_c and ('epistatic', m) in pt_c]
     m_within = len(non_add_models)
     for m in non_add_models:
         d_w = rep_c[('epistatic', m)] - rep_c[('additive', m)]

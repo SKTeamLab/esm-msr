@@ -398,6 +398,53 @@ def _load_public(frame: Frame, ds: str, out: dict, sources: list[Path]):
             out[f'{key}:epi'] = out[key] - out[f'{key}+']
 
 
+_PROSST_MULTI_MAP = {
+    'tsuboyama_capped_val': 'megascale/splits_oct06_capped_val.csv.gz',
+    'tsuboyama_capped_test': 'megascale/splits_oct06_capped_test.csv.gz',
+    'tsuboyama_mega_val': 'megascale/mega_splits_val.csv.gz',
+    'tsuboyama_mega_test': 'megascale/mega_splits_test.csv.gz',
+    'ptmul': 'external/ptmul.csv.gz',
+    'ptmuld': 'external/ptmuld.csv.gz',
+    'DLG4_HUMAN_Faure_2021_binding_domain': 'dms/DLG4_HUMAN_Faure_2021_binding_domain.csv.gz',
+    'GRB2_HUMAN_Faure_2021_binding_domain': 'dms/GRB2_HUMAN_Faure_2021_binding_domain.csv.gz',
+    'MYO_HUMAN_Kung_2025_display': 'dms/MYO_HUMAN_Kung_2025_display.csv.gz',
+}
+
+
+def _load_prosst_multi(frame: Frame, ds: str, out: dict, sources: list[Path]):
+    """Load ProSST dual-view unmasked predictions (comb_pred, mt_pred) and self-bias-cancelled epistasis."""
+    rel = _PROSST_MULTI_MAP.get(ds)
+    if rel is None:
+        return
+    p = PUBLIC / 'prosst_multi' / 'dual_unmasked' / rel
+    if not p.exists():
+        return
+    sources.append(p)
+    sp = frame.spine
+    ids = sp['id'].to_numpy(dtype=object)
+    hdr = pd.read_csv(p, nrows=0).columns
+    kcol = 'uid' if 'uid' in hdr else ('id' if 'id' in hdr else None)
+    if kcol is None or 'comb_pred' not in hdr:
+        return
+    use = [c for c in (kcol, 'wt_pred', 'mt_pred', 'comb_pred', 'epi_pred') if c in hdr]
+    d = pd.read_csv(p, usecols=use, low_memory=False)
+    k = d[kcol].astype(str).to_numpy()
+    comb = _align_id(ids, k, d['comb_pred'].to_numpy(dtype=float))[None, :]
+    out['prosst:comb'] = comb
+    if 'mt_pred' in d:
+        out['prosst:mt'] = _align_id(ids, k, d['mt_pred'].to_numpy(dtype=float))[None, :]
+    if 'prosst' not in out and 'wt_pred' in d:
+        out['prosst'] = _align_id(ids, k, d['wt_pred'].to_numpy(dtype=float))[None, :]
+    if (sp['n_mut'] > 1).any():
+        comb_add = sum_singles(sp, comb)
+        out['prosst:comb+'] = comb_add
+        # Subtracting comb_A + comb_B cancels ProSST's unmasked single-site self-bias (+2.9/site),
+        # matching direct_AB - (direct_A + direct_B) used by ProteinMPNN, GeoDDG-3D, Rosetta, and ESM3dG.
+        out['prosst:epi'] = comb - comb_add
+        if 'prosst' in out:
+            out['prosst:epi_wt'] = comb - out['prosst']
+
+
 def _rosetta_ext_saved(frame: Frame, ds: str, out: dict, sources: list[Path]):
     p = PUBLIC / 'rosetta' / 'external_rosetta_preds.pkl'
     if not p.exists():
@@ -660,12 +707,14 @@ def _load_frame(ds: str, refresh: bool = False, check_sources: bool = False) -> 
             if ds in TSU_MEGA:
                 _load_mega(fr, ds, out, sources)
                 _load_public(fr, ds, out, sources)
+                _load_prosst_multi(fr, ds, out, sources)
                 fr.preds = synthesize_missing_epi(_tidy(out))
                 return _finish(fr, pkl, sources)
             _load_me(fr, ds, out, sources)
             _load_tmpnn(fr, ds, out, sources)
             _load_spurs(fr, ds, out, sources)
             _load_public(fr, ds, out, sources)
+            _load_prosst_multi(fr, ds, out, sources)
             _load_rosetta_ext(fr, ds, out, sources)
             _load_forge(fr, ds, out, sources)
             _load_small(fr, ds, out, sources)

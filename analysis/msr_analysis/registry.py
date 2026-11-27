@@ -174,11 +174,14 @@ _reg('esm3dg', 'ESM3ΔG', 'ESM3ΔG')
 _reg('esm3dg+', 'ESM3ΔG, sum of the singles', 'ESM3ΔG', fill=False)
 _reg('esm3dg:epi', 'ESM3ΔG, direct − sum of singles', 'ESM3ΔG', fill=True)
 
-_reg('prosst', 'ProSST', 'ProSST')
+_reg('prosst', 'ProSST', 'ProSST', fill=False)
+_reg('prosst:comb', 'ProSST Dual-view', 'ProSST', fill=True)
+_reg('prosst:comb+', 'ProSST Dual-view, sum of the singles', 'ProSST', fill=False)
+_reg('prosst:epi', 'ProSST, Dual-view − sum of singles', 'ProSST', fill=True)
 
 _reg('pmpnn', 'ProteinMPNN', 'ProteinMPNN')
 _reg('pmpnn+', 'ProteinMPNN, sum of the singles', 'ProteinMPNN', fill=False)
-_reg('pmpnn:epi', 'ProteinMPNN, direct − sum of singles', 'ProteinMPNN', fill=True)
+_reg('pmpnn:epi', 'ProteinMPNN Dual-path − sum of singles', 'ProteinMPNN', fill=True)
 
 _reg('esmtherm', 'ESMtherm*', 'ESMtherm')
 _reg('esmtherm+', 'ESMtherm*, sum of the singles', 'ESMtherm', fill=False)
@@ -208,7 +211,7 @@ MODELS = MappingProxyType(_MODELS_MUT)
 MEGASCALE_TRAINED = ['esmtherm', 'ifum_wt', 'ifum_esmfold']
 MEGASCALE_NOTE = '* trained on Megascale (Tsuboyama) data: not held out'
 
-ZEROSHOT_KEYS = ('prosst', 'pmpnn', 'msrrel@0:wt', 'msrrel@0:comb')
+ZEROSHOT_KEYS = ('prosst', 'prosst:comb', 'pmpnn', 'msrrel@0:wt', 'msrrel@0:comb')
 ZEROSHOT_MODELS = list(_R.ZEROSHOT_MODELS)
 ZEROSHOT = ZEROSHOT_MODELS
 

@@ -645,6 +645,14 @@ def _read_chunks(tpl: str, seed, src: str, col: str) -> pd.Series | None:
     return d.set_index('id')[col]
 
 
+def _read_prosst_multi_chunks(src: str, col: str = 'comb_pred') -> pd.Series | None:
+    fs = glob.glob(str(PUBLIC / 'prosst_multi' / 'dual_unmasked' / 'mgnify' / src / 'chunk_*.csv.gz'))
+    if not fs:
+        return None
+    d = pd.concat([pd.read_csv(f, usecols=['id', col], low_memory=False) for f in fs]).drop_duplicates('id')
+    return d.set_index('id')[col]
+
+
 def _read_harness(model_dir: str, ids: np.ndarray) -> np.ndarray | None:
     fs = sorted(glob.glob(str(PUBLIC / model_dir / 'mgnify' / 'mg_*_[0-9][0-9][0-9].csv')))
     if len(fs) < N_HARNESS_TABLES:
@@ -731,6 +739,14 @@ def _prepare_heldout_models(cfg: dict) -> tuple[pd.DataFrame, dict]:
             P.append(None if c is None else c.reindex(ids).to_numpy(float))
         if not any(p is None for p in P):
             preds[mn] = (readout, P, P)
+    # Use ProSST dual-view unmasked where full coverage exists (Rocklin) and for multi-mutant strata on MGnify.
+    pm_s = _read_prosst_multi_chunks(cfg['src'], 'comb_pred')
+    if pm_s is not None:
+        pm_arr = pm_s.reindex(ids).to_numpy(float)
+        if cfg['src'] == 'rocklin_denovo' and np.isfinite(pm_arr).mean() >= 0.99:
+            preds['ProSST'] = ('Dual-view', [pm_arr], [pm_arr])
+        else:
+            preds['_ProSST_multi'] = ('Dual-view (multi)', [pm_arr], [pm_arr])
     if cfg['src'] == 'rocklin_denovo':
         me = [_read_me_rocklin(k, ids) for k in (1, 2, 3)]
         if all(x is not None for x in me):
@@ -774,9 +790,11 @@ def run_all_models_and_mutcount(B: int, workers: int = 8) -> None:
         )
         per_mat = {
             mn: np.column_stack([_scaffold_rho_per_seed(code, n_uniq, p, y)[big] for p in P_raw])
-            for mn, (_, P_raw, _) in preds.items()
+            for mn, (_, P_raw, _) in preds.items() if not mn.startswith('_')
         }
         for mn, (readout, _, _) in preds.items():
+            if mn.startswith('_'):
+                continue
             V = per_mat[mn]
             ok = np.isfinite(V).all(axis=1)
             if not ok.any():
@@ -808,6 +826,8 @@ def run_all_models_and_mutcount(B: int, workers: int = 8) -> None:
         full_xr_p: dict[str, list[_FastPooledRank]] = {}
         ok_by_mn: dict[str, np.ndarray] = {}
         for mn, (_readout, _, P_pool) in preds.items():
+            if mn.startswith('_'):
+                continue
             ok = np.all([np.isfinite(p) for p in P_pool], axis=0)
             if ok.mean() < 0.02:
                 continue
@@ -861,7 +881,8 @@ def run_all_models_and_mutcount(B: int, workers: int = 8) -> None:
             for mn in mc_order:
                 if mn not in preds:
                     continue
-                P_sub = [p[sel] for p in preds[mn][2]]
+                src_key = '_ProSST_multi' if (mn == 'ProSST' and k_mc >= 2 and '_ProSST_multi' in preds) else mn
+                P_sub = [p[sel] for p in preds[src_key][2]]
                 ok_sub = np.all([np.isfinite(p) for p in P_sub], axis=0)
                 if ok_sub.mean() < 0.02:
                     continue
@@ -898,7 +919,7 @@ def run_all_models_and_mutcount(B: int, workers: int = 8) -> None:
         'SPURS': 'SPURS-multi',
         'ThermoMPNN': 'ThermoMPNN-D',
         'ProteinMPNN': 'ProteinMPNN',
-        'ProSST': 'ProSST',
+        'ProSST': 'ProSST (WT / Dual-view)',
     }
     for c_i, ds in enumerate(sets_cfg):
         ax = axes_mc[c_i]

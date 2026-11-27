@@ -1,4 +1,5 @@
 model,additive,epistatic,n_domains,n_seeds,rho_additive,rho_epistatic,delta,lo,hi,domains_higher,p_one,p_two,B,p_one_holm
+ProSST,prosst,prosst:comb,8,1,0.30946,0.4073,0.097848,0.032405,0.15959,6,0.0011,0.0022,10000,0.0099
 ProteinMPNN,pmpnn+,pmpnn,8,1,0.48024,0.50367,0.023429,-0.078239,0.14307,3,0.3586,0.7172,10000,1
 ESM3-small-open,msrrel@0:wt+,msrrel@0:comb,8,1,0.38501,0.39515,0.010141,-0.032315,0.061123,4,0.3521,0.7042,10000,1
 ESM-MSR,msrp0:wt+,msrp0:comb,8,3,0.60548,0.71392,0.10843,0.003728,0.27965,6,0.0195,0.039,10000,0.156

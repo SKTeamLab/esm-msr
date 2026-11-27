@@ -60,8 +60,8 @@ EXCLUDE_THERMO = {'s571', 'ptmuld'}
 THERMO_NOTE = (
     'Seeds 1-3 averaged for the retrained models (seeds resampled with the draws); 95% mutation-level bootstrap. '
     'Singles models on the single-mutant sets, models trained with doubles on PTMUL (ThermoMPNN additive; Rosetta Cartesian ddG throughout). '
-    'Hollow markers: singles models (ESM-MSR WT-view, MutateEverything Stage 1, ThermoMPNN, SPURS single); '
-    'filled: models trained with doubles (ESM-MSR Dual-view, MutateEverything Stage 2, SPURS-multi) and the models with one version. '
+    'Hollow markers: singles models (ProSST WT-view, ESM3-small-open WT-view, ESM-MSR WT-view, MutateEverything Stage 1, ThermoMPNN, SPURS single); '
+    'filled: multi-mutant models (ProSST Dual-view, ESM3-small-open Dual-view, ESM-MSR Dual-view, MutateEverything Stage 2, SPURS-multi) and models with one version. '
     'SPURS is the retrain with the trained adapter. Sets ordered by the performance of ESM-MSR (mean of seeds 1-3), highest first. '
     'Red ring = documented training overlap (GeoDDG-3D, ESM3ΔG; leak audit; '
     'labels show most severe overlap tier & share: M = exact mutations, m = constituent singles, P = same protein, H = close homolog, train src = training data source).'
@@ -188,7 +188,7 @@ def _pg_prepare(B: int, pooled: bool = True, sigma_cache: tuple[pd.DataFrame, pd
         )
         note += (
             '\nMGnify and Rocklin Designs Inferred DDGs: ' + how + '. Multi-mutant versions are read (ESM-MSR combined head, SPURS-multi, '
-            'ThermoMPNN-D, MutateEverything stage 2; ProteinMPNN and ProSST direct); ESM3-small-open is the WT head; '
+            'ThermoMPNN-D, MutateEverything stage 2, ProSST Dual-view on Rocklin and WT-view on MGnify overall, ProteinMPNN direct); ESM3-small-open is the WT head; '
             'ESM3ΔG was fine-tuned on MGnify stability data (red rings: training overlap).'
             + (' Models scored on part of a set only: ' + '; '.join(part) + '.' if part else '')
         )

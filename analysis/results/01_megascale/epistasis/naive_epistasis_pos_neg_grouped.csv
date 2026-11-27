@@ -1,4 +1,6 @@
 column,key,subset,value,lo,hi,n_libraries,n_variants
+ProSST,prosst:epi,positive,0.3234,0.2213,0.4377,13,10444
+ProSST,prosst:epi,negative,0.1646,0.0773,0.2615,12,2010
 ProteinMPNN,pmpnn:epi,positive,0.2442,0.0887,0.4013,13,10444
 ProteinMPNN,pmpnn:epi,negative,0.0944,-0.0271,0.2299,12,2010
 ESM3-small-open,msrrel@0:epi,positive,0.3986,0.2740,0.5225,13,10444
@@ -19,6 +21,7 @@ ESM3-small-open (independent masking),esm3:epi,positive,0.4002,0.2904,0.5213,13,
 ESM3-small-open (independent masking),esm3:epi,negative,0.0133,-0.0921,0.1198,12,2010
 ESM3-small-open (masked marginal),esm3mm:epi,positive,0.1924,0.0842,0.3090,13,10444
 ESM3-small-open (masked marginal),esm3mm:epi,negative,0.0392,-0.0672,0.1238,12,2010
+ProSST,prosst:epi,overall,0.3780,0.2701,0.5005,13,12455
 ProteinMPNN,pmpnn:epi,overall,0.3177,0.1541,0.4664,13,12455
 ESM3-small-open,msrrel@0:epi,overall,0.3946,0.2672,0.5198,13,12455
 ESM-MSR,msrp0:epi,overall,0.5556,0.4644,0.6426,13,12455

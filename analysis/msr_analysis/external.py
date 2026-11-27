@@ -16,7 +16,7 @@ from .registry import DMS3, EXT12, MODELS
 EXT_ORDER = list(R.UNIFIED)
 EXT_MODELS = MappingProxyType({m.name: MODELS[m.name] for m in R.ROSTER})
 
-_CACHE_VERSION = 6
+_CACHE_VERSION = 7
 
 
 def register_ext_styles() -> None:

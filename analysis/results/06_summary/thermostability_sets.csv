@@ -4,7 +4,7 @@ ESM3-small-open,msrrel@0:wt,ssym,0.5778,0.5135,0.6328,False,singles,1,0.7782
 ESM3ΔG,esm3dg,ssym,0.7346,0.6848,0.7811,False,,1,0.7782
 GeoDDG-3D,geoddg,ssym,0.9140,0.8956,0.9288,True,,1,0.7782
 MutateEverything,me1,ssym,0.6736,0.6269,0.7191,False,singles,1,0.7782
-ProSST,prosst,ssym,0.5186,0.4546,0.5805,False,,1,0.7782
+ProSST,prosst,ssym,0.5186,0.4546,0.5805,False,singles,1,0.7782
 ProteinMPNN,pmpnn,ssym,0.6958,0.6465,0.7426,False,,1,0.7782
 Rosetta,rosetta,ssym,0.6187,0.5604,0.6738,False,,1,0.7782
 SPURS,spurs,ssym,0.7466,0.6986,0.7914,False,singles,1,0.7782
@@ -14,7 +14,7 @@ ESM3-small-open,msrrel@0:wt,s461,0.4045,0.3188,0.4791,False,singles,2,0.7675
 ESM3ΔG,esm3dg,s461,0.6815,0.6218,0.7297,False,,2,0.7675
 GeoDDG-3D,geoddg,s461,0.6641,0.6038,0.7190,True,,2,0.7675
 MutateEverything,me1,s461,0.7211,0.6629,0.7681,False,singles,2,0.7675
-ProSST,prosst,s461,0.5611,0.4903,0.6316,False,,2,0.7675
+ProSST,prosst,s461,0.5611,0.4903,0.6316,False,singles,2,0.7675
 ProteinMPNN,pmpnn,s461,0.4418,0.3575,0.5159,False,,2,0.7675
 Rosetta,rosetta,s461,0.6123,0.5443,0.6747,False,,2,0.7675
 SPURS,spurs,s461,0.6406,0.5796,0.6960,False,singles,2,0.7675
@@ -24,7 +24,7 @@ ESM3-small-open,msrrel@0:wt,k2369,0.4475,0.4143,0.4816,False,singles,3,0.7190
 ESM3ΔG,esm3dg,k2369,0.5984,0.5689,0.6254,True,,3,0.7190
 GeoDDG-3D,geoddg,k2369,0.8305,0.8135,0.8456,True,,3,0.7190
 MutateEverything,me1,k2369,0.6738,0.6493,0.6984,False,singles,3,0.7190
-ProSST,prosst,k2369,0.4967,0.4634,0.5317,False,,3,0.7190
+ProSST,prosst,k2369,0.4967,0.4634,0.5317,False,singles,3,0.7190
 ProteinMPNN,pmpnn,k2369,0.4361,0.4015,0.4710,False,,3,0.7190
 Rosetta,rosetta,k2369,0.6157,0.5858,0.6441,False,,3,0.7190
 SPURS,spurs,k2369,0.6275,0.6000,0.6544,False,singles,3,0.7190
@@ -34,7 +34,7 @@ ESM3-small-open,msrrel@0:wt,s783,0.4971,0.4301,0.5561,False,singles,4,0.7069
 ESM3ΔG,esm3dg,s783,0.6535,0.6019,0.6979,False,,4,0.7069
 GeoDDG-3D,geoddg,s783,0.8646,0.8390,0.8843,True,,4,0.7069
 MutateEverything,me1,s783,0.7056,0.6602,0.7431,False,singles,4,0.7069
-ProSST,prosst,s783,0.5635,0.5092,0.6186,False,,4,0.7069
+ProSST,prosst,s783,0.5635,0.5092,0.6186,False,singles,4,0.7069
 ProteinMPNN,pmpnn,s783,0.5608,0.5080,0.6114,False,,4,0.7069
 Rosetta,rosetta,s783,0.6448,0.5926,0.6881,False,,4,0.7069
 SPURS,spurs,s783,0.6770,0.6285,0.7166,False,singles,4,0.7069
@@ -44,7 +44,7 @@ ESM3-small-open,msrrel@0:wt,s2648,0.3857,0.3492,0.4185,False,singles,5,0.6644
 ESM3ΔG,esm3dg,s2648,0.6425,0.6190,0.6668,True,,5,0.6644
 GeoDDG-3D,geoddg,s2648,0.8922,0.8821,0.9024,True,,5,0.6644
 MutateEverything,me1,s2648,0.7012,0.6800,0.7239,False,singles,5,0.6644
-ProSST,prosst,s2648,0.4356,0.3999,0.4673,False,,5,0.6644
+ProSST,prosst,s2648,0.4356,0.3999,0.4673,False,singles,5,0.6644
 ProteinMPNN,pmpnn,s2648,0.5060,0.4739,0.5382,False,,5,0.6644
 Rosetta,rosetta,s2648,0.6047,0.5755,0.6304,False,,5,0.6644
 SPURS,spurs,s2648,0.6533,0.6284,0.6774,False,singles,5,0.6644
@@ -54,7 +54,7 @@ ESM3-small-open,msrrel@0:wt,q3421,0.3882,0.3563,0.4183,False,singles,6,0.6179
 ESM3ΔG,esm3dg,q3421,0.5723,0.5445,0.5968,False,,6,0.6179
 GeoDDG-3D,geoddg,q3421,0.8215,0.8061,0.8370,True,,6,0.6179
 MutateEverything,me1,q3421,0.6379,0.6137,0.6611,False,singles,6,0.6179
-ProSST,prosst,q3421,0.4163,0.3834,0.4470,False,,6,0.6179
+ProSST,prosst,q3421,0.4163,0.3834,0.4470,False,singles,6,0.6179
 ProteinMPNN,pmpnn,q3421,0.4942,0.4642,0.5208,False,,6,0.6179
 Rosetta,rosetta,q3421,0.5539,0.5258,0.5787,False,,6,0.6179
 SPURS,spurs,q3421,0.5927,0.5669,0.6151,False,singles,6,0.6179
@@ -64,7 +64,7 @@ ESM3-small-open,msrrel@0:wt,s8754,0.3721,0.3516,0.3913,False,singles,7,0.6173
 ESM3ΔG,esm3dg,s8754,0.5425,0.5261,0.5593,True,,7,0.6173
 GeoDDG-3D,geoddg,s8754,0.8407,0.8314,0.8498,True,,7,0.6173
 MutateEverything,me1,s8754,0.6234,0.6068,0.6389,False,singles,7,0.6173
-ProSST,prosst,s8754,0.4278,0.4087,0.4467,False,,7,0.6173
+ProSST,prosst,s8754,0.4278,0.4087,0.4467,False,singles,7,0.6173
 ProteinMPNN,pmpnn,s8754,0.4375,0.4185,0.4557,False,,7,0.6173
 Rosetta,rosetta,s8754,0.5693,0.5528,0.5852,False,,7,0.6173
 SPURS,spurs,s8754,0.5768,0.5599,0.5927,False,singles,7,0.6173
@@ -74,7 +74,7 @@ ESM3-small-open,msrrel@0:comb,ptmul,0.1920,0.1326,0.2537,False,doubles,8,0.5918
 ESM3ΔG,esm3dg,ptmul,0.4093,0.3464,0.4691,True,,8,0.5918
 GeoDDG-3D,geoddg,ptmul,0.7171,0.6763,0.7557,True,,8,0.5918
 MutateEverything,me2,ptmul,0.5102,0.4341,0.5830,False,doubles,8,0.5918
-ProSST,prosst,ptmul,0.1816,0.1199,0.2442,False,,8,0.5918
+ProSST,prosst:comb,ptmul,0.2102,0.1431,0.2780,False,doubles,8,0.5918
 ProteinMPNN,pmpnn,ptmul,0.3821,0.3252,0.4407,False,,8,0.5918
 Rosetta,rosetta,ptmul,0.5437,0.4918,0.5949,False,,8,0.5918
 SPURS,spursm,ptmul,0.3848,0.3266,0.4408,False,doubles,8,0.5918

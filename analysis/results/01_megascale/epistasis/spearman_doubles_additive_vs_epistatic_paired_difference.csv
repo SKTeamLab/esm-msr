@@ -1,4 +1,5 @@
 column,delta,lo,hi,n_libraries
+ProSST,0.0027,-0.0570,0.0609,13
 ProteinMPNN,-0.0184,-0.0527,0.0153,13
 ESM3-small-open,-0.0184,-0.0407,0.0023,13
 ESM-MSR,0.0541,0.0271,0.0790,13

@@ -1,0 +1,7 @@
+Figure 2 — Epistasis thermodynamic cycles, assay-floor saturation, and five-level residual hierarchy
+===================================================================================================
+
+a. Thermodynamic-cycle schematic of epistasis types (top: weak positive A, additive B, strong negative/clash C; bottom: strong positive/compensation D, additive E, weak negative F).
+b. Homology-Restricted MegaScale test doubles with both singles measured (n = 12,455, 13 domains): unfolded-state floor (y = -x) and assay cutoff (y = -x - 1) induce a strong negative trend (rho = -0.64).
+c. Share of measured epistasis types across label additive expectation bins dG_add = dG_wt + ddG_A + ddG_B (hatched: floor-dominated doubles, 36%; bottom: log-scale counts split by sign of singles' summed ddG).
+d, e. Five-level pooled epistasis residual hierarchy under the deployed two-model / cross-view epistasis definition (B = 1,000 joint domain x seed bootstrap; black horizontal dashes: unsaturated subset dG_add > 0; red dotted line: -dG_add floor ceiling). *ESM-MSR (Dual-WT adapters) is the context-only control scoring the mutated sequence with the WT-trained adapter (never trained on doubles). All five levels are evaluated in pooled form (naive / raw rho, saturation-subtracted rho, pair rho across position-pair matrices >= 20 doubles, line rho across pair-centred row/column lines >= 3 cells, and cell rho pooled over all double-centred residual cells); see Supplementary Fig. 5a for within-model epistasis (Dual_AB - Dual_add and SPURS -multi epistasis head).

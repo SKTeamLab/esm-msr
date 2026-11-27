@@ -3,12 +3,12 @@ Statistical Annotation: _epi_mcc_pvalues.csv
 Figure / Panel: Supplementary Figure (_epi_mcc), Panel a (raw epistasis sign classification, threshold = 0 on both measured dddG and predicted dddG) and Panel b (saturation-corrected epistasis sign classification, threshold = 0 on both measured residual r = dddG - E[dddG | dG_add] and predicted residual r' = dddG' - E[dddG' | dG_add']).
 
 Metric Tested:
-  Pooled Matthews Correlation Coefficient (MCC) across all 12,455 usable Homology-Restricted MegaScale test doubles with both constituent singles measured (13 test domains; 3-seed average for retrained transfer models). ProSST is omitted because it is strictly additive (predicted dddG = 0 identically).
+  Pooled Matthews Correlation Coefficient (MCC) across all 12,455 usable Homology-Restricted MegaScale test doubles with both constituent singles measured (13 test domains; 3-seed average for retrained transfer models). ProSST epistasis uses Dual-view direct minus sum of Dual-view singles (cancelling unmasked single-site self-bias).
   Mean Pearson's r and RMSE (kcal/mol) on the same raw / saturation-corrected quantities are included alongside MCC.
 
 Statistical Test & Resampling Procedure:
-  Paired nonparametric domain-cluster x seed bootstrap (B = 10,000, deterministic seed).
+  Paired nonparametric domain-cluster x seed bootstrap (B = 100, deterministic seed).
   In each replicate, the 13 test domains are resampled with replacement via a single shared Multinomial(13, 1/13) weight vector applied to every model's per-domain 2x2 contingency counts (TP, TN, FP, FN), and 3-seed retrained models are resampled jointly across training seeds.
   One-sided Phipson & Smyth (2010) p-value: p = (1 + #{b : delta^(b) <= 0}) / (B + 1).
-  Bonferroni correction adjusts within each panel over m = 7 clean comparator models.
+  Bonferroni correction adjusts within each panel over m = 8 clean comparator models.
   `all_clean_IUT` gives Berger's (1982) Intersection-Union Test (p_IUT = max_j p_j); `all_clean_joint_max` evaluates min_j(MCC_ESM-MSR^(b) - MCC_j^(b)) per draw.

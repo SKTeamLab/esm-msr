@@ -24,7 +24,7 @@ BEST_LABEL = {'geoddg': 'GeoDDG-3D', 'ddgemb': 'DDGemb'}
 F_COMPOSITE = (
     'Every variant is scored by the version of its model that fits it: singles by the first, multi-mutants by the second '
     '(ESM-MSR WT-view / Dual-view, MutateEverything Stage 1 / Stage 2, ThermoMPNN / ThermoMPNN-D, SPURS / SPURS-multi, '
-    'ESM3-small-open WT-view / Dual-view).'
+    'ESM3-small-open WT-view / Dual-view; ProSST WT-view on mixed single+double pools and Dual-view on pure doubles).'
 )
 IN_PER_UNIT = 12.5 / 11.85
 XPAD = (0.7, 0.75)
@@ -203,8 +203,15 @@ def main_columns(fr: D.Frame, best: str | None, esm3_want: str = 'unmasked') -> 
     n1 = (fr.spine['n_mut'] == 1).to_numpy()
     for c in cols:
         if c['single'] != c['double']:
-            c['all'] = f"{c['single']}|{c['double']}"
-            fr.preds[c['all']] = np.where(n1[None, :], fr.preds[c['single']], fr.preds[c['double']])
+            if c['name'] == 'ProSST':
+                # Unmasked ProSST Dual-view carries an uncalibrated +2.9/site log-odds self-bias vs WT-view;
+                # mixing WT-view singles with Dual-view doubles in a pooled Overall/Stab/Destab ranking places
+                # doubles above singles and degrades overall rho (-0.06 to -0.12). Keep WT-view on mixed ('all')
+                # pools while scoring pure doubles ('doubles') with Dual-view.
+                c['all'] = c['single']
+            else:
+                c['all'] = f"{c['single']}|{c['double']}"
+                fr.preds[c['all']] = np.where(n1[None, :], fr.preds[c['single']], fr.preds[c['double']])
     return cols
 
 

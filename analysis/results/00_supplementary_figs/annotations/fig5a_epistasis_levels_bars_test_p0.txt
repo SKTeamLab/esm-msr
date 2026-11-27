@@ -1,0 +1,23 @@
+Supplementary Figure 5a — Epistasis hierarchy under deployed cross-model vs. within-model definitions
+======================================================================================================
+
+Homology-Restricted MegaScale test doubles with both singles measured (n = 12,455 doubles across 13 domains; 3-seed means for retrained models; whiskers: 95% joint domain x seed bootstrap, B = 1,000; black horizontal dashes: unsaturated subset dG_add > 0 kcal/mol; red dotted line: -dG_add floor ceiling).
+
+Panel a — Deployed two-model / cross-view epistasis:
+  - ProSST, ProteinMPNN, ESM3-small-open, ESM-MSR: Dual_AB - WT_add
+  - ESM-MSR (Dual-WT adapters*): context-only control scoring the mutated sequence with the WT-trained adapter
+    (never trained on doubles), evaluated as Dual_AB - WT_add
+  - MutateEverything: Stage 2_AB - Stage 1_add
+  - ThermoMPNN: ThermoMPNN-D_AB - ThermoMPNN_add
+  - SPURS: SPURS-multi_AB - SPURS-single_add
+  - GeoDDG-3D, Rosetta: direct double AB - additive singles
+
+Panel b — Within-model epistasis:
+  - ProSST, ProteinMPNN, ESM3-small-open, ESM-MSR: Dual_AB - Dual_add (note: ProteinMPNN's single-mutant
+    dual-path score equals its one-shot WT score)
+  - ESM-MSR (Dual-WT adapters*): Dual_AB - Dual_add using the WT-adapter context control's own singles
+  - MutateEverything: Stage 2_AB - Stage 2_add
+  - ThermoMPNN: ThermoMPNN-D_AB - ThermoMPNN_add (single additive baseline, identical to Panel a)
+  - SPURS (-multi epistasis head): directly evaluates SPURSMulti's internal delta-from-additive head
+    (-self.multi(h_A + h_B) = SPURS_multi - mlp_add, conditioned on SPURSMulti's own additive dG expectation)
+  - GeoDDG-3D, Rosetta: direct double AB - additive singles (identical to Panel a)

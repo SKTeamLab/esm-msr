@@ -1,5 +1,6 @@
 model,n,n_seeds,spearman,pearson,spearman_dG_add_gt0,pearson_dG_add_gt0
-ProteinMPNN,12455,1,-0.1220,-0.1316,-0.0512,-0.0515
+ProSST,12455,1,-0.0346,-0.1100,0.0256,-0.0063
+ProteinMPNN Dual-path,12455,1,-0.1220,-0.1316,-0.0512,-0.0515
 ESM3-small-open,12455,1,-0.2369,-0.2716,-0.1495,-0.1815
 ESM-MSR,12455,3,-0.3156,-0.3435,-0.1671,-0.1747
 MutateEverything Stage 2,12455,3,-0.5232,-0.5353,-0.2778,-0.2861

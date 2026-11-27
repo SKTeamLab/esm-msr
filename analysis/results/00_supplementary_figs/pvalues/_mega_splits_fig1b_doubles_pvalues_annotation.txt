@@ -8,5 +8,5 @@ Metric Tested:
 Statistical Test & Resampling Procedure:
   Paired nonparametric domain-cluster x seed bootstrap (B = 10,000, shared Multinomial domain weights across all models; 3-seed retrained transfer models resampled jointly over training seeds).
   One-sided Phipson & Smyth (2010) p-value: p = (1 + #{b : delta^(b) <= 0}) / (B + 1).
-  Bonferroni correction adjusts within each subset over all m = 7 comparator models present.
+  Bonferroni correction adjusts within each subset over all m = 8 comparator models present.
   `all_clean_IUT` gives Berger's (1982) Intersection-Union Test (p_IUT = max_j p_j) for beating all comparators simultaneously.

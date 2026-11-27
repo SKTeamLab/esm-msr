@@ -65,7 +65,7 @@ SUPPLEMENT_PG = ('ESMtherm',)
 SEEDS = (1, 2, 3)
 SIGMAS = (0.0, 0.5, 1.0)
 
-_SEEDS_CACHE_VERSION = 2
+_SEEDS_CACHE_VERSION = 3
 _SIGMA_CACHE_VERSION = 2
 _ASSAY_META_CACHE: dict[str, tuple[bool, bool]] = {}
 
@@ -526,6 +526,7 @@ def load_all_models_pgym(
         pm = pd.read_csv(PGYM / 'proteinmpnn_020_unmasked_fast_ensemble3_per_dms.csv').set_index('DMS_id')
         tmpd_ref = pd.read_csv(REFERENCE / 'pgym_thermompnn_corrected_s1_per_dms.csv').set_index('DMS_id')
         prosst_dir = PUBLIC / 'prosst' / 'proteingym'
+        prosst_multi_dir = PUBLIC / 'prosst_multi' / 'dual_unmasked' / 'proteingym_multi'
         have_prosst_ours = all((prosst_dir / f'{d}.csv').exists() for d in base_ids)
 
         def _sd(*parts):
@@ -613,7 +614,12 @@ def load_all_models_pgym(
             per_model_rows['ProteinMPNN'][dms] = [float(pm.loc[dms, col]) for col in PMPNN_RUNS]
             pub_prosst = float(pub.loc[dms, 'ProSST-2048 rho_full'])
             per_model_rows['ProSST published'][dms] = [pub_prosst]
-            per_model_rows['ProSST'][dms] = [_score_rowid_dir(prosst_dir, dms, y_full)] if have_prosst_ours else [pub_prosst]
+            pm_file = prosst_multi_dir / f'{dms}.csv.gz'
+            if has_mm and pm_file.exists():
+                dpm = pd.read_csv(pm_file, usecols=['comb_pred', 'DMS_score'])
+                per_model_rows['ProSST'][dms] = [_safe_rho(dpm['comb_pred'].to_numpy(dtype=float), dpm['DMS_score'].to_numpy(dtype=float))]
+            else:
+                per_model_rows['ProSST'][dms] = [_score_rowid_dir(prosst_dir, dms, y_full)] if have_prosst_ours else [pub_prosst]
 
             e3_wt_col = 'ESM-MSR WT eps=0' if 'ESM-MSR WT eps=0' in a.columns else 'ESM-MSR WT sigma=0'
             e3_file = ESM3_S0_PGYM_COMB / f'{dms}.csv'
