@@ -197,28 +197,28 @@ Rosetta,Rosetta,epi,line_rho_sub0,0.19270,0.11878,0.24663,0.03588,,1,12455,13,10
 Rosetta,Rosetta,epi,cell_rank_sub0,0.06998,0.03565,0.10614,0.02042,,1,12455,13,100,test
 Rosetta,Rosetta,epi,cell_mag_sub0,0.12045,0.07653,0.17734,0.02635,,1,12455,13,100,test
 Rosetta,Rosetta,epi,cell_mag_pooled_sub0,0.11120,0.06352,0.15719,0.02675,,1,12455,13,100,test
-SPURS multi,spurs_sc,epi,naive_rho,0.02033,-0.00194,0.04471,0.01202,0.01409,3,12455,13,100,test
-SPURS multi,spurs_sc,epi,beyond_rho,0.01056,-0.02751,0.04613,0.01795,0.03220,3,12455,13,100,test
-SPURS multi,spurs_sc,epi,pair_rho,0.00000,0.00000,0.00000,0.00000,0.00000,3,12455,13,100,test
-SPURS multi,spurs_sc,epi,line_rho,0.00000,0.00000,0.00000,0.00000,0.00000,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,naive_rho,0.09061,0.02490,0.16522,0.03820,0.05908,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,beyond_rho,0.11012,0.04343,0.20112,0.04274,0.04525,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,pair_rho,0.03670,-0.31777,0.28791,0.16570,0.05679,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,line_rho,0.21379,0.12582,0.31050,0.05644,0.09739,3,12455,13,100,test
 SPURS multi,spurs_sc,epi,cell_rank,0.04162,0.02394,0.06825,0.01158,0.02003,3,12455,13,100,test
-SPURS multi,spurs_sc,epi,cell_mag,0.04519,0.01880,0.08302,0.01586,0.01313,3,12455,13,100,test
-SPURS multi,spurs_sc,epi,cell_mag_pooled,0.03769,0.00328,0.07139,0.01911,0.00845,3,12455,13,100,test
-SPURS multi,spurs_sc,epi,cell_mag_gt0,0.07311,0.03030,0.10315,0.01956,0.01216,3,12455,13,100,test
-SPURS multi,spurs_sc,epi,naive_rho_gt1,0.02433,-0.02015,0.06918,0.02415,0.04143,3,12455,13,100,test
-SPURS multi,spurs_sc,epi,beyond_rho_gt1,0.02033,-0.02197,0.06659,0.02478,0.04356,3,12455,13,100,test
-SPURS multi,spurs_sc,epi,pair_rho_gt1,0.00000,0.00000,0.00000,0.00000,0.00000,3,12455,13,100,test
-SPURS multi,spurs_sc,epi,line_rho_gt1,0.03864,-0.01396,0.09374,0.02989,0.05000,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,cell_mag,0.04350,0.01672,0.07198,0.01498,0.01236,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,cell_mag_pooled,0.03579,0.00198,0.06868,0.01821,0.00878,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,cell_mag_gt0,0.07340,0.03038,0.10025,0.01932,0.01322,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,naive_rho_gt1,0.08412,0.02014,0.17295,0.03835,0.05425,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,beyond_rho_gt1,0.04746,-0.00708,0.13881,0.04252,0.01385,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,pair_rho_gt1,0.10256,-0.22876,0.46865,0.19198,0.27971,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,line_rho_gt1,0.15854,0.05078,0.21472,0.04284,0.00997,3,12455,13,100,test
 SPURS multi,spurs_sc,epi,cell_rank_gt1,0.03190,-0.00225,0.05813,0.01675,0.02812,3,12455,13,100,test
-SPURS multi,spurs_sc,epi,cell_mag_gt1,0.02260,-0.07259,0.07626,0.03518,0.03630,3,12455,13,100,test
-SPURS multi,spurs_sc,epi,cell_mag_pooled_gt1,0.06288,0.00020,0.12054,0.03289,0.02840,3,12455,13,100,test
-SPURS multi,spurs_sc,epi,naive_rho_sub0,0.00961,-0.02931,0.05483,0.02045,0.03811,3,12455,13,100,test
-SPURS multi,spurs_sc,epi,beyond_rho_sub0,0.00967,-0.02406,0.05358,0.02037,0.03658,3,12455,13,100,test
-SPURS multi,spurs_sc,epi,pair_rho_sub0,0.00000,0.00000,0.00000,0.00000,0.00000,3,12455,13,100,test
-SPURS multi,spurs_sc,epi,line_rho_sub0,0.00000,0.00000,0.06826,0.02192,0.00000,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,cell_mag_gt1,0.01069,-0.06933,0.06286,0.03697,0.02588,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,cell_mag_pooled_gt1,0.06080,-0.01302,0.10306,0.03306,0.03388,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,naive_rho_sub0,0.09504,0.04548,0.16124,0.03076,0.05219,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,beyond_rho_sub0,0.07981,0.03117,0.14383,0.03117,0.01870,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,pair_rho_sub0,0.01920,-0.26417,0.25562,0.14702,0.08121,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,line_rho_sub0,0.18451,0.11111,0.26793,0.04254,0.03752,3,12455,13,100,test
 SPURS multi,spurs_sc,epi,cell_rank_sub0,0.06335,0.02912,0.09688,0.01741,0.02740,3,12455,13,100,test
-SPURS multi,spurs_sc,epi,cell_mag_sub0,0.07372,0.03657,0.10615,0.02056,0.02772,3,12455,13,100,test
-SPURS multi,spurs_sc,epi,cell_mag_pooled_sub0,0.06253,0.02577,0.09144,0.01800,0.02131,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,cell_mag_sub0,0.06618,0.03084,0.10230,0.01892,0.03497,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,cell_mag_pooled_sub0,0.06037,0.02468,0.08824,0.01733,0.02628,3,12455,13,100,test
 −dG_add,neg_dg_add,epi,naive_rho,0.64196,0.51704,0.70825,0.05124,,1,12455,13,100,test
 −dG_add,neg_dg_add,epi,beyond_rho,0.00000,0.00000,0.00000,0.00000,,1,12455,13,100,test
 −dG_add,neg_dg_add,epi,pair_rho,0.00000,0.00000,0.00000,0.00000,,1,12455,13,100,test
