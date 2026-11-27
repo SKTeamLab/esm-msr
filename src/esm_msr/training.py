@@ -21,6 +21,7 @@ from esm_msr import pooled_stats
 from esm_msr.losses import ListMLELoss, tobit_posterior_mean, tobit_regression_loss, TOBIT_SIGMA_Y, TOBIT_MU_F, TOBIT_SIGMA_F, TF_PRIOR_SD
 from esm_msr.preprocess_megascale import setup_dataloaders
 from esm_msr.config import parse_arguments, monitor_metric, convergence_metric, head_patience
+from esm_msr.plddt import plddt_mode_from_hparams
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 warnings.filterwarnings('ignore', category=UserWarning)
@@ -185,7 +186,7 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             lora_config=lora_config,
             shared_scale_init=SHARED_SCALE_INIT,
             shared_bias_init=SHARED_BIAS_INIT,
-            default_plddt_one=bool(hp.get('default_plddt_one', False)),
+            plddt_mode=plddt_mode_from_hparams(hp),
             sequence_only=bool(hp.get('sequence_only', False)),
             model_dtype=torch.float32,
         )
@@ -506,9 +507,9 @@ class ESM3EpistasisLightningModule(pl.LightningModule):
             # inside backward, with the dropout draw restored), so a 40-row pair block fits a 20 GB card; the gradient is exact.
             from torch.utils.checkpoint import checkpoint
             return torch.cat([checkpoint(self.model.forward_site_llr, seqs[k:k + chunk], read_pos[k:k + chunk], wt_at[k:k + chunk], side,
-                                         b['coords'], b['structure_tokens'], use_reentrant=False) for k in range(0, R, chunk)])
+                                         b['coords'], b['structure_tokens'], b.get('plddt'), use_reentrant=False) for k in range(0, R, chunk)])
         with torch.set_grad_enabled(grad):
-            llr = self.model.forward_site_llr(seqs, read_pos, wt_at, side, b['coords'], b['structure_tokens'])
+            llr = self.model.forward_site_llr(seqs, read_pos, wt_at, side, b['coords'], b['structure_tokens'], b.get('plddt'))
         if not grad:
             llr = llr.detach()
             if torch.cuda.is_available():

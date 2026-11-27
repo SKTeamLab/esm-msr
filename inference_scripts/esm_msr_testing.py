@@ -582,7 +582,7 @@ def main_(args):
         native_cond_for_mt = bool(parsed_config.get('native_cond_for_mt', False))
         mask_native_cond_struct = bool(parsed_config.get('mask_native_cond_struct', False))
         fused_antisymmetric = bool(parsed_config.get('fused_antisymmetric', False))
-        ckpt_default_plddt_one = bool(parsed_config.get('default_plddt_one', False))
+        ckpt_plddt_mode = parsed_config.get('plddt_mode', 'one' if parsed_config.get('default_plddt_one', False) else 'zero')
         ckpt_sequence_only = bool(parsed_config.get('sequence_only', False))
         if args.sigma != 1:
             parsed_config['wt_config']['lora_alpha'] *= args.sigma
@@ -613,14 +613,19 @@ def main_(args):
         native_cond_for_mt = False
         mask_native_cond_struct = False
         fused_antisymmetric = False
-        ckpt_default_plddt_one = False
+        ckpt_plddt_mode = 'zero'
         ckpt_sequence_only = False
         lora_config = {'wt_config': wt_lora_config, 'mt_config': mt_lora_config, 'seed': args.seed}        
 
-    eff_default_plddt_one = ckpt_default_plddt_one if args.default_plddt_one is None else bool(args.default_plddt_one)
+    if args.plddt_mode is not None:
+        eff_plddt_mode = args.plddt_mode
+    elif args.default_plddt_one is not None:
+        eff_plddt_mode = 'one' if args.default_plddt_one else 'zero'
+    else:
+        eff_plddt_mode = ckpt_plddt_mode
     eff_sequence_only = ckpt_sequence_only if args.sequence_only is None else bool(args.sequence_only)
     model_dtype = torch.bfloat16 if args.dtype == 'bf16' else torch.float32
-    print(f"[MODEL] inference dtype = {args.dtype} ({model_dtype}), default_plddt_one = {eff_default_plddt_one}, sequence_only = {eff_sequence_only}")
+    print(f"[MODEL] inference dtype = {args.dtype} ({model_dtype}), plddt_mode = {eff_plddt_mode}, sequence_only = {eff_sequence_only}")
     # Resource tracking (on by default, --no_resource_tracking to skip): per-dataset and per-protein wall time, CPU, RAM,
     # VRAM and I/O of the inference calls only; model loading and data handling are separate `stage` / dataset rows.
     tracker = resource_tracker.Tracker.from_args(
@@ -630,7 +635,8 @@ def main_(args):
         meta={'model': 'ESM-MSR', 'checkpoint': CHECKPOINT_STR, 'sigma': args.sigma, 'dtype': args.dtype,
               'precision_flag': args.precision, 'mask_strategy': str(args.mask_strategy),
               'skip_reverse': bool(args.skip_reverse),
-              'default_plddt_one': eff_default_plddt_one,
+              'plddt_mode': eff_plddt_mode,
+              'default_plddt_one': (eff_plddt_mode == 'one'),
               'sequence_only': eff_sequence_only,
               'batch_mode': args.batch_mode or ('auto' if args.auto_batch_size else 'legacy'), 'batch_size_arg': args.batch_size,
               'auto_batch_headroom': args.auto_batch_headroom if (args.batch_mode in ('auto', 'table') or args.auto_batch_size) else None})
@@ -642,7 +648,7 @@ def main_(args):
     model = models.MSRModel(
         lora_config=lora_config, shared_scale_init=1, shared_bias_init=0, adapter_mode=adapter_mode,
         lora_mode=lora_mode, model_dtype=model_dtype, inference_mode=True,
-        default_plddt_one=eff_default_plddt_one,
+        plddt_mode=eff_plddt_mode,
         sequence_only=eff_sequence_only,
         tie_mt_scale=cal['tie_mt_scale'], per_mutation_bias=cal['per_mutation_bias'],
         native_cond_mt_input=native_cond_for_mt,
@@ -1156,9 +1162,12 @@ if __name__ == "__main__":
                                  "one bias per item, so this shifts their multi-mutants by (k - 1) * bias).")
         parser.add_argument('--epistasis_weight', type=float, default=0.5,
                             help="Blend weight lambda in (1 - lambda) * y_WT + lambda * y_MT (default 0.5).")
+        parser.add_argument('--plddt_mode', type=str, default=None, choices=['zero', 'one', 'infer'],
+                            help="pLDDT conditioning passed to ESM3: 'zero' (zeros), 'one' (1.0 on finite coords), "
+                                 "or 'infer' (real pLDDTs normalized to [0, 1], falling back to 1.0 on crystal/unscored PDBs). "
+                                 "Default: checkpoint hparams ('zero' when missing).")
         parser.add_argument('--default_plddt_one', action=argparse.BooleanOptionalAction, default=None,
-                            help="Opt-in: pass per_res_plddt=1.0 for residues with finite coordinates (matching ESM3.logits()). "
-                                 "Default: the checkpoint's hparams (OFF when missing, preserving exact manuscript FINAL_p0 behavior).")
+                            help="Deprecated alias for --plddt_mode one (when True) / --plddt_mode zero (when False).")
         parser.add_argument('--sequence_only', action=argparse.BooleanOptionalAction, default=None,
                             help="Opt-in sequence-only ablation: omit structure_coords, structure_tokens, and per_res_plddt. "
                                  "Default: the checkpoint's hparams (OFF when missing).")

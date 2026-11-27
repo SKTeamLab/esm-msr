@@ -14,6 +14,8 @@ from esm.pretrained import ESM3_sm_open_v0
 from esm.utils.constants import esm3 as C
 from peft import LoraConfig, get_peft_model
 
+from esm_msr.plddt import resolve_plddt_mode, resolve_plddt_tensors
+
 if TYPE_CHECKING:  # the annotation on score_screening_batch is a string, but it should still resolve
     from esm_msr.auto_batch import AutoBatchSizer
 
@@ -42,8 +44,20 @@ class ESM3PredictorBase(nn.Module):
             raise AssertionError("Failed to map some canonical amino acids to tokenizer vocabulary.")
             
         self.register_buffer('canonical_idx_tensor', torch.tensor(self.canonical_aa_token_ids, dtype=torch.long))
+        self.plddt_mode = 'zero'
         self.default_plddt_one = False
         self.sequence_only = False
+
+    def _effective_plddt_mode(self) -> str:
+        explicit = getattr(self, 'plddt_mode', None)
+        if explicit is not None and explicit != 'zero':
+            return resolve_plddt_mode(plddt_mode=explicit)
+        # Preserve legacy tests / callers that mutate .use_plddt or .default_plddt_one directly
+        return resolve_plddt_mode(
+            default_plddt_one=bool(getattr(self, 'default_plddt_one', False)),
+            use_plddt=bool(getattr(self, 'use_plddt', False)),
+            default='zero',
+        )
 
     def _get_esm3_outputs(self, sequence_tokens: torch.Tensor, structure_coords: Optional[torch.Tensor] = None, structure_tokens: Optional[torch.Tensor] = None, per_res_plddt: Optional[torch.Tensor] = None, active_model: Optional[nn.Module] = None):
         """Internal helper to run the underlying ESM model's forward pass."""
@@ -69,19 +83,17 @@ class ESM3PredictorBase(nn.Module):
             )
         coords = _prepare_input(structure_coords, 4)
         struct_tok = _prepare_input(structure_tokens, 2)
-        if getattr(self, 'use_plddt', False) and per_res_plddt is not None:
-            plddt = _prepare_input(per_res_plddt, 2)
-        elif getattr(self, 'default_plddt_one', False) and coords is not None:
-            # Opt-in ESM3.logits() conditioning: 1.0 wherever coordinates are finite.
-            plddt = coords.isfinite().all(dim=-1).any(dim=-1).float()
-        else:
-            plddt = None
-        return target_model.model(
+        raw_plddt = _prepare_input(per_res_plddt, 2)
+        plddt, avg_plddt = resolve_plddt_tensors(self._effective_plddt_mode(), coords, raw_plddt)
+        fwd_kwargs = dict(
             sequence_tokens=seq,
             structure_coords=coords,
             structure_tokens=struct_tok,
             per_res_plddt=plddt,
         )
+        if avg_plddt is not None:
+            fwd_kwargs['average_plddt'] = avg_plddt
+        return target_model.model(**fwd_kwargs)
 
 
 class _ScaleSource:
@@ -278,7 +290,8 @@ class MSRModel(ESM3PredictorBase):
     def __init__(
             self, lora_config: dict, shared_scale_init: float | None = None,
             shared_bias_init: float | None = None, inference_mode: bool = False, log_likelihood: bool = False,
-            use_plddt: bool = False, default_plddt_one: bool = False, sequence_only: bool = False, quaternary_mode: str = 'single_chain', model_dtype: torch.dtype = torch.bfloat16, 
+            use_plddt: bool = False, default_plddt_one: bool = False, plddt_mode: Optional[str] = None,
+            sequence_only: bool = False, quaternary_mode: str = 'single_chain', model_dtype: torch.dtype = torch.bfloat16, 
             adapter_mode: str = 'dual', lora_mode: str = 'ensemble', strict_loading: bool = True,
             combined_mode: str = 'mean', per_mutation_bias: bool = True, tie_mt_scale: bool = False,
             native_cond_mt_input: bool = False, mask_native_cond_struct: bool = False,
@@ -300,8 +313,10 @@ class MSRModel(ESM3PredictorBase):
         base_esm3.to(model_dtype)
         super().__init__(esm_model=base_esm3)
         
-        self.quaternary_mode, self.log_likelihood, self.use_plddt, self.dtype = quaternary_mode, log_likelihood, use_plddt, model_dtype
-        self.default_plddt_one = bool(default_plddt_one)
+        self.plddt_mode = resolve_plddt_mode(plddt_mode=plddt_mode, default_plddt_one=default_plddt_one, use_plddt=use_plddt, default='zero')
+        self.quaternary_mode, self.log_likelihood, self.dtype = quaternary_mode, log_likelihood, model_dtype
+        self.use_plddt = (self.plddt_mode == 'infer')
+        self.default_plddt_one = (self.plddt_mode == 'one')
         self.sequence_only = bool(sequence_only)
         self.adapter_mode, self.lora_mode = adapter_mode, lora_mode
         self.strict_loading = strict_loading
@@ -737,7 +752,8 @@ class MSRModel(ESM3PredictorBase):
         return native_cond_mt_batch(batch) if self.native_cond_mt_input else batch
 
     def forward_site_llr(self, seqs: torch.Tensor, read_pos: torch.Tensor, wt_at_read: torch.Tensor, pass_type: str,
-                         coords: Optional[torch.Tensor] = None, struct_tokens: Optional[torch.Tensor] = None) -> torch.Tensor:
+                         coords: Optional[torch.Tensor] = None, struct_tokens: Optional[torch.Tensor] = None,
+                         plddt: Optional[torch.Tensor] = None) -> torch.Tensor:
         """
         The raw LLR of all 20 residues at one position per row, ``[R, 20]``: ``logit[x] - logit[wt]`` at ``read_pos[r]``, in the order of
         ``valid_canonical_aas``. One forward per row reads the whole alphabet, and the wild-type residue itself reads exactly 0. ``seqs`` are
@@ -755,11 +771,11 @@ class MSRModel(ESM3PredictorBase):
         n = int(uniq.shape[0]) if uniq.shape[0] < R else R
         one = lambda t: None if t is None else t[0:1].expand(n, *([-1] * (t.ndim - 1)))
         if n < R:
-            out = self._get_esm3_outputs(uniq, one(coords), one(struct_tokens), None, active_model=active_model)
+            out = self._get_esm3_outputs(uniq, one(coords), one(struct_tokens), one(plddt), active_model=active_model)
             logits = self._process_logits(out.sequence_logits.float())
             row = logits[inv, read_pos]
         else:
-            out = self._get_esm3_outputs(seqs, one(coords), one(struct_tokens), None, active_model=active_model)
+            out = self._get_esm3_outputs(seqs, one(coords), one(struct_tokens), one(plddt), active_model=active_model)
             logits = self._process_logits(out.sequence_logits.float())
             row = logits[torch.arange(R, device=seqs.device), read_pos]
         return row[:, self.canonical_idx_tensor] - row.gather(1, wt_at_read.view(-1, 1))

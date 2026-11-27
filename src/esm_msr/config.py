@@ -136,9 +136,12 @@ def parse_arguments(argv=None) -> argparse.Namespace:
                       help="Include ESM3's sequence LM output head in the WT LoRA targets (default True). Pass --no-incl_sequence_head_wt to freeze.")
     arch.add_argument('--incl_sequence_head_mt', action=argparse.BooleanOptionalAction, default=True,
                       help="Include ESM3's sequence LM output head in the MT LoRA targets (default True). Pass --no-incl_sequence_head_mt to freeze.")
-    arch.add_argument('--default_plddt_one', action=argparse.BooleanOptionalAction, default=False,
-                      help="Opt-in: pass per_res_plddt=1.0 for residues with finite backbone coordinates (matching ESM3.logits()) "
-                           "when use_plddt is False. Default False preserves exact manuscript FINAL_p0 behavior (per_res_plddt=None -> zeros).")
+    arch.add_argument('--plddt_mode', type=str, default=None, choices=['zero', 'one', 'infer'],
+                      help="pLDDT conditioning passed to ESM3: 'zero' (default: per_res_plddt=None -> zeros, matching manuscript FINAL_p0), "
+                           "'one' (1.0 on residues with finite coordinates, matching ESM3.logits()), or "
+                           "'infer' (infer real per-residue & average pLDDTs from predicted PDB/cache normalized to [0, 1], falling back to 1.0 for crystal/unscored structures).")
+    arch.add_argument('--default_plddt_one', action=argparse.BooleanOptionalAction, default=None,
+                      help="Deprecated alias for --plddt_mode one (when True) / --plddt_mode zero (when False).")
     arch.add_argument('--sequence_only', action=argparse.BooleanOptionalAction, default=False,
                       help="Opt-in sequence-only ablation: omit structure_coords, structure_tokens, and per_res_plddt from every ESM3 forward pass, "
                            "letting the base ESM3 model handle missing structure inputs with its built-in defaults (default False).")
@@ -259,6 +262,15 @@ def parse_arguments(argv=None) -> argparse.Namespace:
 
     if args.cache_version is None:
         args.cache_version = DEFAULT_CACHE_VERSION
+
+    # Resolve --plddt_mode with backward-compatible --default_plddt_one alias
+    if args.plddt_mode is not None and args.default_plddt_one is not None:
+        expected = 'one' if args.default_plddt_one else 'zero'
+        if args.plddt_mode != expected:
+            parser.error(f"Conflicting flags: --plddt_mode {args.plddt_mode} and --default_plddt_one={args.default_plddt_one}")
+    if args.plddt_mode is None:
+        args.plddt_mode = 'one' if args.default_plddt_one else 'zero'
+    args.default_plddt_one = (args.plddt_mode == 'one')
 
     # ---- validation
     if not 0.0 <= args.tf_mix <= 1.0:
