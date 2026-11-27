@@ -1,0 +1,29 @@
+\begin{table}[htbp]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3.2pt}
+\caption{\textbf{AlphaFold2 vs.\ Crystal Structures Across All 12 External Thermostability Benchmarks (ESM-MSR (FINAL\_p0, 3 seeds))}. Comparison of ColabFold AlphaFold2 monomer-pTM structures (762 unique wild-type sequences; 5 models, 3 recycles, Amber GPU relaxation) against matched experimental crystal structures on all 12 external thermostability benchmarks in alphabetical order (subset/superset pairs annotated: K2369 $\subset$ K3822, PTMUL-D $\subset$ PTMUL, S461 $\subset$ S669, S2648 $\subset$ S8754, and Ssym-dir $\subset$ S8754). Predictions use the canonical deployed head per dataset composition (WT-view on single-mutant sets; Dual-view on multi-mutant PTMUL and PTMUL-D) and 3-seed mean $\pm$ SD ($ddof=1$) across the deployed \texttt{FINAL\_p0} triplicate checkpoints, with joint $[\text{protein-cluster} \times \text{seed}]$ and $[\text{mutation} \times \text{seed}]$ paired bootstraps ($B=10,000$). Columns report variant count $n$ (unique protein clusters), pooled Spearman $\rho$ for crystal and AF2 structures, paired difference $\Delta\rho = \rho_{\mathrm{AF2}} - \rho_{\mathrm{crystal}}$ with 95\% protein-cluster bootstrap CI, two-sided paired bootstrap $p$-values under protein-cluster ($p_{\mathrm{prot}}$, with Holm-adjusted $p_{\mathrm{Holm}}$ across the 12 sets) and mutation ($p_{\mathrm{mut}}$) resampling, Pearson $r$, raw RMSE (kcal/mol; $^\circ$C for S571, excluded from RMSE macro-means), and prediction concordance $\rho(\hat{y}_{\mathrm{AF2}}, \hat{y}_{\mathrm{cryst}})$.}\label{tab:si_af2_vs_crystal}
+\begin{tabular}{lrcccccccccc}
+\toprule
+Dataset & $n$ (cl.) & Head & Cryst.\ $\rho$ & AF2 $\rho$ & $\Delta\rho$ [95\% prot.\ CI] & $p_{\mathrm{prot}}$ & $p_{\mathrm{Holm}}$ & $p_{\mathrm{mut}}$ & $r$ (Cr/AF2) & RMSE (Cr/AF2) & $\rho_{\mathrm{pred}}$ \\
+\midrule
+K2369 & 2,369 (181) & WT-view & 0.719$\pm$0.002 & 0.727$\pm$0.001 & +0.008 [$-$0.005, +0.017] & 0.290 & 1.000 & 0.004 & 0.755/0.753 & 1.06/1.08 & 0.984 \\
+K3822 & 3,822 (201) & WT-view & 0.722$\pm$0.003 & 0.731$\pm$0.004 & +0.010 [$-$0.001, +0.019] & 0.071 & 0.637 & $<10^{-4}$ & 0.744/0.748 & 1.05/1.04 & 0.982 \\
+PTMUL & 914 (90) & Dual-view & 0.591$\pm$0.008 & 0.570$\pm$0.006 & $-$0.021 [$-$0.042, +0.001] & 0.063 & 0.628 & $<10^{-4}$ & 0.598/0.585 & 1.89/1.94 & 0.982 \\
+PTMUL-D & 536 (83) & Dual-view & 0.596$\pm$0.006 & 0.556$\pm$0.006 & \textbf{$-$0.040 [$-$0.068, $-$0.009]} & 0.015 & 0.180 & $<10^{-4}$ & 0.549/0.516 & 1.88/1.94 & 0.972 \\
+Q3421 & 3,421 (148) & WT-view & 0.618$\pm$0.003 & 0.612$\pm$0.005 & $-$0.005 [$-$0.018, +0.008] & 0.415 & 1.000 & 0.096 & 0.542/0.536 & 1.66/1.68 & 0.980 \\
+S461 & 461 (48) & WT-view & 0.768$\pm$0.004 & 0.773$\pm$0.005 & +0.004 [$-$0.030, +0.029] & 0.773 & 1.000 & 0.656 & 0.767/0.765 & 0.84/0.82 & 0.963 \\
+S571 & 571 (37) & WT-view & 0.415$\pm$0.003 & 0.417$\pm$0.002 & +0.002 [$-$0.017, +0.032] & 0.801 & 1.000 & 0.792 & 0.325/0.329 & 9.03/8.98$^\circ$C & 0.969 \\
+S669 & 669 (94) & WT-view & 0.536$\pm$0.005 & 0.533$\pm$0.008 & $-$0.003 [$-$0.032, +0.019] & 0.827 & 1.000 & 0.742 & 0.489/0.489 & 1.44/1.46 & 0.967 \\
+S783 & 783 (55) & WT-view & 0.707$\pm$0.008 & 0.701$\pm$0.008 & $-$0.006 [$-$0.015, +0.004] & 0.201 & 1.000 & 0.108 & 0.733/0.735 & 1.38/1.35 & 0.989 \\
+S2648 & 2,648 (131) & WT-view & 0.664$\pm$0.006 & 0.659$\pm$0.008 & $-$0.006 [$-$0.021, +0.011] & 0.508 & 1.000 & 0.140 & 0.634/0.625 & 1.15/1.18 & 0.979 \\
+S8754 & 8,754 (301) & WT-view & 0.617$\pm$0.003 & 0.617$\pm$0.003 & $-$0.001 [$-$0.013, +0.009] & 0.932 & 1.000 & 0.716 & 0.599/0.596 & 1.59/1.61 & 0.984 \\
+Ssym & 684 (15) & WT-view & 0.778$\pm$0.004 & 0.754$\pm$0.005 & \textbf{$-$0.024 [$-$0.067, $-$0.000]} & 0.045 & 0.499 & 0.0002 & 0.790/0.772 & 1.16/1.19 & 0.980 \\
+\midrule
+\textbf{Mean (10 single-mutant sets)} & 24,182 (443) & WT-view & 0.654$\pm$0.004 & 0.652$\pm$0.005 & $-$0.002 [$-$0.012, +0.006] & 0.609 & --- & 0.295 & 0.638/0.635 & 1.26/1.27 & 0.978 \\
+\textbf{Mean (8 main-text sets)} & 20,034 (403) & Deployed & 0.683$\pm$0.003 & 0.676$\pm$0.003 & $-$0.006 [$-$0.017, +0.002] & 0.160 & --- & 0.001 & 0.677/0.671 & 1.34/1.36 & 0.980 \\
+\textbf{Mean (2 multi-mutant sets)} & 1,450 (90) & Dual-view & 0.594$\pm$0.004 & 0.563$\pm$0.003 & $-$0.030 [$-$0.053, $-$0.004] & 0.023 & --- & $<10^{-4}$ & 0.574/0.550 & 1.89/1.94 & 0.977 \\
+\textbf{Mean (all 12 sets)} & 25,632 (451) & Deployed & 0.644$\pm$0.003 & 0.637$\pm$0.004 & $-$0.007 [$-$0.017, +0.002] & 0.141 & --- & $<10^{-4}$ & 0.627/0.621 & 1.37/1.39 & 0.978 \\
+\bottomrule
+\end{tabular}
+\end{table}
