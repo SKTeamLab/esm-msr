@@ -1932,9 +1932,9 @@ def build_fig5a_epistasis_definitions_compare(B: int = 100, procs: int = 6) -> P
     nd = int(T_a['n_domains'].iloc[0])
     nn = int(T_a['n_doubles'].iloc[0])
 
-    fig = plt.figure(figsize=(18.4, 15.6), facecolor='white')
-    gs_a = fig.add_gridspec(1, 5, left=0.052, right=0.990, top=0.930, bottom=0.715, wspace=0.14)
-    gs_b = fig.add_gridspec(1, 5, left=0.052, right=0.990, top=0.455, bottom=0.240, wspace=0.14)
+    fig = plt.figure(figsize=(18.4, 14.4), facecolor='white')
+    gs_a = fig.add_gridspec(1, 5, left=0.052, right=0.990, top=0.945, bottom=0.710, wspace=0.14)
+    gs_b = fig.add_gridspec(1, 5, left=0.052, right=0.990, top=0.440, bottom=0.205, wspace=0.14)
     axes_a = [fig.add_subplot(gs_a[0, k]) for k in range(5)]
     axes_b = [fig.add_subplot(gs_b[0, k]) for k in range(5)]
     for k in range(1, 5):
@@ -1949,31 +1949,39 @@ def build_fig5a_epistasis_definitions_compare(B: int = 100, procs: int = 6) -> P
     fig.canvas.draw()
     pa = axes_a[0].get_position()
     pb = axes_b[0].get_position()
-    fig.text(0.010, pa.y1 + 0.056, 'a', ha='left', va='top', fontsize=15, fontweight='bold')
-    fig.text(
-        0.032, pa.y1 + 0.054,
-        'Deployed two-model / cross-view epistasis (Dual_AB − WT_add for dual-view models; multi-mutant − singles-trained model for retrained baselines)',
-        ha='left', va='top', fontsize=10.3, fontweight='bold', color='#222222',
-    )
-    fig.text(0.010, pb.y1 + 0.056, 'b', ha='left', va='top', fontsize=15, fontweight='bold')
-    fig.text(
-        0.032, pb.y1 + 0.054,
-        'Within-model epistasis (Dual_AB − Dual_add for dual-view models; Stage 2_AB − Stage 2_add for MutateEverything; internal epistasis head for SPURS-multi)',
-        ha='left', va='top', fontsize=10.3, fontweight='bold', color='#222222',
-    )
-
-    note = (
-        f'Homology-Restricted MegaScale test doubles with both singles measured (n = {nn:,} doubles across {nd} domains; 3-seed means for retrained models; '
-        f'whiskers: 95% domain × seed bootstrap, B = {B:,}; black horizontal dashes: unsaturated subset ΔG_add > 0 kcal/mol; red dotted line: −ΔG_add floor ceiling).  '
-        '*ESM-MSR (Dual-WT adapters) is the context-only control scoring the mutated sequence with the WT-trained adapter (never trained on doubles), using Dual_AB − WT_add in a and Dual_AB − Dual_add in b.  '
-        'In b, SPURS (-multi epistasis head) directly evaluates SPURSMulti\'s internal delta-from-additive head (−self.multi(h_A + h_B) = SPURS_multi − mlp_add, conditioned on SPURSMulti\'s own additive ΔG expectation); '
-        'ProteinMPNN (whose single-mutant dual-path score equals its one-shot WT score), ThermoMPNN (-D_AB − 1_add), GeoDDG-3D, and Rosetta share the same additive baseline in a and b.'
-    )
-    kw = dict(fontsize=8.0, color='#444444', linespacing=1.28)
-    fig.text(0.012, 0.010, style.wrap_to_px(fig, note, 0.976 * fig.bbox.width, **kw), ha='left', va='bottom', **kw)
+    fig.text(0.010, pa.y1 + 0.050, 'a', ha='left', va='top', fontsize=15, fontweight='bold')
+    fig.text(0.010, pb.y1 + 0.050, 'b', ha='left', va='top', fontsize=15, fontweight='bold')
 
     out_path = out_supp / 'fig5a_epistasis_levels_bars_test_p0'
     style.save(fig, out_path)
+
+    ann_dir = out_supp / 'annotations'
+    ann_dir.mkdir(parents=True, exist_ok=True)
+    ann_txt = (
+        "Supplementary Figure 5a — Epistasis hierarchy under deployed cross-model vs. within-model definitions\n"
+        "======================================================================================================\n\n"
+        f"Homology-Restricted MegaScale test doubles with both singles measured (n = {nn:,} doubles across {nd} domains; "
+        f"3-seed means for retrained models; whiskers: 95% joint domain x seed bootstrap, B = {B:,}; "
+        "black horizontal dashes: unsaturated subset dG_add > 0 kcal/mol; red dotted line: -dG_add floor ceiling).\n\n"
+        "Panel a — Deployed two-model / cross-view epistasis:\n"
+        "  - ProSST, ProteinMPNN, ESM3-small-open, ESM-MSR: Dual_AB - WT_add\n"
+        "  - ESM-MSR (Dual-WT adapters*): context-only control scoring the mutated sequence with the WT-trained adapter\n"
+        "    (never trained on doubles), evaluated as Dual_AB - WT_add\n"
+        "  - MutateEverything: Stage 2_AB - Stage 1_add\n"
+        "  - ThermoMPNN: ThermoMPNN-D_AB - ThermoMPNN_add\n"
+        "  - SPURS: SPURS-multi_AB - SPURS-single_add\n"
+        "  - GeoDDG-3D, Rosetta: direct double AB - additive singles\n\n"
+        "Panel b — Within-model epistasis:\n"
+        "  - ProSST, ProteinMPNN, ESM3-small-open, ESM-MSR: Dual_AB - Dual_add (note: ProteinMPNN's single-mutant\n"
+        "    dual-path score equals its one-shot WT score)\n"
+        "  - ESM-MSR (Dual-WT adapters*): Dual_AB - Dual_add using the WT-adapter context control's own singles\n"
+        "  - MutateEverything: Stage 2_AB - Stage 2_add\n"
+        "  - ThermoMPNN: ThermoMPNN-D_AB - ThermoMPNN_add (single additive baseline, identical to Panel a)\n"
+        "  - SPURS (-multi epistasis head): directly evaluates SPURSMulti's internal delta-from-additive head\n"
+        "    (-self.multi(h_A + h_B) = SPURS_multi - mlp_add, conditioned on SPURSMulti's own additive dG expectation)\n"
+        "  - GeoDDG-3D, Rosetta: direct double AB - additive singles (identical to Panel a)\n"
+    )
+    atomic_write_text(ann_dir / 'fig5a_epistasis_levels_bars_test_p0.txt', ann_txt)
     return out_path
 
 

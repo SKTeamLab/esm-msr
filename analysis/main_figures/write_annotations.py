@@ -103,12 +103,16 @@ ANNOTATIONS: dict[str, str] = {
         "Figure 2, Panel e — Five-level pooled epistasis residual hierarchy benchmarks\n"
         "=============================================================================\n\n"
         "Pooled Spearman's rho across all five epistasis residual hierarchy levels on the Homology-Restricted "
-        "MegaScale test set (13 domains; B = 1,000 domain x seed bootstrap; 3 training seeds averaged for retrained "
-        "models). Levels are evaluated in pooled form: naive / raw rho, saturation-subtracted rho, pair rho across "
-        "position-pair matrices with >= 20 doubles, line rho across pair-centred row/column lines with >= 3 cells, "
-        "and cell rho pooled over all double-centred residual cells. Black overlay bars evaluate the unsaturated "
-        "subset (dG_add > 0); the red dotted line marks the -dG_add floor ceiling. Includes the ESM-MSR context "
-        "control (ESM-MSR ctx ctrl).\n"
+        "MegaScale test set (n = 12,455 doubles across 13 domains; B = 1,000 joint domain x seed bootstrap; 3 training "
+        "seeds averaged for retrained models) under the deployed two-model / cross-view epistasis definition: "
+        "Dual_AB - WT_add for ProSST, ProteinMPNN, ESM3-small-open, and ESM-MSR; 2_AB - 1_add for MutateEverything; "
+        "-D_AB - 1_add for ThermoMPNN; -multi_AB - 1_add for SPURS; and AB - add for GeoDDG-3D and Rosetta. "
+        "*ESM-MSR (Dual-WT adapters) is the context-only control scoring the mutated sequence with the WT-trained "
+        "adapter (never trained on doubles). Levels are evaluated in pooled form: naive / raw rho, saturation-subtracted "
+        "rho, pair rho across position-pair matrices with >= 20 doubles, line rho across pair-centred row/column lines "
+        "with >= 3 cells, and cell rho pooled over all double-centred residual cells. Black horizontal dashes evaluate "
+        "the unsaturated subset (dG_add > 0); the red dotted line marks the -dG_add floor ceiling. See Supplementary "
+        "Fig. 5a for within-model epistasis (Dual_AB - Dual_add and SPURS -multi epistasis head).\n"
     ),
 
     # -------------------------------------------------------------------------
