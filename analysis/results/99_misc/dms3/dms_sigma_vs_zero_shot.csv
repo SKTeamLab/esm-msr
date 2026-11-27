@@ -1,8 +1,8 @@
 column,model,key,rho,lo,hi
-DLG4_HUMAN_Faure_2021_binding_domain,ProSST,prosst,0.7964,0.7894,0.8039
-GRB2_HUMAN_Faure_2021_binding_domain,ProSST,prosst,0.7019,0.6961,0.7082
-MYO_HUMAN_Kung_2025_display,ProSST,prosst,0.5382,0.5178,0.5561
-mean of 3 DMS,ProSST,wt|comb,0.6788,0.6713,0.6860
+DLG4_HUMAN_Faure_2021_binding_domain,ProSST,prosst:comb,0.7983,0.7916,0.8057
+GRB2_HUMAN_Faure_2021_binding_domain,ProSST,prosst:comb,0.6977,0.6918,0.7041
+MYO_HUMAN_Kung_2025_display,ProSST,prosst:comb,0.4948,0.4738,0.5154
+mean of 3 DMS,ProSST,wt|comb,0.6636,0.6562,0.6709
 DLG4_HUMAN_Faure_2021_binding_domain,ProteinMPNN,pmpnn,0.6126,0.5989,0.6265
 GRB2_HUMAN_Faure_2021_binding_domain,ProteinMPNN,pmpnn,0.5382,0.5305,0.5463
 MYO_HUMAN_Kung_2025_display,ProteinMPNN,pmpnn,0.4978,0.4775,0.5165

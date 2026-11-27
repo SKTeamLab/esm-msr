@@ -1,5 +1,6 @@
 | Model | Additive → epistatic | NDCG@96 additive | NDCG@96 epistatic | ΔNDCG@96 [95% CI] | Domains epistatic higher | p one-sided | p one-sided (Holm) | p two-sided |
 |---|---|---|---|---|---|---|---|---|
+| ProSST | nan → nan | 0.309 | 0.407 | +0.098  [+0.032, +0.160] | 6 / 8 | 0.001 | 0.010 | 0.002 |
 | ProteinMPNN | sum of singles → direct double | 0.480 | 0.504 | +0.023  [-0.078, +0.143] | 3 / 8 | 0.36 | 1.00 | 0.72 |
 | ESM3-small-open | WT_A + WT_B → Dual-view | 0.385 | 0.395 | +0.010  [-0.032, +0.061] | 4 / 8 | 0.35 | 1.00 | 0.70 |
 | ESM-MSR | WT_A + WT_B → Dual-view | 0.605 | 0.714 | +0.108  [+0.004, +0.280] | 6 / 8 | 0.019 | 0.16 | 0.039 |

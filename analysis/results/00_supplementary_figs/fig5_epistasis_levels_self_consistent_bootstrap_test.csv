@@ -1,0 +1,243 @@
+model,key,head,metric,value,lo,hi,se,seed_sd,n_seeds,n_doubles,n_domains,B,split
+ESM-MSR p0 · 1/2(MT_AB+WT_AB) − WT_A − WT_B,p0_sc,epi,naive_rho,0.41585,0.30783,0.61563,0.09330,0.01877,3,12455,13,100,test
+ESM-MSR p0 · 1/2(MT_AB+WT_AB) − WT_A − WT_B,p0_sc,epi,beyond_rho,0.48814,0.40028,0.54009,0.03965,0.01103,3,12455,13,100,test
+ESM-MSR p0 · 1/2(MT_AB+WT_AB) − WT_A − WT_B,p0_sc,epi,pair_rho,0.63757,0.46572,0.71755,0.07337,0.02890,3,12455,13,100,test
+ESM-MSR p0 · 1/2(MT_AB+WT_AB) − WT_A − WT_B,p0_sc,epi,line_rho,0.43743,0.32955,0.57441,0.06899,0.00525,3,12455,13,100,test
+ESM-MSR p0 · 1/2(MT_AB+WT_AB) − WT_A − WT_B,p0_sc,epi,cell_rank,0.16387,0.10215,0.26158,0.04333,0.00733,3,12455,13,100,test
+ESM-MSR p0 · 1/2(MT_AB+WT_AB) − WT_A − WT_B,p0_sc,epi,cell_mag,0.23455,0.15173,0.36110,0.06062,0.00361,3,12455,13,100,test
+ESM-MSR p0 · 1/2(MT_AB+WT_AB) − WT_A − WT_B,p0_sc,epi,cell_mag_pooled,0.22995,0.14062,0.34209,0.05357,0.00873,3,12455,13,100,test
+ESM-MSR p0 · 1/2(MT_AB+WT_AB) − WT_A − WT_B,p0_sc,epi,cell_mag_gt0,0.30483,0.18011,0.44624,0.07484,0.01856,3,12455,13,100,test
+ESM-MSR p0 · 1/2(MT_AB+WT_AB) − WT_A − WT_B,p0_sc,epi,naive_rho_gt1,0.51153,0.42196,0.62192,0.05430,0.01425,3,12455,13,100,test
+ESM-MSR p0 · 1/2(MT_AB+WT_AB) − WT_A − WT_B,p0_sc,epi,beyond_rho_gt1,0.53935,0.42384,0.62293,0.05195,0.01011,3,12455,13,100,test
+ESM-MSR p0 · 1/2(MT_AB+WT_AB) − WT_A − WT_B,p0_sc,epi,pair_rho_gt1,0.60053,0.35493,0.81922,0.13066,0.00554,3,12455,13,100,test
+ESM-MSR p0 · 1/2(MT_AB+WT_AB) − WT_A − WT_B,p0_sc,epi,line_rho_gt1,0.49855,0.36697,0.59004,0.05431,0.01474,3,12455,13,100,test
+ESM-MSR p0 · 1/2(MT_AB+WT_AB) − WT_A − WT_B,p0_sc,epi,cell_rank_gt1,0.23458,0.14612,0.31373,0.04144,0.01714,3,12455,13,100,test
+ESM-MSR p0 · 1/2(MT_AB+WT_AB) − WT_A − WT_B,p0_sc,epi,cell_mag_gt1,0.43450,0.32390,0.50996,0.05057,0.02470,3,12455,13,100,test
+ESM-MSR p0 · 1/2(MT_AB+WT_AB) − WT_A − WT_B,p0_sc,epi,cell_mag_pooled_gt1,0.43386,0.34894,0.50029,0.03857,0.02104,3,12455,13,100,test
+ESM-MSR p0 · 1/2(MT_AB+WT_AB) − WT_A − WT_B,p0_sc,epi,naive_rho_sub0,0.50007,0.40960,0.59117,0.05034,0.01129,3,12455,13,100,test
+ESM-MSR p0 · 1/2(MT_AB+WT_AB) − WT_A − WT_B,p0_sc,epi,beyond_rho_sub0,0.54683,0.47167,0.60691,0.04011,0.00813,3,12455,13,100,test
+ESM-MSR p0 · 1/2(MT_AB+WT_AB) − WT_A − WT_B,p0_sc,epi,pair_rho_sub0,0.68382,0.54250,0.81812,0.06962,0.02145,3,12455,13,100,test
+ESM-MSR p0 · 1/2(MT_AB+WT_AB) − WT_A − WT_B,p0_sc,epi,line_rho_sub0,0.49468,0.38299,0.61651,0.06013,0.00793,3,12455,13,100,test
+ESM-MSR p0 · 1/2(MT_AB+WT_AB) − WT_A − WT_B,p0_sc,epi,cell_rank_sub0,0.20979,0.13578,0.30714,0.04443,0.01467,3,12455,13,100,test
+ESM-MSR p0 · 1/2(MT_AB+WT_AB) − WT_A − WT_B,p0_sc,epi,cell_mag_sub0,0.31976,0.19214,0.45842,0.07217,0.01421,3,12455,13,100,test
+ESM-MSR p0 · 1/2(MT_AB+WT_AB) − WT_A − WT_B,p0_sc,epi,cell_mag_pooled_sub0,0.35454,0.24266,0.46822,0.05381,0.01061,3,12455,13,100,test
+ESM-MSR p0 · 1/2(~WT_AB+WT_AB) − WT_A − WT_B,ctx_sc,epi,naive_rho,0.36987,0.25824,0.56953,0.08708,0.00290,3,12455,13,100,test
+ESM-MSR p0 · 1/2(~WT_AB+WT_AB) − WT_A − WT_B,ctx_sc,epi,beyond_rho,0.43374,0.35840,0.50139,0.04193,0.00747,3,12455,13,100,test
+ESM-MSR p0 · 1/2(~WT_AB+WT_AB) − WT_A − WT_B,ctx_sc,epi,pair_rho,0.61336,0.37732,0.71725,0.09925,0.00960,3,12455,13,100,test
+ESM-MSR p0 · 1/2(~WT_AB+WT_AB) − WT_A − WT_B,ctx_sc,epi,line_rho,0.35679,0.26117,0.47415,0.06017,0.01349,3,12455,13,100,test
+ESM-MSR p0 · 1/2(~WT_AB+WT_AB) − WT_A − WT_B,ctx_sc,epi,cell_rank,0.13313,0.08170,0.21380,0.03613,0.01090,3,12455,13,100,test
+ESM-MSR p0 · 1/2(~WT_AB+WT_AB) − WT_A − WT_B,ctx_sc,epi,cell_mag,0.20578,0.12595,0.32688,0.05367,0.00553,3,12455,13,100,test
+ESM-MSR p0 · 1/2(~WT_AB+WT_AB) − WT_A − WT_B,ctx_sc,epi,cell_mag_pooled,0.20742,0.12202,0.30427,0.04865,0.00341,3,12455,13,100,test
+ESM-MSR p0 · 1/2(~WT_AB+WT_AB) − WT_A − WT_B,ctx_sc,epi,cell_mag_gt0,0.29737,0.17209,0.40387,0.06303,0.00720,3,12455,13,100,test
+ESM-MSR p0 · 1/2(~WT_AB+WT_AB) − WT_A − WT_B,ctx_sc,epi,naive_rho_gt1,0.43403,0.35645,0.51706,0.04868,0.00945,3,12455,13,100,test
+ESM-MSR p0 · 1/2(~WT_AB+WT_AB) − WT_A − WT_B,ctx_sc,epi,beyond_rho_gt1,0.49383,0.35801,0.56878,0.05528,0.00278,3,12455,13,100,test
+ESM-MSR p0 · 1/2(~WT_AB+WT_AB) − WT_A − WT_B,ctx_sc,epi,pair_rho_gt1,0.55596,0.19268,0.80657,0.16862,0.01848,3,12455,13,100,test
+ESM-MSR p0 · 1/2(~WT_AB+WT_AB) − WT_A − WT_B,ctx_sc,epi,line_rho_gt1,0.45685,0.38943,0.52911,0.03825,0.01757,3,12455,13,100,test
+ESM-MSR p0 · 1/2(~WT_AB+WT_AB) − WT_A − WT_B,ctx_sc,epi,cell_rank_gt1,0.22933,0.15783,0.30697,0.03976,0.00773,3,12455,13,100,test
+ESM-MSR p0 · 1/2(~WT_AB+WT_AB) − WT_A − WT_B,ctx_sc,epi,cell_mag_gt1,0.44392,0.33780,0.51933,0.04878,0.01275,3,12455,13,100,test
+ESM-MSR p0 · 1/2(~WT_AB+WT_AB) − WT_A − WT_B,ctx_sc,epi,cell_mag_pooled_gt1,0.43983,0.34187,0.55626,0.05736,0.01026,3,12455,13,100,test
+ESM-MSR p0 · 1/2(~WT_AB+WT_AB) − WT_A − WT_B,ctx_sc,epi,naive_rho_sub0,0.44824,0.37246,0.53209,0.04482,0.00490,3,12455,13,100,test
+ESM-MSR p0 · 1/2(~WT_AB+WT_AB) − WT_A − WT_B,ctx_sc,epi,beyond_rho_sub0,0.50948,0.42371,0.57380,0.04094,0.00499,3,12455,13,100,test
+ESM-MSR p0 · 1/2(~WT_AB+WT_AB) − WT_A − WT_B,ctx_sc,epi,pair_rho_sub0,0.64810,0.48406,0.77437,0.07969,0.01999,3,12455,13,100,test
+ESM-MSR p0 · 1/2(~WT_AB+WT_AB) − WT_A − WT_B,ctx_sc,epi,line_rho_sub0,0.42262,0.31288,0.50907,0.05167,0.01519,3,12455,13,100,test
+ESM-MSR p0 · 1/2(~WT_AB+WT_AB) − WT_A − WT_B,ctx_sc,epi,cell_rank_sub0,0.16415,0.09902,0.23392,0.03577,0.00442,3,12455,13,100,test
+ESM-MSR p0 · 1/2(~WT_AB+WT_AB) − WT_A − WT_B,ctx_sc,epi,cell_mag_sub0,0.27882,0.16571,0.40037,0.06009,0.00570,3,12455,13,100,test
+ESM-MSR p0 · 1/2(~WT_AB+WT_AB) − WT_A − WT_B,ctx_sc,epi,cell_mag_pooled_sub0,0.31163,0.21406,0.42050,0.05362,0.00830,3,12455,13,100,test
+ProSST,ProSST,epi,naive_rho,0.25651,0.15029,0.43897,0.08387,,1,12455,13,100,test
+ProSST,ProSST,epi,beyond_rho,0.29263,0.20099,0.36027,0.04081,,1,12455,13,100,test
+ProSST,ProSST,epi,pair_rho,0.44956,0.25178,0.62786,0.10479,,1,12455,13,100,test
+ProSST,ProSST,epi,line_rho,0.17822,0.08080,0.29187,0.05745,,1,12455,13,100,test
+ProSST,ProSST,epi,cell_rank,0.07215,0.02448,0.15106,0.03638,,1,12455,13,100,test
+ProSST,ProSST,epi,cell_mag,0.09752,0.03235,0.20271,0.04529,,1,12455,13,100,test
+ProSST,ProSST,epi,cell_mag_pooled,0.10039,0.02963,0.19160,0.04168,,1,12455,13,100,test
+ProSST,ProSST,epi,cell_mag_gt0,0.15686,0.06778,0.25338,0.05333,,1,12455,13,100,test
+ProSST,ProSST,epi,naive_rho_gt1,0.37831,0.25247,0.49130,0.06812,,1,12455,13,100,test
+ProSST,ProSST,epi,beyond_rho_gt1,0.41575,0.28548,0.51413,0.06040,,1,12455,13,100,test
+ProSST,ProSST,epi,pair_rho_gt1,0.50244,0.19843,0.75923,0.15011,,1,12455,13,100,test
+ProSST,ProSST,epi,line_rho_gt1,0.34469,0.25844,0.38674,0.03389,,1,12455,13,100,test
+ProSST,ProSST,epi,cell_rank_gt1,0.13610,0.08165,0.20350,0.03424,,1,12455,13,100,test
+ProSST,ProSST,epi,cell_mag_gt1,0.29432,0.20577,0.37574,0.04683,,1,12455,13,100,test
+ProSST,ProSST,epi,cell_mag_pooled_gt1,0.31336,0.23710,0.38093,0.03816,,1,12455,13,100,test
+ProSST,ProSST,epi,naive_rho_sub0,0.35341,0.24458,0.45579,0.05904,,1,12455,13,100,test
+ProSST,ProSST,epi,beyond_rho_sub0,0.40518,0.27803,0.49162,0.05425,,1,12455,13,100,test
+ProSST,ProSST,epi,pair_rho_sub0,0.57587,0.39766,0.76605,0.09703,,1,12455,13,100,test
+ProSST,ProSST,epi,line_rho_sub0,0.29368,0.18308,0.39683,0.05868,,1,12455,13,100,test
+ProSST,ProSST,epi,cell_rank_sub0,0.10883,0.07500,0.15364,0.02169,,1,12455,13,100,test
+ProSST,ProSST,epi,cell_mag_sub0,0.16383,0.07018,0.25828,0.04946,,1,12455,13,100,test
+ProSST,ProSST,epi,cell_mag_pooled_sub0,0.20729,0.11709,0.28778,0.04402,,1,12455,13,100,test
+ProteinMPNN,ProteinMPNN,epi,naive_rho,0.31354,0.19636,0.42292,0.06384,,1,12455,13,100,test
+ProteinMPNN,ProteinMPNN,epi,beyond_rho,0.27332,0.21169,0.35128,0.03633,,1,12455,13,100,test
+ProteinMPNN,ProteinMPNN,epi,pair_rho,0.47267,0.33076,0.59771,0.08376,,1,12455,13,100,test
+ProteinMPNN,ProteinMPNN,epi,line_rho,0.12476,0.04890,0.22984,0.04875,,1,12455,13,100,test
+ProteinMPNN,ProteinMPNN,epi,cell_rank,0.06164,0.03064,0.10809,0.02028,,1,12455,13,100,test
+ProteinMPNN,ProteinMPNN,epi,cell_mag,0.12461,0.06821,0.21733,0.04036,,1,12455,13,100,test
+ProteinMPNN,ProteinMPNN,epi,cell_mag_pooled,0.11560,0.04845,0.18769,0.03512,,1,12455,13,100,test
+ProteinMPNN,ProteinMPNN,epi,cell_mag_gt0,0.17111,0.06257,0.26654,0.05436,,1,12455,13,100,test
+ProteinMPNN,ProteinMPNN,epi,naive_rho_gt1,0.27986,0.12632,0.42696,0.08346,,1,12455,13,100,test
+ProteinMPNN,ProteinMPNN,epi,beyond_rho_gt1,0.27084,0.09223,0.38258,0.07801,,1,12455,13,100,test
+ProteinMPNN,ProteinMPNN,epi,pair_rho_gt1,0.26923,-0.21257,0.56097,0.20963,,1,12455,13,100,test
+ProteinMPNN,ProteinMPNN,epi,line_rho_gt1,0.21119,0.13033,0.29242,0.05007,,1,12455,13,100,test
+ProteinMPNN,ProteinMPNN,epi,cell_rank_gt1,0.16551,0.07433,0.25328,0.04763,,1,12455,13,100,test
+ProteinMPNN,ProteinMPNN,epi,cell_mag_gt1,0.29029,0.16809,0.37921,0.05503,,1,12455,13,100,test
+ProteinMPNN,ProteinMPNN,epi,cell_mag_pooled_gt1,0.26611,0.15255,0.39724,0.06556,,1,12455,13,100,test
+ProteinMPNN,ProteinMPNN,epi,naive_rho_sub0,0.35272,0.26841,0.43582,0.04245,,1,12455,13,100,test
+ProteinMPNN,ProteinMPNN,epi,beyond_rho_sub0,0.33415,0.25916,0.41547,0.04412,,1,12455,13,100,test
+ProteinMPNN,ProteinMPNN,epi,pair_rho_sub0,0.59531,0.38950,0.67556,0.06984,,1,12455,13,100,test
+ProteinMPNN,ProteinMPNN,epi,line_rho_sub0,0.17700,0.09840,0.26438,0.04438,,1,12455,13,100,test
+ProteinMPNN,ProteinMPNN,epi,cell_rank_sub0,0.08290,0.04628,0.12104,0.01960,,1,12455,13,100,test
+ProteinMPNN,ProteinMPNN,epi,cell_mag_sub0,0.17855,0.05598,0.31769,0.07180,,1,12455,13,100,test
+ProteinMPNN,ProteinMPNN,epi,cell_mag_pooled_sub0,0.19378,0.10433,0.28054,0.04151,,1,12455,13,100,test
+ESM3-small-open,ESM3-small-open,epi,naive_rho,0.30427,0.18993,0.50428,0.08392,,1,12455,13,100,test
+ESM3-small-open,ESM3-small-open,epi,beyond_rho,0.34815,0.21135,0.43545,0.06608,,1,12455,13,100,test
+ESM3-small-open,ESM3-small-open,epi,pair_rho,0.49894,0.09125,0.72246,0.15815,,1,12455,13,100,test
+ESM3-small-open,ESM3-small-open,epi,line_rho,0.22084,0.11785,0.34326,0.06361,,1,12455,13,100,test
+ESM3-small-open,ESM3-small-open,epi,cell_rank,0.06134,0.02851,0.10875,0.02374,,1,12455,13,100,test
+ESM3-small-open,ESM3-small-open,epi,cell_mag,0.14060,0.06653,0.25376,0.05010,,1,12455,13,100,test
+ESM3-small-open,ESM3-small-open,epi,cell_mag_pooled,0.12587,0.05031,0.23341,0.04546,,1,12455,13,100,test
+ESM3-small-open,ESM3-small-open,epi,cell_mag_gt0,0.18622,0.07945,0.30378,0.05962,,1,12455,13,100,test
+ESM3-small-open,ESM3-small-open,epi,naive_rho_gt1,0.35179,0.28526,0.44149,0.04044,,1,12455,13,100,test
+ESM3-small-open,ESM3-small-open,epi,beyond_rho_gt1,0.35932,0.27141,0.42530,0.04207,,1,12455,13,100,test
+ESM3-small-open,ESM3-small-open,epi,pair_rho_gt1,0.48352,0.07121,0.68364,0.16298,,1,12455,13,100,test
+ESM3-small-open,ESM3-small-open,epi,line_rho_gt1,0.31354,0.21430,0.36931,0.04276,,1,12455,13,100,test
+ESM3-small-open,ESM3-small-open,epi,cell_rank_gt1,0.10901,0.06255,0.14699,0.02324,,1,12455,13,100,test
+ESM3-small-open,ESM3-small-open,epi,cell_mag_gt1,0.26283,0.20316,0.35079,0.03788,,1,12455,13,100,test
+ESM3-small-open,ESM3-small-open,epi,cell_mag_pooled_gt1,0.28680,0.20866,0.38607,0.04716,,1,12455,13,100,test
+ESM3-small-open,ESM3-small-open,epi,naive_rho_sub0,0.35343,0.24539,0.49068,0.06097,,1,12455,13,100,test
+ESM3-small-open,ESM3-small-open,epi,beyond_rho_sub0,0.37475,0.26648,0.46707,0.05309,,1,12455,13,100,test
+ESM3-small-open,ESM3-small-open,epi,pair_rho_sub0,0.53438,0.25644,0.71091,0.12915,,1,12455,13,100,test
+ESM3-small-open,ESM3-small-open,epi,line_rho_sub0,0.27183,0.15180,0.38181,0.05957,,1,12455,13,100,test
+ESM3-small-open,ESM3-small-open,epi,cell_rank_sub0,0.08250,0.04531,0.12652,0.02298,,1,12455,13,100,test
+ESM3-small-open,ESM3-small-open,epi,cell_mag_sub0,0.19152,0.09933,0.29485,0.05048,,1,12455,13,100,test
+ESM3-small-open,ESM3-small-open,epi,cell_mag_pooled_sub0,0.19223,0.11823,0.27580,0.04143,,1,12455,13,100,test
+ME stage 2,ME stage 2,epi,naive_rho,0.46997,0.33259,0.52403,0.04756,0.00750,3,12455,13,100,test
+ME stage 2,ME stage 2,epi,beyond_rho,0.31038,0.16884,0.50595,0.09474,0.01771,3,12455,13,100,test
+ME stage 2,ME stage 2,epi,pair_rho,0.30172,-0.04488,0.77309,0.23189,0.06830,3,12455,13,100,test
+ME stage 2,ME stage 2,epi,line_rho,0.27344,0.16259,0.34718,0.04709,0.01493,3,12455,13,100,test
+ME stage 2,ME stage 2,epi,cell_rank,0.10984,0.08477,0.15584,0.01789,0.00253,3,12455,13,100,test
+ME stage 2,ME stage 2,epi,cell_mag,0.13448,0.08924,0.19600,0.02521,0.00681,3,12455,13,100,test
+ME stage 2,ME stage 2,epi,cell_mag_pooled,0.13926,0.08756,0.19241,0.02503,0.00894,3,12455,13,100,test
+ME stage 2,ME stage 2,epi,cell_mag_gt0,0.18525,0.11955,0.26035,0.03523,0.00760,3,12455,13,100,test
+ME stage 2,ME stage 2,epi,naive_rho_gt1,0.11418,0.04151,0.24987,0.05161,0.03590,3,12455,13,100,test
+ME stage 2,ME stage 2,epi,beyond_rho_gt1,0.20920,0.08919,0.31697,0.06619,0.02813,3,12455,13,100,test
+ME stage 2,ME stage 2,epi,pair_rho_gt1,0.30383,-0.07716,0.62526,0.18607,0.09330,3,12455,13,100,test
+ME stage 2,ME stage 2,epi,line_rho_gt1,0.10820,0.03034,0.21561,0.04855,0.03712,3,12455,13,100,test
+ME stage 2,ME stage 2,epi,cell_rank_gt1,0.03139,-0.05235,0.12638,0.05184,0.03340,3,12455,13,100,test
+ME stage 2,ME stage 2,epi,cell_mag_gt1,0.05690,-0.04515,0.18135,0.05874,0.04488,3,12455,13,100,test
+ME stage 2,ME stage 2,epi,cell_mag_pooled_gt1,0.10157,0.01239,0.16444,0.04315,0.03771,3,12455,13,100,test
+ME stage 2,ME stage 2,epi,naive_rho_sub0,0.18931,0.07153,0.34922,0.07129,0.01863,3,12455,13,100,test
+ME stage 2,ME stage 2,epi,beyond_rho_sub0,0.26055,0.12101,0.44771,0.08702,0.01579,3,12455,13,100,test
+ME stage 2,ME stage 2,epi,pair_rho_sub0,0.34440,-0.01095,0.73970,0.20883,0.06447,3,12455,13,100,test
+ME stage 2,ME stage 2,epi,line_rho_sub0,0.22758,0.13364,0.30695,0.04284,0.01151,3,12455,13,100,test
+ME stage 2,ME stage 2,epi,cell_rank_sub0,0.11317,0.08411,0.16467,0.02190,0.00857,3,12455,13,100,test
+ME stage 2,ME stage 2,epi,cell_mag_sub0,0.16471,0.11254,0.23510,0.03106,0.01100,3,12455,13,100,test
+ME stage 2,ME stage 2,epi,cell_mag_pooled_sub0,0.14325,0.06888,0.20588,0.03134,0.01335,3,12455,13,100,test
+ThermoMPNN-D,ThermoMPNN-D,epi,naive_rho,0.07686,-0.05880,0.20466,0.07421,0.05059,3,12455,13,100,test
+ThermoMPNN-D,ThermoMPNN-D,epi,beyond_rho,0.07092,-0.04230,0.22835,0.07267,0.04898,3,12455,13,100,test
+ThermoMPNN-D,ThermoMPNN-D,epi,pair_rho,-0.00332,-0.22762,0.29144,0.13878,0.07556,3,12455,13,100,test
+ThermoMPNN-D,ThermoMPNN-D,epi,line_rho,0.19725,0.09435,0.28726,0.04416,0.02257,3,12455,13,100,test
+ThermoMPNN-D,ThermoMPNN-D,epi,cell_rank,0.01469,-0.00215,0.02758,0.00787,0.00472,3,12455,13,100,test
+ThermoMPNN-D,ThermoMPNN-D,epi,cell_mag,0.02043,-0.00773,0.04442,0.01422,0.01261,3,12455,13,100,test
+ThermoMPNN-D,ThermoMPNN-D,epi,cell_mag_pooled,0.02328,-0.01095,0.06269,0.01894,0.00587,3,12455,13,100,test
+ThermoMPNN-D,ThermoMPNN-D,epi,cell_mag_gt0,0.03868,-0.00542,0.08371,0.02407,0.03012,3,12455,13,100,test
+ThermoMPNN-D,ThermoMPNN-D,epi,naive_rho_gt1,-0.01962,-0.22914,0.14241,0.09226,0.01998,3,12455,13,100,test
+ThermoMPNN-D,ThermoMPNN-D,epi,beyond_rho_gt1,0.06009,-0.11969,0.22427,0.09144,0.01445,3,12455,13,100,test
+ThermoMPNN-D,ThermoMPNN-D,epi,pair_rho_gt1,-0.02666,-0.29032,0.23016,0.15474,0.10104,3,12455,13,100,test
+ThermoMPNN-D,ThermoMPNN-D,epi,line_rho_gt1,0.17856,0.07749,0.30168,0.06282,0.02170,3,12455,13,100,test
+ThermoMPNN-D,ThermoMPNN-D,epi,cell_rank_gt1,-0.01716,-0.04251,0.00851,0.01306,0.01566,3,12455,13,100,test
+ThermoMPNN-D,ThermoMPNN-D,epi,cell_mag_gt1,-0.05377,-0.11648,0.03284,0.04152,0.01769,3,12455,13,100,test
+ThermoMPNN-D,ThermoMPNN-D,epi,cell_mag_pooled_gt1,-0.05883,-0.13241,0.04683,0.04629,0.02659,3,12455,13,100,test
+ThermoMPNN-D,ThermoMPNN-D,epi,naive_rho_sub0,-0.03309,-0.16488,0.12325,0.07320,0.04705,3,12455,13,100,test
+ThermoMPNN-D,ThermoMPNN-D,epi,beyond_rho_sub0,0.05983,-0.09044,0.24989,0.08192,0.04568,3,12455,13,100,test
+ThermoMPNN-D,ThermoMPNN-D,epi,pair_rho_sub0,0.10028,-0.09273,0.33907,0.11080,0.07279,3,12455,13,100,test
+ThermoMPNN-D,ThermoMPNN-D,epi,line_rho_sub0,0.18832,0.13009,0.28761,0.04192,0.02040,3,12455,13,100,test
+ThermoMPNN-D,ThermoMPNN-D,epi,cell_rank_sub0,0.00287,-0.01946,0.02515,0.01142,0.01879,3,12455,13,100,test
+ThermoMPNN-D,ThermoMPNN-D,epi,cell_mag_sub0,0.01041,-0.04557,0.06211,0.02962,0.02428,3,12455,13,100,test
+ThermoMPNN-D,ThermoMPNN-D,epi,cell_mag_pooled_sub0,0.00025,-0.05171,0.05405,0.02733,0.02026,3,12455,13,100,test
+GeoDDG-3D,GeoDDG-3D,epi,naive_rho,0.05536,-0.03520,0.10914,0.03562,,1,12455,13,100,test
+GeoDDG-3D,GeoDDG-3D,epi,beyond_rho,0.04573,-0.04221,0.09444,0.03603,,1,12455,13,100,test
+GeoDDG-3D,GeoDDG-3D,epi,pair_rho,0.08275,-0.48031,0.21014,0.16656,,1,12455,13,100,test
+GeoDDG-3D,GeoDDG-3D,epi,line_rho,0.08694,0.02217,0.18647,0.04200,,1,12455,13,100,test
+GeoDDG-3D,GeoDDG-3D,epi,cell_rank,0.05753,0.02356,0.12033,0.02585,,1,12455,13,100,test
+GeoDDG-3D,GeoDDG-3D,epi,cell_mag,0.07181,0.01805,0.15121,0.03630,,1,12455,13,100,test
+GeoDDG-3D,GeoDDG-3D,epi,cell_mag_pooled,0.08563,0.03589,0.14305,0.02981,,1,12455,13,100,test
+GeoDDG-3D,GeoDDG-3D,epi,cell_mag_gt0,0.13085,0.07148,0.18401,0.03110,,1,12455,13,100,test
+GeoDDG-3D,GeoDDG-3D,epi,naive_rho_gt1,0.06085,-0.02304,0.18337,0.05561,,1,12455,13,100,test
+GeoDDG-3D,GeoDDG-3D,epi,beyond_rho_gt1,0.04796,-0.04576,0.12593,0.04452,,1,12455,13,100,test
+GeoDDG-3D,GeoDDG-3D,epi,pair_rho_gt1,-0.07570,-0.46276,0.29954,0.18034,,1,12455,13,100,test
+GeoDDG-3D,GeoDDG-3D,epi,line_rho_gt1,0.06403,-0.06869,0.17176,0.05401,,1,12455,13,100,test
+GeoDDG-3D,GeoDDG-3D,epi,cell_rank_gt1,0.09363,0.05077,0.15327,0.02332,,1,12455,13,100,test
+GeoDDG-3D,GeoDDG-3D,epi,cell_mag_gt1,0.18025,0.10042,0.25815,0.04000,,1,12455,13,100,test
+GeoDDG-3D,GeoDDG-3D,epi,cell_mag_pooled_gt1,0.16918,0.10868,0.24098,0.03838,,1,12455,13,100,test
+GeoDDG-3D,GeoDDG-3D,epi,naive_rho_sub0,0.05365,-0.05399,0.14091,0.04948,,1,12455,13,100,test
+GeoDDG-3D,GeoDDG-3D,epi,beyond_rho_sub0,0.06869,-0.03348,0.14399,0.04697,,1,12455,13,100,test
+GeoDDG-3D,GeoDDG-3D,epi,pair_rho_sub0,-0.00403,-0.47016,0.15932,0.15361,,1,12455,13,100,test
+GeoDDG-3D,GeoDDG-3D,epi,line_rho_sub0,0.09794,0.03228,0.16419,0.03569,,1,12455,13,100,test
+GeoDDG-3D,GeoDDG-3D,epi,cell_rank_sub0,0.07740,0.04519,0.12707,0.02222,,1,12455,13,100,test
+GeoDDG-3D,GeoDDG-3D,epi,cell_mag_sub0,0.11658,0.06113,0.16393,0.02752,,1,12455,13,100,test
+GeoDDG-3D,GeoDDG-3D,epi,cell_mag_pooled_sub0,0.11352,0.05756,0.17193,0.03004,,1,12455,13,100,test
+Rosetta,Rosetta,epi,naive_rho,0.38127,0.25413,0.43719,0.05288,,1,12455,13,100,test
+Rosetta,Rosetta,epi,beyond_rho,0.24606,0.20534,0.29953,0.02709,,1,12455,13,100,test
+Rosetta,Rosetta,epi,pair_rho,0.35699,0.23335,0.66446,0.10602,,1,12455,13,100,test
+Rosetta,Rosetta,epi,line_rho,0.19172,0.13297,0.24185,0.03093,,1,12455,13,100,test
+Rosetta,Rosetta,epi,cell_rank,0.07134,0.04295,0.11154,0.02007,,1,12455,13,100,test
+Rosetta,Rosetta,epi,cell_mag,0.09605,0.04656,0.15964,0.03489,,1,12455,13,100,test
+Rosetta,Rosetta,epi,cell_mag_pooled,0.08130,0.03567,0.13618,0.02916,,1,12455,13,100,test
+Rosetta,Rosetta,epi,cell_mag_gt0,0.10376,0.05669,0.17330,0.03125,,1,12455,13,100,test
+Rosetta,Rosetta,epi,naive_rho_gt1,0.31672,0.21182,0.41718,0.05777,,1,12455,13,100,test
+Rosetta,Rosetta,epi,beyond_rho_gt1,0.32023,0.20556,0.41952,0.05831,,1,12455,13,100,test
+Rosetta,Rosetta,epi,pair_rho_gt1,0.45238,0.18129,0.68745,0.13596,,1,12455,13,100,test
+Rosetta,Rosetta,epi,line_rho_gt1,0.19912,0.11167,0.27164,0.04292,,1,12455,13,100,test
+Rosetta,Rosetta,epi,cell_rank_gt1,0.10000,0.05089,0.15833,0.02894,,1,12455,13,100,test
+Rosetta,Rosetta,epi,cell_mag_gt1,0.11530,0.03368,0.19897,0.04306,,1,12455,13,100,test
+Rosetta,Rosetta,epi,cell_mag_pooled_gt1,0.16013,0.05288,0.25866,0.04967,,1,12455,13,100,test
+Rosetta,Rosetta,epi,naive_rho_sub0,0.31188,0.20707,0.39738,0.05157,,1,12455,13,100,test
+Rosetta,Rosetta,epi,beyond_rho_sub0,0.32750,0.22566,0.40149,0.04828,,1,12455,13,100,test
+Rosetta,Rosetta,epi,pair_rho_sub0,0.58559,0.39699,0.72825,0.09136,,1,12455,13,100,test
+Rosetta,Rosetta,epi,line_rho_sub0,0.19270,0.11878,0.24663,0.03588,,1,12455,13,100,test
+Rosetta,Rosetta,epi,cell_rank_sub0,0.06998,0.03565,0.10614,0.02042,,1,12455,13,100,test
+Rosetta,Rosetta,epi,cell_mag_sub0,0.12045,0.07653,0.17734,0.02635,,1,12455,13,100,test
+Rosetta,Rosetta,epi,cell_mag_pooled_sub0,0.11120,0.06352,0.15719,0.02675,,1,12455,13,100,test
+SPURS multi,spurs_sc,epi,naive_rho,0.02033,-0.00194,0.04471,0.01202,0.01409,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,beyond_rho,0.01056,-0.02751,0.04613,0.01795,0.03220,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,pair_rho,0.00000,0.00000,0.00000,0.00000,0.00000,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,line_rho,0.00000,0.00000,0.00000,0.00000,0.00000,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,cell_rank,0.04162,0.02394,0.06825,0.01158,0.02003,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,cell_mag,0.04519,0.01880,0.08302,0.01586,0.01313,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,cell_mag_pooled,0.03769,0.00328,0.07139,0.01911,0.00845,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,cell_mag_gt0,0.07311,0.03030,0.10315,0.01956,0.01216,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,naive_rho_gt1,0.02433,-0.02015,0.06918,0.02415,0.04143,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,beyond_rho_gt1,0.02033,-0.02197,0.06659,0.02478,0.04356,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,pair_rho_gt1,0.00000,0.00000,0.00000,0.00000,0.00000,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,line_rho_gt1,0.03864,-0.01396,0.09374,0.02989,0.05000,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,cell_rank_gt1,0.03190,-0.00225,0.05813,0.01675,0.02812,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,cell_mag_gt1,0.02260,-0.07259,0.07626,0.03518,0.03630,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,cell_mag_pooled_gt1,0.06288,0.00020,0.12054,0.03289,0.02840,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,naive_rho_sub0,0.00961,-0.02931,0.05483,0.02045,0.03811,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,beyond_rho_sub0,0.00967,-0.02406,0.05358,0.02037,0.03658,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,pair_rho_sub0,0.00000,0.00000,0.00000,0.00000,0.00000,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,line_rho_sub0,0.00000,0.00000,0.06826,0.02192,0.00000,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,cell_rank_sub0,0.06335,0.02912,0.09688,0.01741,0.02740,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,cell_mag_sub0,0.07372,0.03657,0.10615,0.02056,0.02772,3,12455,13,100,test
+SPURS multi,spurs_sc,epi,cell_mag_pooled_sub0,0.06253,0.02577,0.09144,0.01800,0.02131,3,12455,13,100,test
+−dG_add,neg_dg_add,epi,naive_rho,0.64196,0.51704,0.70825,0.05124,,1,12455,13,100,test
+−dG_add,neg_dg_add,epi,beyond_rho,0.00000,0.00000,0.00000,0.00000,,1,12455,13,100,test
+−dG_add,neg_dg_add,epi,pair_rho,0.00000,0.00000,0.00000,0.00000,,1,12455,13,100,test
+−dG_add,neg_dg_add,epi,line_rho,0.00000,0.00000,0.00000,0.00000,,1,12455,13,100,test
+−dG_add,neg_dg_add,epi,cell_rank,0.00000,0.00000,0.00000,0.00000,,1,12455,13,100,test
+−dG_add,neg_dg_add,epi,cell_mag,0.00000,0.00000,0.00000,0.00000,,1,12455,13,100,test
+−dG_add,neg_dg_add,epi,cell_mag_pooled,0.00000,0.00000,0.00000,0.00000,,1,12455,13,100,test
+−dG_add,neg_dg_add,epi,cell_mag_gt0,0.00000,0.00000,0.00000,0.00000,,1,12455,13,100,test
+−dG_add,neg_dg_add,epi,naive_rho_gt1,0.11885,-0.00819,0.33559,0.08980,,1,12455,13,100,test
+−dG_add,neg_dg_add,epi,beyond_rho_gt1,0.00000,0.00000,0.00000,0.00000,,1,12455,13,100,test
+−dG_add,neg_dg_add,epi,pair_rho_gt1,0.00000,0.00000,0.00000,0.00000,,1,12455,13,100,test
+−dG_add,neg_dg_add,epi,line_rho_gt1,0.00000,0.00000,0.00000,0.00000,,1,12455,13,100,test
+−dG_add,neg_dg_add,epi,cell_rank_gt1,0.00000,0.00000,0.00000,0.00000,,1,12455,13,100,test
+−dG_add,neg_dg_add,epi,cell_mag_gt1,0.00000,0.00000,0.00000,0.00000,,1,12455,13,100,test
+−dG_add,neg_dg_add,epi,cell_mag_pooled_gt1,0.00000,0.00000,0.00000,0.00000,,1,12455,13,100,test
+−dG_add,neg_dg_add,epi,naive_rho_sub0,0.23160,0.16403,0.38655,0.05665,,1,12455,13,100,test
+−dG_add,neg_dg_add,epi,beyond_rho_sub0,0.00000,0.00000,0.00000,0.00000,,1,12455,13,100,test
+−dG_add,neg_dg_add,epi,pair_rho_sub0,0.00000,0.00000,0.00000,0.00000,,1,12455,13,100,test
+−dG_add,neg_dg_add,epi,line_rho_sub0,0.00000,0.00000,0.00000,0.00000,,1,12455,13,100,test
+−dG_add,neg_dg_add,epi,cell_rank_sub0,0.00000,0.00000,0.00000,0.00000,,1,12455,13,100,test
+−dG_add,neg_dg_add,epi,cell_mag_sub0,0.00000,0.00000,0.00000,0.00000,,1,12455,13,100,test
+−dG_add,neg_dg_add,epi,cell_mag_pooled_sub0,0.00000,0.00000,0.00000,0.00000,,1,12455,13,100,test

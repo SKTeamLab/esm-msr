@@ -73,6 +73,7 @@ DISTANT_A = 8.0
 PAIR_AA = list('KRHDESTNQYCAVILMFWPG')
 PAIR_IDX = {a: i for i, a in enumerate(PAIR_AA)}
 HEATMAP_MODELS = [
+    ('ProSST', ('key', 'prosst:epi'), 'prosst:comb+', 'prosst:comb'),
     ('ProteinMPNN', ('diff', 'pmpnn', 'pmpnn+'), 'pmpnn+', 'pmpnn'),
     ('ESM3-small-open', ('key', 'msrrel@0:epi'), 'msrrel@0:wt+', 'msrrel@0:wt'),
     ('ESM-MSR', ('key', 'msrp0:epi'), 'msrp0:wt+', 'msrp0:wt'),
@@ -92,25 +93,26 @@ HEATMAP_MODELS = [
 # 1. Fig 6 scatters & Fig 7 epistasis types (11c + 11f)
 # ----------------------------------------------------------------------------------------------
 MAIN_DDD_GRID_MODELS = [
+    ('ProSST', 'Zero-shot'),
+    ('ProteinMPNN', 'Zero-shot'),
+    ('ESM3-small-open', 'Zero-shot'),
     ('ESM-MSR', 'Retrained'),
     ('MutateEverything Stage 2', 'Retrained'),
     ('ThermoMPNN-D', 'Retrained'),
     ('SPURS-multi', 'Retrained'),
-    ('ProteinMPNN', 'Zero-shot'),
-    ('ESM3-small-open', 'Zero-shot'),
     ('GeoDDG-3D', 'Supervised'),
     ('Rosetta', 'Supervised'),
 ]
 
 
 def _main_models_dddg_grid(out_dddg, split: str, fit: np.ndarray, y_raw: np.ndarray, dG_add: np.ndarray, model: dict) -> None:
-    """2x4 subplots of predicted vs measured dddG across all 8 main epistasis models (all doubles and dG_add > 0)."""
+    """3x3 subplots of predicted vs measured dddG across all 9 main epistasis models (all doubles and dG_add > 0)."""
     entries = [(lbl, grp, model[lbl]['raw_seeds']) for lbl, grp in MAIN_DDD_GRID_MODELS if lbl in model]
     if not entries:
         return
     sp_lbl = 'MegaScale mega_splits test doubles' if split == 'mega' else 'Homology-Restricted MegaScale test doubles'
     cm = plt.get_cmap('plasma')
-    ncols = 4
+    ncols = 3 if len(entries) == 9 else 4
     nrows = int(np.ceil(len(entries) / ncols))
 
     for fname, subset_title, cut in (
@@ -1454,6 +1456,7 @@ def build_supp_epistasis_mcc_figure(split: str = 'capped', B: int = 10_000) -> P
 
     # Exact (singles_key, doubles_key) pairs matching Figure 2e / p06_epistasis_hierarchy.py
     key_pairs = {
+        'ProSST': ('prosst:comb+', 'prosst:comb'),
         'ProteinMPNN': ('pmpnn+', 'pmpnn'),
         'ESM3-small-open': ('msrrel@0:wt', 'msrrel@0:comb'),
         'ESM-MSR': ('msrp0:wt', 'msrp0:comb'),
@@ -1816,7 +1819,7 @@ def build_supp_epistasis_mcc_figure(split: str = 'capped', B: int = 10_000) -> P
 Figure / Panel: Supplementary Figure (_epi_mcc), Panel a (raw epistasis sign classification, threshold = 0 on both measured dddG and predicted dddG) and Panel b (saturation-corrected epistasis sign classification, threshold = 0 on both measured residual r = dddG - E[dddG | dG_add] and predicted residual r' = dddG' - E[dddG' | dG_add']).
 
 Metric Tested:
-  Pooled Matthews Correlation Coefficient (MCC) across all {n_var_by_panel['raw']:,} usable Homology-Restricted MegaScale test doubles with both constituent singles measured ({n_libs} test domains; 3-seed average for retrained transfer models). ProSST is omitted because it is strictly additive (predicted dddG = 0 identically).
+  Pooled Matthews Correlation Coefficient (MCC) across all {n_var_by_panel['raw']:,} usable Homology-Restricted MegaScale test doubles with both constituent singles measured ({n_libs} test domains; 3-seed average for retrained transfer models). ProSST epistasis uses Dual-view direct minus sum of Dual-view singles (cancelling unmasked single-site self-bias).
   Mean Pearson's r and RMSE (kcal/mol) on the same raw / saturation-corrected quantities are included alongside MCC.
 
 Statistical Test & Resampling Procedure:
@@ -1988,7 +1991,7 @@ def build_supp_megascale_scatter_trio(split: str = 'capped', B: int = 10_000, co
             leg_bbox=(0.985, 0.13),
             msr_name='ESM-MSR Dual-view',
             models=[
-                ('ProSST (additive)', 'prosst', 'Zero-shot', 'predicted score (log-likelihood)'),
+                ('ProSST Dual-view', 'prosst:comb', 'Zero-shot', 'predicted score (log-likelihood)'),
                 ('ProteinMPNN', 'pmpnn', 'Zero-shot', 'predicted score (log-odds)'),
                 ('ESM3-small-open Dual-view', 'msrrel@0:comb', 'Zero-shot', 'predicted ΔΔG (kcal/mol)'),
                 ('ESM-MSR Dual-view', 'msrp0:comb', 'Retrained', 'predicted ΔΔG (kcal/mol)'),
@@ -1998,7 +2001,7 @@ def build_supp_megascale_scatter_trio(split: str = 'capped', B: int = 10_000, co
                 ('GeoDDG-3D', 'geoddg', 'Supervised', 'predicted ΔΔG (kcal/mol)'),
                 ('Rosetta', 'rosetta', 'Supervised', 'predicted ΔΔG (kcal/mol)'),
             ],
-            extra_note='ProSST (additive sum of singles) and ProteinMPNN output uncalibrated log-likelihood/log-odds scores rather than kcal/mol; all panels share the measured y-axis while x-axes span each model\'s prediction range.',
+            extra_note='ProSST Dual-view and ProteinMPNN output uncalibrated log-likelihood/log-odds scores rather than kcal/mol; all panels share the measured y-axis while x-axes span each model\'s prediction range.',
         ),
         dict(
             stem='_megascale_epistasis_scatters',
@@ -2008,13 +2011,14 @@ def build_supp_megascale_scatter_trio(split: str = 'capped', B: int = 10_000, co
             y_arr=y_epi,
             ylabel=Y_DDD_LABEL,
             default_xlabel='predicted δΔΔG = dddG (kcal/mol)',
-            ncols=4,
+            ncols=3,
             pt_size=6.5,
             alpha_base=0.30,
             leg_loc='lower left',
             leg_bbox=None,
             msr_name='ESM-MSR',
             models=[
+                ('ProSST Dual-view', 'prosst:epi', 'Zero-shot', 'predicted δΔΔG (log-likelihood)'),
                 ('ProteinMPNN', 'pmpnn:epi', 'Zero-shot', 'predicted δΔΔG (log-odds)'),
                 ('ESM3-small-open', 'msrrel@0:epi', 'Zero-shot', 'predicted δΔΔG = dddG (kcal/mol)'),
                 ('ESM-MSR', 'msrp0:epi', 'Retrained', 'predicted δΔΔG = dddG (kcal/mol)'),
@@ -2024,7 +2028,7 @@ def build_supp_megascale_scatter_trio(split: str = 'capped', B: int = 10_000, co
                 ('GeoDDG-3D', 'geoddg:epi', 'Supervised', 'predicted δΔΔG = dddG (kcal/mol)'),
                 ('Rosetta', 'rosetta:epi', 'Supervised', 'predicted δΔΔG = dddG (kcal/mol)'),
             ],
-            extra_note='ProSST is omitted because it is strictly additive (predicted δΔΔG = 0 identically). All panels share the measured y-axis while x-axes span each model\'s prediction range.',
+            extra_note='ProSST Dual-view (direct minus sum of Dual-view singles) and ProteinMPNN output uncalibrated log-likelihood/log-odds scores rather than kcal/mol; all panels share the measured y-axis while x-axes span each model\'s prediction range.',
         ),
     ]
 
@@ -2315,12 +2319,12 @@ def main(argv: list[str] | None = None) -> int:
     B = resolve_b(args)
 
     if args.only == 'scatter_trio':
-        outs = build_supp_megascale_scatter_trio(split=args.split, B=max(B, 10_000))
+        outs = build_supp_megascale_scatter_trio(split=args.split, B=B, compute_pvals=(not args.fast))
         print('[p07:epistasis_mechanisms] Saved scatter trio:', ', '.join(str(o) for o in outs))
         return 0
 
     if args.only == 'epi_mcc':
-        out = build_supp_epistasis_mcc_figure(split=args.split, B=max(B, 10_000))
+        out = build_supp_epistasis_mcc_figure(split=args.split, B=B if args.fast else max(B, 10_000))
         print(f'[p07:epistasis_mechanisms] Saved {out}.{{png,pdf}}')
         return 0
 

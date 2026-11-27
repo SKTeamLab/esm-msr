@@ -7,8 +7,8 @@ ProSST,prosst,s461,0.5611,0.4903,0.6316,False
 ProSST,prosst,ssym,0.5186,0.4546,0.5805,False
 ProSST,prosst,q3421,0.4163,0.3834,0.4470,False
 ProSST,prosst,k2369,0.4967,0.4634,0.5317,False
-ProSST,prosst,ptmul,0.1816,0.1199,0.2442,False
-ProSST,prosst,ptmuld,0.3172,0.2372,0.3959,False
+ProSST,prosst:comb,ptmul,0.2102,0.1431,0.2780,False
+ProSST,prosst:comb,ptmuld,0.2826,0.2034,0.3642,False
 ProteinMPNN,pmpnn,s571,0.3236,0.2444,0.3992,False
 ProteinMPNN,pmpnn,s783,0.5608,0.5080,0.6114,False
 ProteinMPNN,pmpnn,s2648,0.5060,0.4739,0.5382,False

@@ -95,8 +95,9 @@ class Model:
 
 ROSTER = [
     # ---- zero-shot --------------------------------------------------------------------------------------------------------------------------------------------
-    Model('ProSST', 'zeroshot', '#8e44ad', 'X', additive_only=True, single='prosst', multi='prosst',
-          label_all='ProSST', label_pair='ProSST\n(additive only)', label_epi='ProSST'),
+    Model('ProSST', 'zeroshot', '#8e44ad', 'X', single='prosst', multi='prosst:comb', epi='prosst:epi', add='prosst',
+          views=('WT-view', 'Dual-view'),
+          label_all='ProSST\nWT-view (& Dual-view)', label_pair='ProSST\nWT-view → Dual-view', label_epi='ProSST\nDual-view −\nsum of singles'),
     Model('ProteinMPNN', 'zeroshot', '#34495e', 'd', ls='-.', single='pmpnn', multi='pmpnn', epi='pmpnn:epi', add='pmpnn+',
           label_all='ProteinMPNN', label_pair='ProteinMPNN\nOne-shot singles → AR doubles', label_epi='ProteinMPNN\ndirect −\nsum of singles'),
     Model('ESM3-small-open', 'zeroshot', '#7f8c8d', '^', single='msrrel@0:wt', multi='msrrel@0:comb', epi='msrrel@0:epi', add='msrrel@0:wt+',
@@ -153,7 +154,7 @@ KEY_MODEL = MappingProxyType({
     'ddgemb': 'DDGemb', 'ddmut': 'DDMut',
 })
 SINGLES_KEYS = frozenset({
-    'msrp0:wt', 'msrp0@0.5:wt', 'msrrel@0:wt',
+    'prosst', 'msrp0:wt', 'msrp0@0.5:wt', 'msrrel@0:wt',
     'me1', 'me1+', 'tmpnn', 'spurs', 'spursu', 'tmpnnpub',
 })
 

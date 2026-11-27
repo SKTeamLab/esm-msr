@@ -1,5 +1,6 @@
 column,key,subset,value,lo,hi,n_libraries,n_variants
 ProSST,prosst,additive,0.4204,0.3111,0.5145,13,13319
+ProSST,prosst:comb,epistatic,0.4230,0.3191,0.5266,13,13319
 ProteinMPNN,pmpnn+,additive,0.3484,0.2699,0.4435,13,13319
 ProteinMPNN,pmpnn,epistatic,0.3301,0.2388,0.4316,13,13319
 ESM3 unmasked,msrrel@0:wt,additive,0.4205,0.3628,0.4769,13,13319

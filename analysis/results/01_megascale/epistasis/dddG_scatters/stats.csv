@@ -1,4 +1,7 @@
 model,version,prediction,n,n_seeds,spearman,pearson,rmse
+ProSST,all_dG_additive,as is,12455,1,0.2565,0.2248,1.2225
+ProSST,dG_additive_positive,as is,7405,1,0.3534,0.3282,0.8453
+ProSST,dG_additive_gt1,as is,3907,1,0.3783,0.3709,0.7615
 ProteinMPNN,all_dG_additive,as is,12455,1,0.3135,0.2791,0.9924
 ProteinMPNN,dG_additive_positive,as is,7405,1,0.3527,0.3345,0.7206
 ProteinMPNN,dG_additive_gt1,as is,3907,1,0.2799,0.2958,0.7123

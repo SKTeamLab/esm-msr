@@ -57,3 +57,8 @@ Always arrange models in this exact group order (and use the immutable colors/ma
 - **Per-mutation calibration bias**: always enforce `tie_mt_scale=False`, `per_mutation_bias=True` (bias applied once per mutated position, not once per variant).
 - **Atomic cache & file writes**: always write caches and outputs via `msr_analysis.paths.atomic_to_csv` / `atomic_pickle_dump` / `atomic_write_text` so worktree symlinks are never mutated in place.
 - **Git worktree discipline**: perform edits, commits, and tests in a dedicated `git worktree` on a feature branch rather than editing the primary checkout directly unless explicitly requested.
+
+## 8. Fast Bootstrapping for Draft & Exploratory Figures
+- **Always use small bootstrap counts (`--fast` / `B = 100`, or `compute_pvals=False` on scatter grids)** whenever generating, iterating on, or previewing draft figures. Never kick off `B = 1,000`–`10,000` bootstraps for an unreviewed draft plot!
+- Only run full publication-grade bootstrap counts (`B = 1,000`–`10,000`) once the figure layout and definitions are approved or when explicitly asked for final publication p-values.
+- Ensure CLI `--only` substages respect `--fast` / `--B` rather than overriding them with hardcoded `max(B, 10_000)`.
