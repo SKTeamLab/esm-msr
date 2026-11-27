@@ -58,7 +58,13 @@ Always arrange models in this exact group order (and use the immutable colors/ma
 - **Atomic cache & file writes**: always write caches and outputs via `msr_analysis.paths.atomic_to_csv` / `atomic_pickle_dump` / `atomic_write_text` so worktree symlinks are never mutated in place.
 - **Git worktree discipline**: perform edits, commits, and tests in a dedicated `git worktree` on a feature branch rather than editing the primary checkout directly unless explicitly requested.
 
-## 8. Fast Bootstrapping for Draft & Exploratory Figures
-- **Always use small bootstrap counts (`--fast` / `B = 100`, or `compute_pvals=False` on scatter grids)** whenever generating, iterating on, or previewing draft figures. Never kick off `B = 1,000`–`10,000` bootstraps for an unreviewed draft plot!
-- Only run full publication-grade bootstrap counts (`B = 1,000`–`10,000`) once the figure layout and definitions are approved or when explicitly asked for final publication p-values.
-- Ensure CLI `--only` substages respect `--fast` / `--B` rather than overriding them with hardcoded `max(B, 10_000)`.
+## 8. Three-Tier Context-Aware Bootstrap Policy
+Unless the user explicitly specifies a bootstrap count `B`, choose `B` according to workflow context:
+- **Draft (`B = 100`, `--fast`, `compute_pvals=False` on scatter grids)**: whenever iterating on figure layouts, model definitions, or building a narrative.
+- **Pre-publication (`B = 1,000`)**: whenever updating established figures (not iterating) or finalizing a branch for merge.
+- **Publication (`B = 10,000`)**: **never** run unless the user explicitly requests final publication bootstraps.
+- Ensure every CLI `--only` substage respects `--fast` / `--B` rather than overriding with hardcoded `max(B, 10_000)`.
+
+## 9. Clean Main & Supplementary Figures + Separate Text Annotation Files
+- **Never embed figure titles or caption/footnote text** (`fig.suptitle`, panel subtitle banners, or bottom figure footnotes) inside main-text (`analysis/results/00_main_text_figs/`) or supplementary (`analysis/results/00_supplementary_figs/`) figure images. Keep only bold panel letters (`a`, `b`, …), axis labels, legends, and compact in-panel plot statistics.
+- **Always write separate plain-text annotation files** containing that content alongside the figures (e.g., `analysis/results/00_main_text_figs/annotations/<fig>.txt` / `<fig>_panel_<letter>.txt` and `analysis/results/00_supplementary_figs/annotations/<fig>.txt`) via `atomic_write_text`.
